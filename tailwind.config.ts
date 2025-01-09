@@ -16,6 +16,10 @@ export default {
         foreground: "var(--foreground)",
         primary_color: "#68191E",
       },
+      spacing: {
+        30: "120px",
+        7.5: "30px",
+      },
     },
   },
   plugins: [],
