@@ -15,9 +15,11 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: "#68191E",
+        "white-100": "#FFF3E3",
       },
       spacing: {
         30: "120px",
+        12.5: "50px",
         7.5: "30px",
       },
     },
