@@ -1,7 +1,13 @@
 import React from "react";
 import Wrapper from "./layout/Wrapper";
 import Link from "next/link";
-import { Instagram, Tiktok, Twitter } from "../../public/images";
+import {
+  Him,
+  Instagram,
+  Logo_Large,
+  Tiktok,
+  Twitter,
+} from "../../public/images";
 import Image from "next/image";
 
 const Footer = () => {
@@ -39,10 +45,10 @@ const Footer = () => {
   ];
 
   return (
-    <div className="bg-primary h-[60vh] text-white uppercase">
+    <div className="bg-primary h-fit text-white uppercase">
       <Wrapper className="pt-10  ">
         <div className="space-y-6">
-          <h1>HIM</h1>
+          <Image src={Him} alt="logo" />
           <p className="text-white-100 font-normal text-sm">
             We provide you with quality and premium wears
           </p>
@@ -65,7 +71,7 @@ const Footer = () => {
         </div>
       </Wrapper>
       <div className="border-t-[0.4px] border-white/70 mt-24 mb-12.5"></div>
-      <div>
+      <div className="space-y-32.5 mb-14">
         <Wrapper>
           <div className="flex space-x-5">
             {socialLinks.map((social, index) => (
@@ -79,8 +85,13 @@ const Footer = () => {
               </a>
             ))}
           </div>
-          <p >all rights reserved - himspire 2025</p>
+          <p className="text-white-100/70 text-sm">
+            all rights reserved - himspire 2025
+          </p>
         </Wrapper>
+        <div className="px-12">
+          <Image src={Logo_Large} alt="logo" />
+        </div>
       </div>
     </div>
   );

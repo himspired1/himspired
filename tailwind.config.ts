@@ -18,6 +18,7 @@ export default {
         "white-100": "#FFF3E3",
       },
       spacing: {
+        32.5: "130px",
         30: "120px",
         12.5: "50px",
         7.5: "30px",
