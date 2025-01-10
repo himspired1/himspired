@@ -16,12 +16,17 @@ export default {
         foreground: "var(--foreground)",
         primary: "#68191E",
         "white-100": "#FFF3E3",
+        "white-200": "#F4F4F4",
       },
       spacing: {
         32.5: "130px",
         30: "120px",
+        15: "60px",
         12.5: "50px",
         7.5: "30px",
+      },
+      borderRadius: {
+        25: "100px",
       },
     },
   },

@@ -7,5 +7,16 @@ import Logo1 from "./logos/logo-2.svg";
 import Logo2 from "./logos/logo-watermark-light.svg";
 import Him from "./him.svg";
 import Logo3 from "./logos/logo-with-text.svg";
-
-export { Logo, Instagram, Tiktok, Twitter, Logo_Large, Logo1, Logo3, Logo2, Him };
+import Homepage_Image from "./homepage-image.svg";
+export {
+  Logo,
+  Instagram,
+  Tiktok,
+  Twitter,
+  Logo_Large,
+  Logo1,
+  Logo3,
+  Logo2,
+  Him,
+  Homepage_Image,
+};
