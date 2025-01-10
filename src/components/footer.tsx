@@ -1,6 +1,8 @@
 import React from "react";
 import Wrapper from "./layout/Wrapper";
 import Link from "next/link";
+import { Instagram, Tiktok, Twitter } from "../../public/images";
+import Image from "next/image";
 
 const Footer = () => {
   const sections = [
@@ -30,10 +32,15 @@ const Footer = () => {
       ],
     },
   ];
+  const socialLinks = [
+    { href: "www.x.com", src: Twitter, alt: "twitter" },
+    { href: "www.instagram.com", src: Instagram, alt: "instagram" },
+    { href: "www.tiktok.com", src: Tiktok, alt: "tiktok" },
+  ];
 
   return (
-    <div className="bg-primary h-[60vh] text-white">
-      <Wrapper className="flex justify-between pt-10 uppercase ">
+    <div className="bg-primary h-[60vh] text-white uppercase">
+      <Wrapper className="pt-10  ">
         <div className="space-y-6">
           <h1>HIM</h1>
           <p className="text-white-100 font-normal text-sm">
@@ -43,7 +50,9 @@ const Footer = () => {
         <div className="flex space-x-20">
           {sections.map((section, index) => (
             <div key={index} className="flex flex-col space-y-6">
-              <h1 className="font-normal text-lg text-white-100">{section.title}</h1>
+              <h1 className="font-normal text-lg text-white-100">
+                {section.title}
+              </h1>
               <div className="flex flex-col space-y-4 text-white-100/70">
                 {section.links.map((link, idx) => (
                   <Link key={idx} href={link.href}>
@@ -56,6 +65,23 @@ const Footer = () => {
         </div>
       </Wrapper>
       <div className="border-t-[0.4px] border-white/70 mt-24 mb-12.5"></div>
+      <div>
+        <Wrapper>
+          <div className="flex space-x-5">
+            {socialLinks.map((social, index) => (
+              <a
+                key={index}
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Image src={social.src} alt={social.alt} />
+              </a>
+            ))}
+          </div>
+          <p >all rights reserved - himspire 2025</p>
+        </Wrapper>
+      </div>
     </div>
   );
 };
