@@ -17,7 +17,7 @@ const Navbar = () => {
   ];
 
   return (
-    <Wrapper className="items-center mt-7.5 py-2.5">
+    <Wrapper className="items-center py-10 bg-white text-gray-850">
       <div className="flex space-x-5 uppercase flex-1">
         {navLinks.map((link) => (
           <Link key={link.href} href={link.href} className="px-4">
@@ -25,9 +25,9 @@ const Navbar = () => {
           </Link>
         ))}
       </div>
-      <div className="flex justify-center flex-1">
+      <Link href="/" className="flex justify-center flex-1">
         <Image src={Logo} alt="Logo" className="h-10" />
-      </div>
+      </Link>
       <div className="flex space-x-5 uppercase flex-1 justify-end">
         {utilityLinks.map((link) => (
           <Link key={link.href} href={link.href} className="px-4 ">
