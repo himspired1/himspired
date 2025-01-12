@@ -17,18 +17,18 @@ const Newsletter = () => {
     }
   };
   return (
-    <div className="flex px-30 py-40 uppercase space-x-60 ">
+    <div className="flex flex-col md:flex-row px-2 md:px-30 py-40 uppercase gap-x-60 gap-y-8">
       <h1 className=" text-4xl text-gray-850 flex-1">
         Subscribe to our newsletter
       </h1>
-      <div className="flex-1">
+      <div className="flex-1 md:mt-28">
         <p className="">
           Be the First to Know About Exclusive Deals, New Arrivals, and Style
           Inspiration Delivered Straight to Your Inbox.
         </p>
         <form
           onSubmit={handleSubmit}
-          className="w-full flex items-end space-x-4"
+          className="w-full flex items-end space-x-4 "
         >
           {" "}
           <input
