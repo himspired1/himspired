@@ -14,7 +14,8 @@ const ImageStack = () => {
     <div className="space-y-15 uppercase">
       <div className="flex px-2 md:px-30 gap-x-48">
         <h1 className="text-4xl">
-          Who’s Behind the Style <span className="text-gray-250">Revolution?</span>
+          Who’s Behind the Style{" "}
+          <span className="text-gray-250">Revolution?</span>
         </h1>
         <p className="mt-24">
           Discover the story, vision, and passion that drive Himspired to
