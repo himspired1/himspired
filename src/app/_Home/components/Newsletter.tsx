@@ -18,8 +18,8 @@ const Newsletter = () => {
     }
   };
   return (
-    <Wrapper className="flex flex-col md:flex-row  gap-y-4 py-40 uppercase md:gap-y-8">
-      <h1 className=" text-4xl text-gray-850 flex-1">
+    <Wrapper className="flex flex-col md:flex-row  gap-y-4 py-40 uppercase md:gap-y-8 ">
+      <h1 className=" text-4xl text-gray-850 flex-1 font-moon">
         Subscribe to our <br /> newsletter
       </h1>
       <div className="flex-1 md:mt-28 max-w-xl space-y-8">

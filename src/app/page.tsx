@@ -4,7 +4,7 @@ import Owners from "./_Home/components/Owners";
 
 export default function Home() {
   return (
-    <div>
+    <div className="font-activo">
       <Fashion />
       <Owners />
       <Newsletter />

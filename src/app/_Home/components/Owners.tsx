@@ -7,11 +7,11 @@ const Owners = () => {
   return (
     <div className="space-y-6 md:space-y-10 xl:space-y-15 uppercase">
       <Wrapper className="flex flex-col  md:flex-row gap-y-4">
-        <h1 className=" text-2xl md:text-3xl xl:text-4xl">
+        <h1 className=" text-2xl md:text-3xl xl:text-4xl font-moon">
           Who’s Behind the Style{" "}
           <span className="text-gray-250">Revolution?</span>
         </h1>
-        <p className="md:mt-24 max-w-xl">
+        <p className="md:mt-24 max-w-xl ">
           Discover the story, vision, and passion that drive <span className="text-red-800 font-bold">Himspired</span> to
           redefine fashion for a new era.
         </p>
