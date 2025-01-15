@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 export default {
   content: [
@@ -30,7 +31,71 @@ export default {
       borderRadius: {
         25: "100px",
       },
+      fontFamily: {
+        activo: ["Archivo", "sans-serif"],
+        moon: ["Moon", "sans-serif"],
+        kiona:['Kiona',"sans-serif"]
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(function ({ addBase }) {
+      addBase({
+        "@font-face": {
+          fontFamily: "Archivo",
+          fontWeight: "300",
+          fontStyle: "light",
+          src: 'url("/fonts/Archivo-Light.ttf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Archivo",
+          fontWeight: "400",
+          fontStyle: "normal",
+          src: 'url("/fonts/Archivo-Regular.ttf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Archivo",
+          fontWeight: "600",
+          fontStyle: "semi-bold",
+          src: 'url("/fonts/Archivo-SemiBold.ttf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Archivo",
+          fontWeight: "700",
+          fontStyle: "bold",
+          src: 'url("/fonts/Archivo-Bold.ttf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Moon",
+          fontWeight: "400",
+          fontStyle: "normal",
+          src: 'url("/fonts/Moon-Walk.otf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Moon",
+          fontWeight: "700",
+          fontStyle: "bold",
+          src: 'url("/fonts/Moon-Walk.ttf") format("truetype")',
+        },
+      });
+      addBase({
+        "@font-face": {
+          fontFamily: "Kiona",
+          fontWeight: "400",
+          fontStyle: "normal",
+          src: 'url("/fonts/Kiona-Regular.woff") format("truetype")',
+        },
+      });
+    }),
+  ],
 } satisfies Config;
