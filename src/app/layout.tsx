@@ -5,10 +5,10 @@ import Navbar from "@/components/navbar";
 import Footer from "@/components/footer";
 
 import { Toaster } from "sonner";
-// const geistSans = Geist({
-//   variable: "--font-geist-sans",
-//   subsets: ["latin"],
-// });
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
 
 // const geistMono = Geist_Mono({
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={` antialiased min-h-screen flex flex-col`}      >
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}      >
         <Navbar />
         <div className="flex-grow">{children}</div>
         <Footer />
