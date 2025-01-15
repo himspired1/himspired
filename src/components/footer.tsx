@@ -50,7 +50,7 @@ const Footer = () => {
         <div className="space-y-6">
           <Image src={Him} alt="logo" />
           <p className="text-white-100 font-normal text-sm">
-            We provide you with quality and premium wears
+            We provide you with quality and <br /> premium wears
           </p>
         </div>
         <div className="flex space-x-20">
@@ -61,7 +61,7 @@ const Footer = () => {
               </h1>
               <div className="flex flex-col space-y-4 text-white-100/70">
                 {section.links.map((link, idx) => (
-                  <Link key={idx} href={link.href}>
+                  <Link key={idx} href={link.href} className="text-sm">
                     {link.label}
                   </Link>
                 ))}
@@ -89,8 +89,8 @@ const Footer = () => {
             all rights reserved - himspire 2025
           </p>
         </Wrapper>
-        <div className="px-12">
-          <Image src={Logo_Large} alt="logo" />
+        <div className="px-12 w-full flex justify-center">
+          <Image src={Logo_Large} alt="logo" className="w-full"/>
         </div>
       </div>
     </div>
