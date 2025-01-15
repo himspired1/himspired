@@ -8,6 +8,10 @@ import Logo2 from "./logos/logo-watermark-light.svg";
 import Him from "./him.svg";
 import Logo3 from "./logos/logo-with-text.svg";
 import Homepage_Image from "./homepage-image.svg";
+import Stack_Image_1 from "./stack-image1.svg";
+import Stack_Image_2 from "./stack-image2.svg";
+import Stack_Image_3 from "./stack-image3.svg";
+import Stack_Image_4 from "./stack-image4.svg";
 export {
   Logo,
   Instagram,
@@ -19,4 +23,8 @@ export {
   Logo2,
   Him,
   Homepage_Image,
+  Stack_Image_1,
+  Stack_Image_2,
+  Stack_Image_3,
+  Stack_Image_4,
 };
