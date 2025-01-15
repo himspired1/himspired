@@ -31,10 +31,15 @@ export default {
       borderRadius: {
         25: "100px",
       },
+      fontSize: {
+        "40": ["160px", "160px"],
+        "50": ["200px", "200px"],
+        "62.5": ["250px", "250px"],
+      },
       fontFamily: {
         activo: ["Archivo", "sans-serif"],
         moon: ["Moon", "sans-serif"],
-        kiona:['Kiona',"sans-serif"]
+        kiona: ["Kiona", "sans-serif"],
       },
     },
   },

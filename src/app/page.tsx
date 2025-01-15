@@ -1,12 +1,12 @@
-import Navbar from "@/components/navbar";
-import Image from "next/image";
-import Carousel from "./_Home/components/ImageStack";
+import Fashion from "./_Home/components/Fashion";
 import Newsletter from "./_Home/components/Newsletter";
+import Owners from "./_Home/components/Owners";
 
 export default function Home() {
   return (
-    <div>
-      <Carousel />
+    <div className="font-activo">
+      <Fashion />
+      <Owners />
       <Newsletter />
     </div>
   );
