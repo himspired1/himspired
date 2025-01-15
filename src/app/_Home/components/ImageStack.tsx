@@ -11,7 +11,7 @@ import {
 
 const ImageStack = () => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-1">
+    <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2  md:gap-1 ">
       <div className="md:col-span-2 md:row-span-1">
         <Image
           src={Stack_Image_1}
@@ -24,7 +24,7 @@ const ImageStack = () => {
         <Image
           src={Stack_Image_2}
           alt="imagestack"
-          className="w-full h-full object-cover"
+          className="w-full max-h-[421px] md:max-h-[1024px] md:h-full object-cover  object-top"
         />
       </div>
 
@@ -32,7 +32,7 @@ const ImageStack = () => {
         <Image
           src={Stack_Image_3}
           alt="imagestack"
-          className="w-full h-full object-cover"
+          className="w-full max-h-[421px] md:max-h-[1024px] md:h-full object-cover  object-top"
         />
       </div>
 
