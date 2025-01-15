@@ -1,4 +1,5 @@
 "use client";
+import Wrapper from "@/components/layout/Wrapper";
 import { ArrowUpRight } from "lucide-react";
 import React, { useState } from "react";
 import { toast } from "sonner";
@@ -17,11 +18,11 @@ const Newsletter = () => {
     }
   };
   return (
-    <div className="flex flex-col md:flex-row px-2 md:px-30 py-40 uppercase gap-x-60 gap-y-8">
-      <h1 className=" text-4xl text-gray-850 flex-1">
-        Subscribe to our newsletter
+    <Wrapper className="flex flex-col md:flex-row  gap-y-4 py-40 uppercase md:gap-y-8 ">
+      <h1 className=" text-4xl text-gray-850 flex-1 font-moon">
+        Subscribe to our <br /> newsletter
       </h1>
-      <div className="flex-1 md:mt-28">
+      <div className="flex-1 md:mt-28 max-w-xl space-y-8">
         <p className="">
           Be the First to Know About Exclusive Deals, New Arrivals, and Style
           Inspiration Delivered Straight to Your Inbox.
@@ -45,7 +46,7 @@ const Newsletter = () => {
           </button>
         </form>
       </div>
-    </div>
+    </Wrapper>
   );
 };
 
