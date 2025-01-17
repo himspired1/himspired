@@ -8,14 +8,13 @@ import Link from 'next/link'
 
 const page = () => {
   return (
-    <div className='lg:px-[6em] px-[2em] mt-[3em]'>
+    <div className='lg:px-[5em] px-[2em] mt-[3em] '>
         {/* Header with back btn */}
         <Link href='/'>
         <div className='flex gap-5 '>
             <Image src={Backbtn} alt='Back Button' className=''/>
             <h1>BACK</h1>
         </div>
-        
         </Link>
 
         <Contactform/> 
