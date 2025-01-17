@@ -11,7 +11,7 @@ const contactform = () => {
         <div className='flex flex-col gap-[3em]'>
             <h1 className='font-[400] 2xl:text-[20px] text-[18px] lg:text-wrap lg:w-[75%] font-activo'>HAVE QUESTIONS, FEEDBACK, OR OTHER COMPLAINTS? WE ARE HERE TO HELP!</h1>
             <input type="text" className=' border-b-[1px]  border-black py-4 lg:w-[75%] focus:outline-none ' placeholder='ENTER NAME'/>
-            <input type="text" className=' border-b-[1px]  border-black py-4 lg:w-[75%] focus:outline-none' placeholder='ENTER EMAIL ADDRESS'/>
+            <input type="text" className=' border-b-[1px]  border-black py-4  focus:outline-none' placeholder='ENTER EMAIL ADDRESS'/>
             <div className='flex  gap-[1em]'>
             <textarea  className=' border-b-[1px] w-[80%] h-[7em] border-black P-5 focus:outline-none' placeholder='HOW CAN  WE HELP?'/>
             <div className='cursor-pointer flex items-end'>
