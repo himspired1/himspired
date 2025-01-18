@@ -7,16 +7,15 @@ const Loader = () => {
   const [brandText, setBrandText] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
-  const welcomeFullText = "Welcome to";
+  const welcomeFullText = "Welcome to...";
   const brandFullText = "HIMSPIRED";
   const [welcomeIndex, setWelcomeIndex] = useState(0);
   const [brandIndex, setBrandIndex] = useState(0);
   const [startBrandTyping, setStartBrandTyping] = useState(false);
 
-  // Helper function to split the text for rendering
   const splitBrandText = (text: string) => {
-    const him = text.slice(0, 3); // Get "HIM"
-    const spired = text.slice(3); // Get "SPIRED"
+    const him = text.slice(0, 3); 
+    const spired = text.slice(3); 
     return (
       <>
         <span className="text-[#68191E]">{him}</span>
@@ -25,7 +24,6 @@ const Loader = () => {
     );
   };
 
-  // Rest of your useEffect hooks remain the same
   useEffect(() => {
     if (welcomeIndex < welcomeFullText.length) {
       const timer = setTimeout(() => {
@@ -92,7 +90,7 @@ const Loader = () => {
         }}
       >
         {showWelcome && (
-          <h2 className="text-6xl font-kiona transition-all duration-500 ease-in-out opacity-100">
+          <h2 className="text-[40px] font-kiona transition-all duration-500 ease-in-out opacity-100">
             {welcomeText}
             {welcomeIndex < welcomeFullText.length && <span className="animate-pulse">|</span>}
           </h2>
