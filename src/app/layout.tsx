@@ -18,14 +18,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={GeistSans.className}>
-      <body
-        className={`antialiased min-h-screen flex flex-col`}
-      >
+      <body className={`antialiased min-h-screen flex flex-col`}>
         <Loader />
-        <Navbar />
-        <div className="flex-grow">{children}</div>
-        <Footer />
-        <Toaster position="top-right" richColors expand={false} />
+        <main 
+          className="opacity-0 animate-fadeIn" 
+          style={{ 
+            animationDelay: '6.5s', 
+            animationFillMode: 'forwards' 
+          }}
+        >
+          <Navbar />
+          <div className="flex-grow">{children}</div>
+          <Footer />
+          <Toaster position="top-right" richColors expand={false} />
+        </main>
       </body>
     </html>
   );
