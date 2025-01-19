@@ -7,7 +7,7 @@ const Loader = () => {
   const [brandText, setBrandText] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
-  const welcomeFullText = "Welcome to...";
+  const welcomeFullText = "Welcome to";
   const brandFullText = "HIMSPIRED";
   const [welcomeIndex, setWelcomeIndex] = useState(0);
   const [brandIndex, setBrandIndex] = useState(0);
@@ -90,13 +90,13 @@ const Loader = () => {
         }}
       >
         {showWelcome && (
-          <h2 className="text-[40px] font-kiona transition-all duration-500 ease-in-out opacity-100">
+          <h2 className="lg:text-[40px] text-[25px] font-kiona transition-all duration-500 ease-in-out opacity-100">
             {welcomeText}
             {welcomeIndex < welcomeFullText.length && <span className="animate-pulse">|</span>}
           </h2>
         )}
         <h2
-          className={`text-[120px] font-moon transition-all duration-1000 ease-in-out transform ${
+          className={`lg:text-[120px] text-[65px]  font-moon transition-all duration-2000 ease-in-out transform ${
             fadeOut ? 'scale-125 opacity-0' : 'scale-100 opacity-100'
           }`}
           style={{
