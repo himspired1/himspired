@@ -6,6 +6,7 @@ import Footer from "@/components/footer";
 import { Toaster } from "sonner";
 import Loader from '@/components/Loader'
 
+
 export const metadata: Metadata = {
   title: "Himspired",
   description: "Where thrift meets luxury",
@@ -17,6 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+
     <html lang="en" className={GeistSans.className}>
       <body className={`antialiased min-h-screen flex flex-col`}>
         <Loader />
