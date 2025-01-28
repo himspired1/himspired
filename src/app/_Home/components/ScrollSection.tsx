@@ -2,15 +2,19 @@
 import React, { useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
-import Thrifts from "./Thrifts";
+import Thrifts from "./products/components/Thrifts";
+import Luxury from "./products/components/Luxury";
+import Senate from "./products/components/Senate";
 
 const MainSection = () => {
-  const sectionRef = useRef(null);
-  const triggerRef = useRef(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  let lastLoggedViewport = 0; // Keep track of the last logged viewport
 
   gsap.registerPlugin(ScrollTrigger);
 
   useEffect(() => {
+    // Pin and animate horizontal scrolling
     const pin = gsap.fromTo(
       sectionRef.current,
       {
@@ -26,35 +30,42 @@ const MainSection = () => {
           end: "2000 top",
           scrub: 0.6,
           pin: true,
+          onUpdate: (self) => {
+            const scrollPosition = Math.round(self.progress * 300); // 300vw is the total width
+            const currentViewport = Math.floor(scrollPosition / 100); // Determine the current 100vw scroll step
+
+            if (currentViewport !== lastLoggedViewport) {
+              lastLoggedViewport = currentViewport;
+              // console.log(`Scrolled to ${currentViewport * 100}vw`);
+            }
+          },
         },
       }
     );
+
     return () => {
-      {
-        /* A return function for killing the animation on component unmount */
-      }
       pin.kill();
     };
   }, []);
 
   return (
-    <section className=" overflow-hidden">
+    <section className="overflow-hidden">
       <div ref={triggerRef}>
         <div
           ref={sectionRef}
-          className=" h-screen w-[400vw] flex flex-row relative"
+          className="h-screen w-[400vw] flex flex-row relative items-center"
         >
-          <div className=" h-screen w-screen flex justify-center items-center bg-red-300">
+          <div className="h-[70vh] relative w-screen flex flex-col justify-center items-center ">
             <Thrifts />
           </div>
-          <div className=" h-screen w-screen flex justify-center items-center bg-red-400">
-            <h3>Section 2</h3>
+          <div className="h-[70vh] w-screen flex justify-center items-center ">
+            <Luxury />
           </div>
-          <div className=" h-screen w-screen flex justify-center items-center bg-red-500">
-            <h3>Section 3</h3>
+          <div className="h-[70vh] w-screen flex justify-center items-center ">
+            <Senate />
           </div>
-          <div className=" h-screen w-screen flex justify-center items-center bg-red-600">
-            <h3>Section 4</h3>
+          <div className="h-[70vh] w-screen flex justify-center items-center ">
+            <Senate />
           </div>
         </div>
       </div>
