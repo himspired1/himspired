@@ -27,6 +27,7 @@ export default {
         15: "60px",
         12.5: "50px",
         7.5: "30px",
+        4.5: "18px",
       },
       borderRadius: {
         25: "100px",
@@ -43,13 +44,13 @@ export default {
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        }
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
-        fadeIn: 'fadeIn 1s ease-in-out forwards',
-      }
+        fadeIn: "fadeIn 1s ease-in-out forwards",
+      },
     },
   },
   plugins: [
