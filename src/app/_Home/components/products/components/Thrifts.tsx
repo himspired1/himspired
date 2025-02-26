@@ -10,7 +10,7 @@ const Thrifts = () => {
   return (
   <div className="relative">
    
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-7.5 text-center font-activo uppercase">
+      <div className="grid grid-cols-4 gap-7.5 text-center font-activo uppercase">
       {thrifts.map((thrift) => (
         <div
           key={thrift.id}
