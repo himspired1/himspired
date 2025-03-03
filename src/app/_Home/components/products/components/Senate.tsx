@@ -17,7 +17,7 @@ const Senate = () => {
             alt={thrift.name}
             width={0}
             height={0}
-            className="w-auto h-auto px-7 py-4.5 hover:scale-110 duration-700 transition"
+            className="w-auto h-auto px-7 py-4.5 hover:scale-[1.05] duration-700 transition"
           />
           <div className="flex flex-col gap-y-2.5">
             {" "}
