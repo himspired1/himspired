@@ -1,9 +1,8 @@
 import { thrifts } from "@/data/thrifts";
 import Image from "next/image";
 import React from "react";
-import clsx from "clsx";
 import { Plus } from "lucide-react";
-import { div } from "framer-motion/client";
+
 
 const Thrifts = () => {
   
