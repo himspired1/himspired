@@ -21,7 +21,7 @@ const Thrifts = () => {
             alt={thrift.name}
             width={0}
             height={0}
-            className="w-auto h-auto px-7 py-4.5"
+            className="w-auto h-auto px-7 py-4.5 hover:scale-110 duration-700 transition"
           />
           <div className="flex flex-col gap-y-2.5">
             {" "}
@@ -29,9 +29,9 @@ const Thrifts = () => {
             <h3 className="text-gray-850 text-base">{thrift.name}</h3>
             <p className="text-gray-850 text-base">NGN {thrift.price}</p>
           </div>
-          <button className="mt-1.5 p-4 bg-white-200 w-fit rounded-full">
+          <button className="mt-1.5 p-4 bg-white-200 hover:bg-gray-200  w-fit rounded-full">
             {" "}
-            <Plus />
+            <Plus className=""/>
           </button>
         </div>
       ))}
