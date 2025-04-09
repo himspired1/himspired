@@ -7,7 +7,7 @@ type Variant = 'small' | 'medium' | 'large';
 // Define props for typography components
 interface TypographyProps {
     variant?: Variant; // Size-based variants
-    fontFamily?: 'kiona' | 'moon'; // Font family options
+    fontFamily?: 'kiona' | 'moon' | 'activo'; // Font family options
     className?: string; // CSS class name
     children: React.ReactNode;
 }
@@ -31,7 +31,8 @@ const fontFamilyMapping: Record<Required<TypographyProps['fontFamily']>, string>
     // semiBold: 'font-semibold',
     // extraBold: 'font-extrabold',
     kiona:"font-kiona",
-    moon:"font-moon"
+    moon:"font-moon",
+    activo:"font-activo"
 };
 
 // Paragraph component
@@ -44,12 +45,13 @@ export const P: React.FC<TypographyProps> = ({
     const combinedClasses = clsx(
         sizeMapping[variant],
         fontFamilyMapping[fontFamily],
-        'text-black leading-relaxed font-kiona', // Default Tailwind styles for text
+        'leading-relaxed', 
         className
     );
 
     return <p className={combinedClasses}>{children}</p>;
 };
+
 
 // Heading component
 export const H: React.FC<TypographyProps> = ({
