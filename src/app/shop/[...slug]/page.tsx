@@ -61,7 +61,7 @@ const ProductDetails = () => {
             ngn 5,000,000.00
           </p>
 
-          <div className=" w-full  md:w-full mx-auto mt-[8px]">
+          <div className=" w-full  md:w-full lg:w-[770px] mx-auto mt-[8px]">
             <p className="font-activo text-[#1E1E1ECC] text-[13px] font-normal text-center uppercase">
               Elevate your style with our complete suit set, expertly tailored
               from premium fabrics for a perfect fit and polished look. This
