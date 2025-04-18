@@ -22,7 +22,7 @@ const ProductDetails = () => {
         }} color="#1C1B1F" size={18} className="cursor-pointer" />
         <p onClick={()=>{
           router.back()
-        }} className="text-[#000000] text-[14px] font-activo cursor-pointer">Back</p>
+        }} className="text-[#000000] text-sm font-activo cursor-pointer">Back</p>
       </div>
 
       <motion.div
@@ -51,17 +51,17 @@ const ProductDetails = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.5 }}
         >
-          <p className="font-activo text-[#1E1E1E80] text-[12px] font-normal text-center uppercase">
+          <p className="font-activo text-[#1E1E1E80] text-xs font-normal text-center uppercase">
             Mens suit
           </p>
-          <p className="font-activo text-[#1E1E1E] mt-[8px] text-[16px] font-normal text-center uppercase">
+          <p className="font-activo text-[#1E1E1E] mt-2 text-[16px] font-normal text-center uppercase">
             Himspire men’s suit
           </p>
-          <p className="font-activo text-[#1E1E1E] mt-[8px] text-[16px] font-normal text-center uppercase">
+          <p className="font-activo text-[#1E1E1E] mt-2 text-[16px] font-normal text-center uppercase">
             ngn 5,000,000.00
           </p>
 
-          <div className=" w-full  md:w-full lg:w-[770px] mx-auto mt-[8px]">
+          <div className=" w-full  md:w-full lg:w-[770px] mx-auto mt-2">
             <p className="font-activo text-[#1E1E1ECC] text-[13px] font-normal text-center uppercase">
               Elevate your style with our complete suit set, expertly tailored
               from premium fabrics for a perfect fit and polished look. This
@@ -75,7 +75,7 @@ const ProductDetails = () => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowSizes((prev) => !prev)}
-              className="w-[48px] cursor-pointer h-[48px] rounded-full  flex items-center justify-center bg-[#F4F4F4]"
+              className=" w-12 cursor-pointer h-12 rounded-full  flex items-center justify-center bg-[#F4F4F4]"
             >
               <Plus size={14} color="#1E1E1E" />
             </motion.div>}

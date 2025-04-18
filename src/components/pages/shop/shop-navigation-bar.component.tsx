@@ -37,7 +37,7 @@ const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
                         }} size={16} />
                         <Link onClick={() => {
                             goBack("/")
-                        }} fontFamily="activo" className="font-normal text-[14px] text-[black] hover:text-black no-underline" >Home</Link>
+                        }} fontFamily="activo" className="font-normal text-sm text-[black] hover:text-black no-underline" >Home</Link>
                     </div>
 
                     <div className="w-[90%] flex items-center justify-center " >
@@ -47,7 +47,7 @@ const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
                                 <div onClick={() => {
                                     setActiveTab(value)
                                 }} key={value} className={` w-min-[49px] ${activeTab === value ? "bg-white" : "bg-transparent"} rounded-[100px] h-[23px] cursor-pointer px-[12px] py-[4px] flex items-center justify-center`} >
-                                    <P fontFamily="activo" className=" text-[#1E1E1ECC] text-[12px] md:text-[14px] font-normal text-center cursor-pointer" >{name}</P>
+                                    <P fontFamily="activo" className=" text-[#1E1E1ECC] text-xs md:text-sm font-normal text-center cursor-pointer" >{name}</P>
                                 </div>
                             ))}
 
