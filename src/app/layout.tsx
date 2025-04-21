@@ -23,28 +23,30 @@ export default function RootLayout({
 }>) {
   return (
 
-    <Provider store={store} >
-        <PersistGate loading={null} persistor={persistor} >
+
     <html lang="en" className={GeistSans.className}>
-    
-          <body className={`antialiased min-h-screen flex flex-col`}>
-            <Loader />
-            <main
-              className="opacity-0 animate-fadeIn"
-              style={{
-                animationDelay: '6.5s',
-                animationFillMode: 'forwards'
-              }}
-            >
+
+      <body className={`antialiased min-h-screen flex flex-col`}>
+        <Loader />
+        <main
+          className="opacity-0 animate-fadeIn"
+          style={{
+            animationDelay: '6.5s',
+            animationFillMode: 'forwards'
+          }}
+        >
+          <Provider store={store} >
+            <PersistGate loading={null} persistor={persistor} >
               <Navbar />
               <div className="flex-grow">{children}</div>
               <Footer />
               <Toaster position="top-right" richColors expand={false} />
-            </main>
-          </body>
+            </PersistGate>
+          </Provider>
+        </main>
+      </body>
 
     </html>
-    </PersistGate>
-    </Provider>
+
   );
 }
