@@ -6,9 +6,9 @@ interface ButtonProps {
     loading?: boolean;
     disabled?: boolean;
     icon?: React.ReactNode;
-    className?: string; // Tailwind custom styles
+    className?: string;
     textColor?: string;
-    textClassName?: string; // Tailwind text styles
+    textClassName?: string;
     left?: boolean;
 }
 
@@ -27,23 +27,19 @@ const Button: React.FC<ButtonProps> = ({
         <button
             onClick={onClick}
             disabled={disabled || loading}
-            className={`flex items-center justify-center px-5 py-3 rounded-md transition-opacity ${disabled
-                ? "opacity-50 cursor-not-allowed"
-                : " bg-primary_color hover:bg-primary_color active:bg-primary_color"
-                } ${className}`}
+            className={`flex items-center justify-center px-5 py-3 transition-opacity ${
+                disabled
+                    ? "opacity-50 cursor-not-allowed"
+                    : "bg-primary_color hover:bg-primary_color active:bg-primary_color"
+            } ${className}`}
         >
             {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
-                <div
-                    className={`flex items-center ${left ? "flex-row" : "flex-row-reverse"
-                        } gap-3`}
-                >
+                <div className={`flex items-center ${left ? "flex-row" : "flex-row-reverse"} gap-3`}>
                     {icon && <div>{icon}</div>}
                     {!!btnTitle && (
-                        <span
-                            className={`text-base font-bold ${textColor} ${textClassName}`}
-                        >
+                        <span className={`text-base font-bold ${textColor} ${textClassName}`}>
                             {btnTitle}
                         </span>
                     )}
