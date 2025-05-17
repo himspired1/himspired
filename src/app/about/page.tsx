@@ -7,7 +7,7 @@ import JoinTheTeam from "@/components/pages/about-us/join-team.component";
 const AboutUs = () => {
     return (
         <>
-            <div className="w-full  min-h-screen mt-[101.5px] pb-[120.93px]" >
+            <div className="w-full  min-h-screen mt-[13em] pb-[120.93px]" >
                 <Empowering />
 
                 <div className="w-full mt-[80px]" >

@@ -1,4 +1,4 @@
-import { H, P } from "@/components/common/typography";
+import React from "react";
 
 const Empowering = () => {
     return (
@@ -7,7 +7,7 @@ const Empowering = () => {
                 <div className="w-[60%] h-full" >
                     <h1 className=" text-[40px] font-moon font-bold">
                         Empowering Style,
-                        <span className=" text-grey">Inspiring Confidence</span>
+                        <span className=" text-grey"> Inspiring Confidence</span>
                     </h1>
                 </div>
                 <div className="w-[40%] flex items-end h-full relative">

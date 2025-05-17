@@ -43,7 +43,7 @@ const Shop = () => {
     const [activeTab, setActiveTab] = useState("all")
     return (
         <>
-            <div className="w-full min-h-screen">
+            <div className="w-full min-h-screen mt-[10em]">
                 <ShopNavigationBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
                 <div className="w-full mt-[123px] px-[120px]" >
