@@ -6,8 +6,8 @@ const JoinTheTeam = () => {
         <div className="w-full mt-[120px]  px-[120px] relative" >
             <div className="w-full flex  items-start justify-between h-full relative">
                 <div className="w-[60%] h-full" >
-                    <H fontFamily="moon" className=" text-4xl uppercase">
-                        Be part of the  <span className=" text-primary">Himspire</span><br/>team
+                    <H fontFamily="moon" className=" text-[28px] uppercase">
+                        Be part of the  <span className=" text-primary">Himspired</span><br/>team
                     </H>
                 </div>
                 <div className="w-[40%] flex flex-col items-end h-full relative ">

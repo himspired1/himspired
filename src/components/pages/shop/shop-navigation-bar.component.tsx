@@ -1,62 +1,63 @@
-"use client"
-import { Link, P } from "@/components/common/typography";
-import { ChevronLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+"use client";
+import { P } from "@/components/common/typography";
+
 interface Props {
-    activeTab: string,
-    setActiveTab: any
+  activeTab: string;
+  setActiveTab: (value: string) => void; // Improved type definition
 }
+
 const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
-    const links = [
-        {
-            name: "All",
-            value: "all"
-        },
-        {
-            name: "Thrift",
-            value: "thrift"
-        },
-        {
-            name: "Luxury",
-            value: "luxury"
-        },
-        {
-            name: "Senetors",
-            value: "senetors"
-        },
-    ]
+  const links = [
+    {
+      name: "All",
+      value: "all"
+    },
+    {
+      name: "Thrift",
+      value: "thrift"
+    },
+    {
+      name: "Luxury",
+      value: "luxury"
+    },
+    {
+      name: "Senetors",
+      value: "senetors"
+    },
+  ];
 
-    const goBack = useRouter().push
-    return (
-        <>
-            <div className="w-full mt-[41.5px] px-[120px]" >
-                <div className="w-full flex items-center justify-between" >
-                    <div className="w-[10%] flex items-center justify-start gap-3" >
-                        <ChevronLeft className="cursor-pointer" onClick={() => {
-                            goBack("/")
-                        }} size={16} />
-                        <Link onClick={() => {
-                            goBack("/")
-                        }} fontFamily="kiona" className="font-normal text-[14px] text-[black] hover:text-black no-underline" >Home</Link>
-                    </div>
-
-                    <div className="w-[90%] flex items-center justify-center " >
-                        <ul className="w-[383px] flex items-center justify-between bg-[#F7F7F7] rounded-[100px] p-[4px]" >
-
-                            {links.map(({ name, value }) => (
-                                <div onClick={() => {
-                                    setActiveTab(value)
-                                }} key={value} className={` w-min-[49px] ${activeTab === value ? "bg-white" : "bg-transparent"} rounded-[100px] h-[23px] cursor-pointer px-[12px] py-[4px] flex items-center justify-center`} >
-                                    <P fontFamily="kiona" className=" text-[#1E1E1ECC] text-[12px] font-normal text-center cursor-pointer" >{name}</P>
-                                </div>
-                            ))}
-
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </>
-    );
-}
+  return (
+    <nav className="w-full flex justify-center mt-10">
+      <div className="bg-[#F7F7F7] rounded-[100px] p-1">
+        <ul className="flex items-center gap-1 relative">
+          {links.map(({ name, value }) => (
+            <li key={value}>
+              <button
+                onClick={() => setActiveTab(value)}
+                className={`
+                  relative px-6 py-[6px] rounded-[100px] transition-all duration-300
+                  ${activeTab === value 
+                    ? "bg-white shadow-sm transform scale-105" 
+                    : "hover:bg-white/30"
+                  }
+                `}
+              >
+                <P 
+                  fontFamily="kiona" 
+                  className={`
+                    text-[#1E1E1ECC] text-sm font-normal transition-colors duration-300
+                    ${activeTab === value ? "text-black" : "text-gray-600"}
+                  `}
+                >
+                  {name}
+                </P>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </nav>
+  );
+};
 
 export default ShopNavigationBar;
