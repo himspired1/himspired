@@ -6,14 +6,14 @@ import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
 import { useEffect } from "react"
 
-interface ThriftsProps {
+interface VintageProps {
   itemsToShow?: number
 }
 
-const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
+const Vintage = ({ itemsToShow = 4 }: VintageProps) => {
   // Log the itemsToShow value to verify it's correct
   useEffect(() => {
-    console.log("Thrifts component itemsToShow:", itemsToShow)
+    console.log("Vintage component itemsToShow:", itemsToShow)
   }, [itemsToShow])
 
   // Only show the specified number of items
@@ -89,4 +89,4 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
   )
 }
 
-export default Thrifts
+export default Vintage
