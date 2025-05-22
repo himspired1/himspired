@@ -6,17 +6,17 @@ import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 
-interface ThriftsProps {
+interface VintageProps {
   itemsToShow?: number
 }
 
-const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
+const Vintage = ({ itemsToShow = 4 }: VintageProps) => {
   // Force component to re-render when itemsToShow changes
   const [displayItems, setDisplayItems] = useState<typeof thrifts>([])
 
   // Update display items when itemsToShow changes
   useEffect(() => {
-    console.log("Thrifts component itemsToShow:", itemsToShow)
+    console.log("Vintage component itemsToShow:", itemsToShow)
     // Force a new array to trigger re-render
     setDisplayItems([...thrifts].slice(0, itemsToShow))
   }, [itemsToShow])
@@ -100,4 +100,4 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
   )
 }
 
-export default Thrifts
+export default Vintage

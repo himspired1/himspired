@@ -1,25 +1,26 @@
 "use client"
 
-import { thrifts } from "@/data/thrifts"
+import type { Product } from "@/data/products" 
 import Image from "next/image"
 import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 
-interface ThriftsProps {
+interface ProductSectionProps {
   itemsToShow?: number
+  products: Product[]
 }
 
-const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
+
+const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
   // Force component to re-render when itemsToShow changes
-  const [displayItems, setDisplayItems] = useState<typeof thrifts>([])
+  const [displayItems, setDisplayItems] = useState<Product[]>([])
 
   // Update display items when itemsToShow changes
   useEffect(() => {
-    console.log("Thrifts component itemsToShow:", itemsToShow)
     // Force a new array to trigger re-render
-    setDisplayItems([...thrifts].slice(0, itemsToShow))
-  }, [itemsToShow])
+    setDisplayItems([...products].slice(0, itemsToShow))
+  }, [itemsToShow, products])
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -45,11 +46,11 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
   // Create grid items based on itemsToShow
   const gridItems = []
   for (let i = 0; i < itemsToShow; i++) {
-    if (i < displayItems.length) {
-      const thrift = displayItems[i]
+    if (i < products.length) {
+      const product = products[i]
       gridItems.push(
         <motion.div
-          key={thrift.id}
+          key={product.id}
           className="flex flex-col gap-y-2 items-center"
           variants={itemVariants}
           style={{
@@ -62,8 +63,8 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
             className="relative group cursor-pointer"
           >
             <Image
-              src={thrift.image || "/placeholder.svg"}
-              alt={thrift.name}
+              src={product.image || "/placeholder.svg"}
+              alt={product.name}
               width={0}
               height={0}
               className="w-auto h-auto px-4 md:px-7 py-3 md:py-4.5"
@@ -71,9 +72,9 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 rounded-lg"></div>
           </motion.div>
           <div className="flex flex-col gap-y-2.5">
-            <p className="text-gray-850/50 text-xs">{thrift.type}</p>
-            <h3 className="text-gray-850 text-base">{thrift.name}</h3>
-            <p className="text-gray-850 text-base">NGN {thrift.price}</p>
+            <p className="text-gray-850/50 text-xs">{product.type}</p>
+            <h3 className="text-gray-850 text-base">{product.name}</h3>
+            <p className="text-gray-850 text-base">NGN {product.price.toLocaleString()}</p>
           </div>
           <motion.button
             className="mt-1.5 p-3 md:p-4 bg-white-200 w-fit rounded-full hover:bg-gray-200 transition-colors"
@@ -100,4 +101,4 @@ const Thrifts = ({ itemsToShow = 4 }: ThriftsProps) => {
   )
 }
 
-export default Thrifts
+export default ProductSection

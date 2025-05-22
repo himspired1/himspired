@@ -1,37 +1,103 @@
-import { thrifts } from "@/data/thrifts";
-import Image from "next/image";
-import React from "react";
-import { Plus } from "lucide-react";
+"use client"
 
-const Senate = () => {
-  return (
-    <div className="grid grid-cols-4 gap-7.5 text-center font-activo uppercase">
-      {thrifts.map((thrift) => (
-        <div
+import { thrifts } from "@/data/thrifts"
+import Image from "next/image"
+import { Plus } from "lucide-react"
+import { motion } from "framer-motion"
+import { useEffect, useState } from "react"
+
+interface SenateProps {
+  itemsToShow?: number
+}
+
+const Senate = ({ itemsToShow = 4 }: SenateProps) => {
+  // Force component to re-render when itemsToShow changes
+  const [displayItems, setDisplayItems] = useState<typeof thrifts>([])
+
+  // Update display items when itemsToShow changes
+  useEffect(() => {
+    console.log("Senate component itemsToShow:", itemsToShow)
+    // Force a new array to trigger re-render
+    setDisplayItems([...thrifts].slice(0, itemsToShow))
+  }, [itemsToShow])
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.5,
+      },
+    },
+  }
+
+  // Create grid items based on itemsToShow
+  const gridItems = []
+  for (let i = 0; i < itemsToShow; i++) {
+    if (i < displayItems.length) {
+      const thrift = displayItems[i]
+      gridItems.push(
+        <motion.div
           key={thrift.id}
-          className="transition flex flex-col gap-y-2 items-center"
+          className="flex flex-col gap-y-2 items-center"
+          variants={itemVariants}
+          style={{
+            width: `calc(${100 / itemsToShow}% - ${itemsToShow > 1 ? "2rem" : "0rem"})`,
+          }}
         >
-          <Image
-            src={thrift.image}
-            alt={thrift.name}
-            width={0}
-            height={0}
-            className="w-auto h-auto px-7 py-4.5 hover:scale-[1.05] duration-700 transition"
-          />
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.3 }}
+            className="relative group cursor-pointer"
+          >
+            <Image
+              src={thrift.image || "/placeholder.svg"}
+              alt={thrift.name}
+              width={0}
+              height={0}
+              className="w-auto h-auto px-4 md:px-7 py-3 md:py-4.5"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 rounded-lg"></div>
+          </motion.div>
           <div className="flex flex-col gap-y-2.5">
-            {" "}
-            <p className=" text-gray-850/50 text-xs">{thrift.type}</p>
+            <p className="text-gray-850/50 text-xs">{thrift.type}</p>
             <h3 className="text-gray-850 text-base">{thrift.name}</h3>
             <p className="text-gray-850 text-base">NGN {thrift.price}</p>
           </div>
-          <button className="mt-1.5 p-4 bg-white-200 hover:bg-gray-200 w-fit rounded-full">
-            {" "}
+          <motion.button
+            className="mt-1.5 p-3 md:p-4 bg-white-200 w-fit rounded-full hover:bg-gray-200 transition-colors"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Plus />
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-};
+          </motion.button>
+        </motion.div>,
+      )
+    }
+  }
 
-export default Senate;
+  return (
+    <motion.div
+      className="flex flex-wrap justify-center gap-4 md:gap-6 lg:gap-8 text-center font-activo uppercase"
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.2 }}
+    >
+      {gridItems}
+    </motion.div>
+  )
+}
+
+export default Senate
