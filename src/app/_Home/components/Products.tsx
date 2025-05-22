@@ -2,21 +2,19 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import Thrifts from "./products/components/Thrifts"
-import Luxury from "./products/components/Luxury"
-import Senate from "./products/components/Senate"
-import Vintage from "./products/components/Vintage"
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { colors } from "@/constants/colors"
+import ProductSection from "./products/components/ProductSection"
+import { thriftsProducts, luxuryProducts, vintageProducts, modernProducts } from "@/data/products"
 
-// Define our sections with their components
+// Define our sections with their components and data
 const SECTIONS = [
-  { id: "thrifts", label: "1 / THRIFTS", component: Thrifts },
-  { id: "luxury", label: "2 / LUXURY", component: Luxury },
-  { id: "vintage", label: "3 / VINTAGE", component: Vintage },
-  { id: "modern", label: "4 / MODERN", component: Senate },
+  { id: "thrifts", label: "1 / THRIFTS", products: thriftsProducts },
+  { id: "luxury", label: "2 / LUXURY", products: luxuryProducts },
+  { id: "vintage", label: "3 / VINTAGE", products: vintageProducts },
+  { id: "modern", label: "4 / MODERN", products: modernProducts },
 ]
 
 const Products = () => {
@@ -124,15 +122,19 @@ const Products = () => {
     }
   }
 
+  // Check if we're at the first or last slide
+  const isFirstSlide = current === 0
+  const isLastSlide = current === SECTIONS.length - 1
+
   return (
     <div
-      className="relative py-16 md:py-24 lg:py-32"
+      className="relative py-8 md:py-20 lg:py-20 xl:py-24"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {/* Section indicator - with subtle animation */}
-      <div className="px-4 md:px-8 lg:px-16 mb-12 h-12 overflow-hidden">
+      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={SECTIONS[current].label}
@@ -159,54 +161,64 @@ const Products = () => {
           }}
         >
           <CarouselContent>
-            {SECTIONS.map((section, index) => {
-              const SectionComponent = section.component
-              return (
-                <CarouselItem key={section.id} className="w-full">
-                  <AnimatePresence mode="wait">
-                    {current === index && (
-                      <motion.div
-                        key={section.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5, ease: "easeInOut" }}
-                        className="w-full flex items-center justify-center min-h-[60vh] md:min-h-[70vh]"
-                      >
-                        <div className="w-full max-w-7xl">
-                          <SectionComponent itemsToShow={itemsToShow} key={`${section.id}-${itemsToShow}`} />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </CarouselItem>
-              )
-            })}
+            {SECTIONS.map((section, index) => (
+              <CarouselItem key={section.id} className="w-full">
+                <div
+                  className={`w-full flex items-center justify-center `}
+                >
+                  <div className="w-full max-w-7xl">
+                    <ProductSection
+                      itemsToShow={itemsToShow}
+                      products={section.products}
+                      key={`${section.id}-${itemsToShow}`}
+                    />
+                  </div>
+                </div>
+              </CarouselItem>
+            ))}
           </CarouselContent>
 
-          {/* Custom navigation arrows */}
+          {/* Custom navigation arrows - disabled when at first/last slide */}
           <div className="absolute top-1/2 -translate-y-1/2 left-2 md:left-4 lg:-left-12">
             <button
               onClick={() => api && api.scrollPrev()}
-              className="rounded-full p-3 shadow-lg transition-all duration-300 bg-white/80 backdrop-blur-sm hover:bg-primary group"
+              className={cn(
+                "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
+                isFirstSlide ? "bg-gray-200/80 cursor-not-allowed" : "bg-white/80 hover:bg-primary",
+              )}
+              disabled={isFirstSlide}
               aria-label="Previous section"
             >
-              <ChevronLeft className="h-6 w-6 text-gray-800 transition-colors duration-300 group-hover:text-white" />
+              <ChevronLeft
+                className={cn(
+                  "h-6 w-6 transition-colors duration-300",
+                  isFirstSlide ? "text-gray-400" : "text-gray-800 group-hover:text-white",
+                )}
+              />
             </button>
           </div>
           <div className="absolute top-1/2 -translate-y-1/2 right-2 md:right-4 lg:-right-12">
             <button
               onClick={() => api && api.scrollNext()}
-              className="rounded-full p-3 shadow-lg transition-all duration-300 bg-white/80 backdrop-blur-sm hover:bg-primary group"
+              className={cn(
+                "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
+                isLastSlide ? "bg-gray-200/80 cursor-not-allowed" : "bg-white/80 hover:bg-primary",
+              )}
+              disabled={isLastSlide}
               aria-label="Next section"
             >
-              <ChevronRight className="h-6 w-6 text-gray-800 transition-colors duration-300 group-hover:text-white" />
+              <ChevronRight
+                className={cn(
+                  "h-6 w-6 transition-colors duration-300",
+                  isLastSlide ? "text-gray-400" : "text-gray-800 group-hover:text-white",
+                )}
+              />
             </button>
           </div>
         </Carousel>
 
         {/* Navigation dots */}
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center gap-2 mt-6 md:mt-8">
           {SECTIONS.map((section, index) => (
             <button
               key={section.id}
