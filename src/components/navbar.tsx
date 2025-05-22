@@ -86,7 +86,7 @@ const Navbar = () => {
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed top-0 left-0 right-0 z-50 bg-white text-gray-850"
+          className="sticky top-0 left-0 right-0 z-50 bg-white text-gray-850"
           initial={shouldAnimate ? "hidden" : "visible"}
           animate="visible"
           exit="exit"
