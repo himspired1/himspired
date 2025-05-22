@@ -21,7 +21,7 @@ const MainSection = () => {
         translateX: 0,
       },
       {
-        translateX: "-300vw",
+        translateX: "-400vw",
         ease: "none",
         duration: 1,
         scrollTrigger: {
@@ -31,7 +31,7 @@ const MainSection = () => {
           scrub: 0.6,
           pin: true,
           onUpdate: (self) => {
-            const scrollPosition = Math.round(self.progress * 300); // 300vw is the total width
+            const scrollPosition = Math.round(self.progress * 400); // 300vw is the total width
             const currentViewport = Math.floor(scrollPosition / 100); // Determine the current 100vw scroll step
 
             if (currentViewport !== lastLoggedViewport) {
@@ -53,7 +53,7 @@ const MainSection = () => {
       <div ref={triggerRef}>
         <div
           ref={sectionRef}
-          className="h-screen w-[400vw] flex flex-row relative items-center"
+          className="h-screen w-[500vw] flex flex-row relative items-center"
         >
           <div className="h-[70vh] relative w-screen flex flex-col justify-center items-center ">
             <Thrifts />
@@ -67,6 +67,7 @@ const MainSection = () => {
           <div className="h-[70vh] w-screen flex justify-center items-center ">
             <Senate />
           </div>
+         
         </div>
       </div>
     </section>

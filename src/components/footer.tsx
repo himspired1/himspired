@@ -23,9 +23,9 @@ const Footer = () => {
     {
       title: "company",
       links: [
-        { href: "/aboutus", label: "about us" },
+        { href: "/about", label: "about us" },
         { href: "/stores", label: "stores" },
-        { href: "/contactus", label: "contact us" },
+        { href: "/contact", label: "contact us" },
       ],
     },
     {
@@ -71,7 +71,7 @@ const Footer = () => {
         </div>
       </Wrapper>
       <div className="border-t-[0.4px] border-white/70 mt-15 md:mt-24 mb-12.5"></div>
-      <div className="space-y-15 lg:space-y-32.5 mb-2 md:mb-14">
+      <div className="space-y-15 lg:space-y-32.5 pb-2 md:pb-14">
         <Wrapper className="flex-col md:flex-row gap-y-12">
           <div className="flex space-x-5">
             {socialLinks.map((social, index) => (
