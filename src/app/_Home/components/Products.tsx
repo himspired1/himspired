@@ -58,9 +58,8 @@ const Products = () => {
     const updateItemsToShow = () => {
       const width = window.innerWidth;
       if (width >= 1280) setItemsToShow(4); // XL and 2XL
-      else if (width >= 1024) setItemsToShow(3); // LG
-      else if (width >= 768) setItemsToShow(2); // MD
-      else setItemsToShow(1); // SM
+      else if (width >= 768) setItemsToShow(3); // MD
+      else setItemsToShow(2); // SM
     };
 
     // Initial update
@@ -217,7 +216,7 @@ const Products = () => {
 
           {/* Custom navigation arrows - disabled when at first/last slide */}
           <motion.div
-            className="absolute top-1/2 -translate-y-1/2 left-2 md:left-4 lg:-left-12"
+            className="absolute top-1/2 -translate-y-1/2 left-0 md:left-4 lg:-left-12 hidden md:flex"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
@@ -247,7 +246,7 @@ const Products = () => {
           </motion.div>
 
           <motion.div
-            className="absolute top-1/2 -translate-y-1/2 right-2 md:right-4 lg:-right-12"
+            className="absolute top-1/2 -translate-y-1/2 right-0 md:right-4 lg:-right-12 hidden md:flex"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}

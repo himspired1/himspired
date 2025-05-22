@@ -67,14 +67,14 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
               alt={product.name}
               width={0}
               height={0}
-              className="w-auto h-auto px-4 md:px-7 py-3 md:py-4.5"
+              className="w-auto h-auto md:px-7 py-3 md:py-4.5"
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 rounded-lg"></div>
           </motion.div>
           <div className="flex flex-col gap-y-2.5">
             <p className="text-gray-850/50 text-xs">{product.type}</p>
-            <h3 className="text-gray-850 text-base">{product.name}</h3>
-            <p className="text-gray-850 text-base">NGN {product.price.toLocaleString()}</p>
+            <h3 className="text-gray-850 text-sm md:text-base whitespace-nowrap overflow-hidden text-ellipsis w-40">{product.name}</h3>
+            <p className="text-gray-850 text-xs md:text-base">NGN {product.price.toLocaleString()}</p>
           </div>
           <motion.button
             className="mt-1.5 p-3 md:p-4 bg-white-200 w-fit rounded-full hover:bg-gray-200 transition-colors"

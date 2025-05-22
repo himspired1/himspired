@@ -3,9 +3,6 @@ import React, { useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
-import Thrifts from "./products/components/Thrifts";
-import Luxury from "./products/components/Luxury";
-import Senate from "./products/components/Senate";
 
 const Fashion = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
