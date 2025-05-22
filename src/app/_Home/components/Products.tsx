@@ -1,154 +1,182 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { colors } from "@/constants/colors"
-import ProductSection from "./products/components/ProductSection"
-import { thriftsProducts, luxuryProducts, vintageProducts, modernProducts } from "@/data/products"
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { colors } from "@/constants/colors";
+import ProductSection from "./products/components/ProductSection";
+import {
+  thriftsProducts,
+  luxuryProducts,
+  vintageProducts,
+  modernProducts,
+} from "@/data/products";
 
 // Define our sections with their components and data
 const SECTIONS = [
-  { id: "thrifts", label: "1 / THRIFTS", products: thriftsProducts },
-  { id: "luxury", label: "2 / LUXURY", products: luxuryProducts },
-  { id: "vintage", label: "3 / VINTAGE", products: vintageProducts },
-  { id: "modern", label: "4 / MODERN", products: modernProducts },
-]
+  {
+    id: "thrifts",
+    label: { number: "1", name: "THRIFTS" },
+    products: thriftsProducts,
+  },
+  {
+    id: "luxury",
+    label: { number: "2", name: "LUXURY" },
+    products: luxuryProducts,
+  },
+  {
+    id: "vintage",
+    label: { number: "3", name: "VINTAGE" },
+    products: vintageProducts,
+  },
+  {
+    id: "modern",
+    label: { number: "4", name: "MODERN" },
+    products: modernProducts,
+  },
+];
 
 const Products = () => {
-  const [api, setApi] = useState<CarouselApi>()
-  const [current, setCurrent] = useState(0)
-  const [itemsToShow, setItemsToShow] = useState(4)
-  const [isHovering, setIsHovering] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const autoplayRef = useRef<NodeJS.Timeout | null>(null)
-  const autoplayDelay = 5000 // 5 seconds between slides - standard timing
-  const initialDelayRef = useRef(false)
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+  const [itemsToShow, setItemsToShow] = useState(4);
+  const [isHovering, setIsHovering] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const autoplayRef = useRef<NodeJS.Timeout | null>(null);
+  const autoplayDelay = 5000; // 5 seconds between slides - standard timing
+  const initialDelayRef = useRef(false);
 
   // Calculate items to show based on screen width
   useEffect(() => {
     const updateItemsToShow = () => {
-      const width = window.innerWidth
-      if (width >= 1280)
-        setItemsToShow(4) // XL and 2XL
-      else if (width >= 1024)
-        setItemsToShow(3) // LG
-      else if (width >= 768)
-        setItemsToShow(2) // MD
-      else setItemsToShow(1) // SM
-    }
+      const width = window.innerWidth;
+      if (width >= 1280) setItemsToShow(4); // XL and 2XL
+      else if (width >= 1024) setItemsToShow(3); // LG
+      else if (width >= 768) setItemsToShow(2); // MD
+      else setItemsToShow(1); // SM
+    };
 
     // Initial update
-    updateItemsToShow()
+    updateItemsToShow();
 
     // Update on resize
-    window.addEventListener("resize", updateItemsToShow)
-    return () => window.removeEventListener("resize", updateItemsToShow)
-  }, [])
+    window.addEventListener("resize", updateItemsToShow);
+    return () => window.removeEventListener("resize", updateItemsToShow);
+  }, []);
 
   // Update current index when carousel changes
   useEffect(() => {
-    if (!api) return
+    if (!api) return;
 
     const onChange = () => {
-      setCurrent(api.selectedScrollSnap())
-    }
+      setCurrent(api.selectedScrollSnap());
+    };
 
-    api.on("select", onChange)
-    api.on("reInit", onChange)
-    onChange() // Initial call to set states
+    api.on("select", onChange);
+    api.on("reInit", onChange);
+    onChange(); // Initial call to set states
 
     return () => {
-      api.off("select", onChange)
-      api.off("reInit", onChange)
-    }
-  }, [api])
+      api.off("select", onChange);
+      api.off("reInit", onChange);
+    };
+  }, [api]);
 
   // Autoplay functionality with delay for loader
   useEffect(() => {
-    if (!api) return
+    if (!api) return;
 
     // Delay initial autoplay to account for loader
     if (!initialDelayRef.current) {
-      initialDelayRef.current = true
+      initialDelayRef.current = true;
       // Wait 7 seconds after component mount before starting autoplay
       // This should give the loader enough time to finish
       const initialDelay = setTimeout(() => {
-        startAutoplay()
-      }, 7000)
+        startAutoplay();
+      }, 7000);
 
-      return () => clearTimeout(initialDelay)
+      return () => clearTimeout(initialDelay);
     }
 
     // Start autoplay
     function startAutoplay() {
-      if (autoplayRef.current) clearTimeout(autoplayRef.current)
+      if (autoplayRef.current) clearTimeout(autoplayRef.current);
 
       if (!isHovering) {
         autoplayRef.current = setTimeout(() => {
           // Check if we're at the last slide
-          const isLastSlide = current === SECTIONS.length - 1
+          const isLastSlide = current === SECTIONS.length - 1;
 
           if (isLastSlide) {
             // Go back to the first slide
-            api?.scrollTo(0)
+            api?.scrollTo(0);
           } else {
             // Go to the next slide
-            api?.scrollNext()
+            api?.scrollNext();
           }
-        }, autoplayDelay)
+        }, autoplayDelay);
       }
     }
 
     // Initial start
-    startAutoplay()
+    startAutoplay();
 
     // Set up event listeners for autoplay
-    api.on("select", startAutoplay)
+    api.on("select", startAutoplay);
 
     // Clean up
     return () => {
-      if (autoplayRef.current) clearTimeout(autoplayRef.current)
-      api.off("select", startAutoplay)
-    }
-  }, [api, isHovering, current, autoplayDelay])
+      if (autoplayRef.current) clearTimeout(autoplayRef.current);
+      api.off("select", startAutoplay);
+    };
+  }, [api, isHovering, current, autoplayDelay]);
 
   // Navigate to specific slide when clicking dots
   const goToSlide = (index: number) => {
     if (api) {
-      api.scrollTo(index)
+      api.scrollTo(index);
     }
-  }
+  };
 
   // Check if we're at the first or last slide
-  const isFirstSlide = current === 0
-  const isLastSlide = current === SECTIONS.length - 1
+  const isFirstSlide = current === 0;
+  const isLastSlide = current === SECTIONS.length - 1;
 
   return (
     <div
-      className="relative py-8 md:py-20 lg:py-20 xl:py-24"
+      className="relative py-8 min-h-screen md:py-16 xl:py-20"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
+      {" "}
       {/* Section indicator - with subtle animation */}
       <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
-            key={SECTIONS[current].label}
+            key={`${SECTIONS[current].label.number}-${SECTIONS[current].label.name}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.4, ease: "easeInOut" }}
-            className="text-2xl md:text-3xl lg:text-4xl text-left"
+            className="text-2xl md:text-3xl lg:text-4xl text-left font-bold"
           >
-            {SECTIONS[current].label}
+            <span className="text-black ">
+              {SECTIONS[current].label.number} /{" "}
+            </span>
+            <span style={{ color: colors.primary_color }}>
+              {SECTIONS[current].label.name}
+            </span>
           </motion.div>
         </AnimatePresence>
       </div>
-
       {/* Carousel */}
       <div className="container mx-auto px-4">
         <Carousel
@@ -163,9 +191,7 @@ const Products = () => {
           <CarouselContent>
             {SECTIONS.map((section, index) => (
               <CarouselItem key={section.id} className="w-full">
-                <div
-                  className={`w-full flex items-center justify-center `}
-                >
+                <div className="w-full flex items-center justify-center">
                   <div className="w-full max-w-7xl">
                     <ProductSection
                       itemsToShow={itemsToShow}
@@ -184,7 +210,9 @@ const Products = () => {
               onClick={() => api && api.scrollPrev()}
               className={cn(
                 "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
-                isFirstSlide ? "bg-gray-200/80 cursor-not-allowed" : "bg-white/80 hover:bg-primary",
+                isFirstSlide
+                  ? "bg-gray-200/80 cursor-not-allowed"
+                  : "bg-white/80 hover:bg-[#68191E]"
               )}
               disabled={isFirstSlide}
               aria-label="Previous section"
@@ -192,7 +220,9 @@ const Products = () => {
               <ChevronLeft
                 className={cn(
                   "h-6 w-6 transition-colors duration-300",
-                  isFirstSlide ? "text-gray-400" : "text-gray-800 group-hover:text-white",
+                  isFirstSlide
+                    ? "text-gray-400"
+                    : "text-gray-800 group-hover:text-white"
                 )}
               />
             </button>
@@ -202,7 +232,9 @@ const Products = () => {
               onClick={() => api && api.scrollNext()}
               className={cn(
                 "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
-                isLastSlide ? "bg-gray-200/80 cursor-not-allowed" : "bg-white/80 hover:bg-primary",
+                isLastSlide
+                  ? "bg-gray-200/80 cursor-not-allowed"
+                  : "bg-white/80 hover:bg-[#68191E]"
               )}
               disabled={isLastSlide}
               aria-label="Next section"
@@ -210,7 +242,9 @@ const Products = () => {
               <ChevronRight
                 className={cn(
                   "h-6 w-6 transition-colors duration-300",
-                  isLastSlide ? "text-gray-400" : "text-gray-800 group-hover:text-white",
+                  isLastSlide
+                    ? "text-gray-400"
+                    : "text-gray-800 group-hover:text-white"
                 )}
               />
             </button>
@@ -224,19 +258,22 @@ const Products = () => {
               key={section.id}
               className={cn(
                 "w-3 h-3 rounded-full transition-all duration-300",
-                current === index ? "scale-125" : "bg-gray-300 hover:bg-gray-400",
+                current === index
+                  ? "scale-125"
+                  : "bg-gray-300 hover:bg-gray-400"
               )}
               style={{
-                backgroundColor: current === index ? colors.primary_color : undefined,
+                backgroundColor:
+                  current === index ? colors.primary_color : undefined,
               }}
               onClick={() => goToSlide(index)}
-              aria-label={`Go to ${section.label}`}
+              aria-label={`Go to ${section.label.name}`}
             />
           ))}
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Products
+export default Products;
