@@ -4,20 +4,22 @@ import { thrifts } from "@/data/thrifts"
 import Image from "next/image"
 import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 interface SenateProps {
   itemsToShow?: number
 }
 
 const Senate = ({ itemsToShow = 4 }: SenateProps) => {
-  // Log the itemsToShow value to verify it's correct
+  // Force component to re-render when itemsToShow changes
+  const [displayItems, setDisplayItems] = useState<typeof thrifts>([])
+
+  // Update display items when itemsToShow changes
   useEffect(() => {
     console.log("Senate component itemsToShow:", itemsToShow)
+    // Force a new array to trigger re-render
+    setDisplayItems([...thrifts].slice(0, itemsToShow))
   }, [itemsToShow])
-
-  // Only show the specified number of items
-  const visibleThrifts = thrifts.slice(0, itemsToShow)
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -40,15 +42,12 @@ const Senate = ({ itemsToShow = 4 }: SenateProps) => {
     },
   }
 
-  return (
-    <motion.div
-      className="flex flex-wrap justify-center gap-4 md:gap-6 lg:gap-8 text-center font-activo uppercase"
-      variants={containerVariants}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.2 }}
-    >
-      {visibleThrifts.map((thrift) => (
+  // Create grid items based on itemsToShow
+  const gridItems = []
+  for (let i = 0; i < itemsToShow; i++) {
+    if (i < displayItems.length) {
+      const thrift = displayItems[i]
+      gridItems.push(
         <motion.div
           key={thrift.id}
           className="flex flex-col gap-y-2 items-center"
@@ -83,8 +82,20 @@ const Senate = ({ itemsToShow = 4 }: SenateProps) => {
           >
             <Plus />
           </motion.button>
-        </motion.div>
-      ))}
+        </motion.div>,
+      )
+    }
+  }
+
+  return (
+    <motion.div
+      className="flex flex-wrap justify-center gap-4 md:gap-6 lg:gap-8 text-center font-activo uppercase"
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.2 }}
+    >
+      {gridItems}
     </motion.div>
   )
 }
