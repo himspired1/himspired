@@ -11,6 +11,7 @@ interface ProductSectionProps {
   products: Product[]
 }
 
+
 const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
   // Force component to re-render when itemsToShow changes
   const [displayItems, setDisplayItems] = useState<Product[]>([])
