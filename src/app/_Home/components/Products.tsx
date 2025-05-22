@@ -96,11 +96,11 @@ const Products = () => {
     // Delay initial autoplay to account for loader
     if (!initialDelayRef.current) {
       initialDelayRef.current = true;
-      // Wait 7 seconds after component mount before starting autoplay
-      // This should give the loader enough time to finish
+      // Wait 1 second after component mount before starting autoplay
+      // Since we now have a separate loader, we don't need to wait as long
       const initialDelay = setTimeout(() => {
         startAutoplay();
-      }, 7000);
+      }, 1000);
 
       return () => clearTimeout(initialDelay);
     }
@@ -151,24 +151,30 @@ const Products = () => {
 
   return (
     <div
-      className="relative pt-8 max-h-screen md:pt-16 xl:pt-20 pb-24"
+      className="relative pt-8 md:pt-16 xl:pt-24 pb-24 xl:min-h-screen 2xl:max-h-screen"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {" "}
-      {/* Section indicator - with subtle animation */}
-      <div className="px-4 md:px-8  lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
+      {/* Section indicator - with enhanced animation */}
+      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${SECTIONS[current].label.number}-${SECTIONS[current].label.name}`}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.4, ease: "easeInOut" }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{
+              duration: 0.5,
+              ease: [0.22, 1, 0.36, 1],
+              type: "spring",
+              stiffness: 100,
+              damping: 15,
+            }}
             className="text-2xl md:text-3xl lg:text-4xl text-left font-bold"
           >
-            <span className="text-black ">
+            <span className="text-black">
               {SECTIONS[current].label.number} /{" "}
             </span>
             <span style={{ color: colors.primary_color }}>
@@ -191,7 +197,12 @@ const Products = () => {
           <CarouselContent>
             {SECTIONS.map((section, index) => (
               <CarouselItem key={section.id} className="w-full">
-                <div className="w-full flex items-center justify-center">
+                <motion.div
+                  className="w-full flex items-center justify-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5 }}
+                >
                   <div className="w-full max-w-7xl">
                     <ProductSection
                       itemsToShow={itemsToShow}
@@ -199,14 +210,19 @@ const Products = () => {
                       key={`${section.id}-${itemsToShow}`}
                     />
                   </div>
-                </div>
+                </motion.div>
               </CarouselItem>
             ))}
           </CarouselContent>
 
           {/* Custom navigation arrows - disabled when at first/last slide */}
-          <div className="absolute top-1/2 -translate-y-1/2 left-2 md:left-4 lg:-left-12">
-            <button
+          <motion.div
+            className="absolute top-1/2 -translate-y-1/2 left-2 md:left-4 lg:-left-12"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <motion.button
               onClick={() => api && api.scrollPrev()}
               className={cn(
                 "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
@@ -216,6 +232,8 @@ const Products = () => {
               )}
               disabled={isFirstSlide}
               aria-label="Previous section"
+              whileHover={!isFirstSlide ? { scale: 1.1 } : undefined}
+              whileTap={!isFirstSlide ? { scale: 0.95 } : undefined}
             >
               <ChevronLeft
                 className={cn(
@@ -225,10 +243,16 @@ const Products = () => {
                     : "text-gray-800 group-hover:text-white"
                 )}
               />
-            </button>
-          </div>
-          <div className="absolute top-1/2 -translate-y-1/2 right-2 md:right-4 lg:-right-12">
-            <button
+            </motion.button>
+          </motion.div>
+
+          <motion.div
+            className="absolute top-1/2 -translate-y-1/2 right-2 md:right-4 lg:-right-12"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <motion.button
               onClick={() => api && api.scrollNext()}
               className={cn(
                 "rounded-full p-3 shadow-lg transition-all duration-300 backdrop-blur-sm group",
@@ -238,6 +262,8 @@ const Products = () => {
               )}
               disabled={isLastSlide}
               aria-label="Next section"
+              whileHover={!isLastSlide ? { scale: 1.1 } : undefined}
+              whileTap={!isLastSlide ? { scale: 0.95 } : undefined}
             >
               <ChevronRight
                 className={cn(
@@ -247,14 +273,19 @@ const Products = () => {
                     : "text-gray-800 group-hover:text-white"
                 )}
               />
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         </Carousel>
 
-        {/* Navigation dots */}
-        <div className="flex justify-center gap-2 mt-6 md:mt-8">
+        {/* Navigation dots with animation */}
+        <motion.div
+          className="flex justify-center gap-2 mt-6 md:mt-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+        >
           {SECTIONS.map((section, index) => (
-            <button
+            <motion.button
               key={section.id}
               className={cn(
                 "w-3 h-3 rounded-full transition-all duration-300",
@@ -268,9 +299,11 @@ const Products = () => {
               }}
               onClick={() => goToSlide(index)}
               aria-label={`Go to ${section.label.name}`}
+              whileHover={{ scale: 1.2 }}
+              whileTap={{ scale: 0.9 }}
             />
           ))}
-        </div>
+        </motion.div>
       </div>
     </div>
   );
