@@ -151,14 +151,14 @@ const Products = () => {
 
   return (
     <div
-      className="relative py-8 min-h-screen md:py-16 xl:py-20"
+      className="relative pt-8 max-h-screen md:pt-16 xl:pt-20 pb-24"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {" "}
       {/* Section indicator - with subtle animation */}
-      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
+      <div className="px-4 md:px-8  lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${SECTIONS[current].label.number}-${SECTIONS[current].label.name}`}
