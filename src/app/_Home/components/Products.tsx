@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, useSpring, AnimatePresence } from "framer-motion";
 import MainSection from "./ScrollSection";
+import { ClothQuery } from "@/sanity/queries";
 
 const SECTIONS = ["1 / THRIFTS", "2 / LUXURY", "3 / VINTAGE", "4 / MODERN"];
 
@@ -41,6 +42,14 @@ const Products = () => {
   }, [progress]);
 
 
+  useEffect(() => {
+    const getClothes = async () => {
+      const response = await ClothQuery();
+      console.log("clothes", response)
+    }
+    getClothes()
+  }, [])
+
   return (
     <div className="relative overflow-hidden">
       <motion.div
@@ -57,8 +66,8 @@ const Products = () => {
           transition={{
             duration: 0.5,
             ease: "easeInOut",
-            opacity: { duration: 0.4 }, 
-            exit: { duration: 0.4 }, 
+            opacity: { duration: 0.4 },
+            exit: { duration: 0.4 },
           }}
         >
           {currentSection}
