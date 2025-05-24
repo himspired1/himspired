@@ -23,7 +23,7 @@ const sizeMapping: Record<Variant, string> = {
     large: 'text-xl',
 };
 
-const fontFamilyMapping: Record<Required<TypographyProps['fontFamily']>, string> = {
+const fontFamilyMapping: Record<'kiona' | 'moon' | 'activo', string> = {
     // light: 'font-light',
     // regular: 'font-normal',
     // medium: 'font-medium',
@@ -46,7 +46,7 @@ export const P: React.FC<TypographyProps> = ({
     const hasCustomTextSize = className?.includes('text-');
     const combinedClasses = clsx(
         !hasCustomTextSize && sizeMapping[variant],
-        fontFamilyMapping[fontFamily],
+        fontFamilyMapping[fontFamily as keyof typeof fontFamilyMapping],
         'leading-relaxed',
         className
     );
@@ -58,7 +58,7 @@ export const P: React.FC<TypographyProps> = ({
 // Heading component
 export const H: React.FC<TypographyProps> = ({
     variant = 'large',
-    fontFamily = 'bold',
+    fontFamily = 'kiona',
     className,
     children,
 }) => {
@@ -76,7 +76,7 @@ export const H: React.FC<TypographyProps> = ({
 // Link component
 export const Link: React.FC<LinkProps> = ({
     variant = 'medium',
-    fontFamily = 'regular',
+    fontFamily = 'kiona',
     className,
     children,
     onClick,

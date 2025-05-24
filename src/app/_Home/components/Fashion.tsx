@@ -54,7 +54,7 @@ const Fashion = () => {
           className="h-screen w-[260vw] flex flex-row relative items-center justify-center"
         >
           <h1
-            className="text-7xl md:text-40 lg:text-50 xl:text-62.5 font-bold whitespace-nowrap font-moon space-x-20"
+            className="text-7xl md:text-40 lg:text-50 xl:text-62.5 font-bold whitespace-nowrap font-moon space-x-20 ml-[3em] md:ml-0"
             style={{ wordSpacing: "10rem" }}
           >
             FASHION <span>WITH PURPOSE</span>
