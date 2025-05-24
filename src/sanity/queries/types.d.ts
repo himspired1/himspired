@@ -28,7 +28,7 @@ interface Product {
   price: number;
   availability?: boolean;
   stock?: number;
-  size?: string;
+  size?: string[];
   mainImage: MainImage;
   description?: string;
 }
