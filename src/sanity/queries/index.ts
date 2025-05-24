@@ -327,7 +327,7 @@ export const useClothingItem = (
   identifier: string,
   type: "slug" | "id" = "slug"
 ) => {
-  const [item, setItem] = useState<SanityDocument | null>(null);
+  const [item, setItem] = useState<Product>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -409,10 +409,7 @@ export const useClothingItem = (
       setError(null);
       const params =
         type === "slug" ? { slug: identifier } : { id: identifier };
-      const result = await client.fetch<SanityDocument>(
-        singleItemQuery,
-        params
-      );
+      const result = await client.fetch<Product>(singleItemQuery, params);
       setItem(result);
     } catch (err) {
       console.error("Error occurred while fetching clothing item", err);
