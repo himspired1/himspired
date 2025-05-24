@@ -2,9 +2,18 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "../store";
 import { toast } from "sonner";
 
+interface ClothingItem {
+  id: string | number;
+  title: string;
+  category: string;
+  image: string;
+  price: number;
+}
+
 export interface CartItem extends ClothingItem {
   quantity: number;
 }
+
 export interface CartState {
   items: CartItem[];
 }
@@ -30,13 +39,13 @@ const cartSlice = createSlice({
       }
     },
 
-    removeItem: (state, action: PayloadAction<string>) => {
+    removeItem: (state, action: PayloadAction<string | number>) => {
       state.items = state.items.filter((item) => item.id !== action.payload);
     },
 
     updateItemQuantity: (
       state,
-      action: PayloadAction<{ id: string; quantity: number }>
+      action: PayloadAction<{ id: string | number; quantity: number }>
     ) => {
       const { id, quantity } = action.payload;
       const item = state.items.find((item) => item.id === id);
@@ -65,7 +74,7 @@ export const selectCartItems = (state: RootState) =>
   state.persistedReducer.cart.items;
 
 // Calculate total price of a specific item (price * quantity)
-export const selectItemTotal = (state: RootState, id: string): number => {
+export const selectItemTotal = (state: RootState, id: string | number): number => {
   const item = state.persistedReducer.cart.items.find((item) => item.id === id);
   return item ? item.price * item.quantity : 0;
 };
@@ -77,7 +86,7 @@ export const selectCartTotal = (state: RootState): number =>
     0
   );
 
-// (Optional) Calculate total quantity of items in the cart
+// Calculate total quantity of items in the cart
 export const selectCartQuantity = (state: RootState): number =>
   state.persistedReducer.cart.items.reduce(
     (sum, item) => sum + item.quantity,

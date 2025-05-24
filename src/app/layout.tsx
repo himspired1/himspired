@@ -5,6 +5,7 @@ import "./globals.css"
 import { Toaster } from "sonner"
 import { LoadingProvider } from "@/context/LoadingContext"
 import AppShell from "@/components/AppShell"
+import { ReduxProvider } from "@/components/providers/ReduxProvider" 
 
 export const metadata: Metadata = {
   title: "Himspired",
@@ -19,10 +20,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={GeistSans.className}>
       <body className={`antialiased min-h-screen flex flex-col`}>
-        <LoadingProvider>
-          <AppShell>{children}</AppShell>
-          <Toaster position="top-right" richColors expand={false} />
-        </LoadingProvider>
+        <ReduxProvider>
+          <LoadingProvider>
+            <AppShell>{children}</AppShell>
+            <Toaster position="top-right" richColors expand={false} />
+          </LoadingProvider>
+        </ReduxProvider>
       </body>
     </html>
   )
