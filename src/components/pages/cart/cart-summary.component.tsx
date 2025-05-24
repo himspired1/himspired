@@ -1,7 +1,12 @@
 import Button from "@/components/common/button/button.component";
 import { P } from "@/components/common/typography";
+import { useAppSelector } from "@/redux/hooks";
+import { selectCartTotal } from "@/redux/slices/cartSlice";
 
 const CartSummary = () => {
+  const subTotal = useAppSelector(selectCartTotal)
+  const deliveryFee = 1000
+  const total = subTotal + deliveryFee
   return (
     <>
       <div className="w-full">
@@ -21,7 +26,7 @@ const CartSummary = () => {
               Subtotal
             </P>
             <P fontFamily={"activo"} className=" text-sm font-semibold">
-              NGN 4,050,00.00
+              NGN {subTotal.toLocaleString()}
             </P>
           </div>
           <div className="w-full flex items-center justify-between my-3 ">
@@ -32,7 +37,7 @@ const CartSummary = () => {
               Delivery fee
             </P>
             <P fontFamily={"activo"} className=" text-sm font-semibold">
-              NGN 1,500.00
+              NGN {deliveryFee.toLocaleString()}
             </P>
           </div>
           <div className="w-full flex items-center justify-between my-3 ">
@@ -43,7 +48,7 @@ const CartSummary = () => {
               Delivery
             </P>
             <P fontFamily={"activo"} className=" text-sm font-semibold">
-              NGN 0.00
+              NGN {deliveryFee?.toLocaleString()}
             </P>
           </div>
         </div>
@@ -60,7 +65,7 @@ const CartSummary = () => {
               fontFamily={"activo"}
               className="  text-base font-medium uppercase"
             >
-              NGN 4,050,00.00
+              NGN {total.toLocaleString()}
             </P>
           </div>
           <div className="w-full flex items-center justify-between mt-11 lg:flex-row-reverse lg:justify-end gap-2">
