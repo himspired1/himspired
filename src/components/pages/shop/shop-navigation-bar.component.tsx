@@ -1,62 +1,79 @@
-"use client"
-import { Link, P } from "@/components/common/typography";
-import { ChevronLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+'use client'
+
+import { useEffect, useRef, useState, useMemo } from "react";
+
 interface Props {
-    activeTab: string,
-    setActiveTab: any
+  activeTab: string,
+  setActiveTab: (tab: string) => void
 }
 const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
-    const links = [
-        {
-            name: "All",
-            value: "all"
-        },
-        {
-            name: "Thrift",
-            value: "thrift"
-        },
-        {
-            name: "Luxury",
-            value: "luxury"
-        },
-        {
-            name: "Senetors",
-            value: "senetors"
-        },
-    ]
+  const [tabPositions, setTabPositions] = useState({ width: 0, left: 0 });
+  const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-    const goBack = useRouter().push
-    return (
-        <>
-            <div className="w-full mt-[120px] lg:mt-[141.5px] px-[120px]" >
-                <div className="w-full flex items-center justify-between" >
-                    <div className="w-[10%] flex items-center justify-start gap-3" >
-                        <ChevronLeft className="cursor-pointer" onClick={() => {
-                            goBack("/")
-                        }} size={16} />
-                        <Link onClick={() => {
-                            goBack("/")
-                        }} fontFamily="activo" className="font-normal text-sm text-[black] hover:text-black no-underline" >Home</Link>
-                    </div>
-
-                    <div className="w-[90%] flex items-center justify-center " >
-                        <ul className="w-[383px] flex items-center justify-between bg-[#F7F7F7] rounded-[100px] p-[4px]" >
-
-                            {links.map(({ name, value }) => (
-                                <div onClick={() => {
-                                    setActiveTab(value)
-                                }} key={value} className={` w-min-[49px] ${activeTab === value ? "bg-white" : "bg-transparent"} rounded-[100px] h-[23px] cursor-pointer px-[12px] py-[4px] flex items-center justify-center`} >
-                                    <P fontFamily="activo" className=" text-[#1E1E1ECC] text-xs md:text-sm font-normal text-center cursor-pointer" >{name}</P>
-                                </div>
-                            ))}
-
-                        </ul>
-                    </div>
+  const links = useMemo(() => [
+    {
+      name: "ALL",
+      value: "all"
+    },
+    {
+      name: "THRIFT",
+      value: "thrift"
+    },
+    {
+      name: "LUXURY",
+      value: "luxury"
+    },
+    {
+      name: "SENATORS",
+      value: "senetors"
+    },
+  ], []);
+  
+  useEffect(() => {
+    const activeIndex = links.findIndex(link => link.value === activeTab);
+    if (tabRefs.current[activeIndex]) {
+      const activeTabElement = tabRefs.current[activeIndex];
+      if (activeTabElement) {
+        setTabPositions({
+          width: activeTabElement.offsetWidth,
+          left: activeTabElement.offsetLeft
+        });
+      }
+    }
+  }, [activeTab, links]);
+  
+  return (
+    <>
+      <div className="w-full mt-[120px] lg:mt-[141.5px] px-[120px]" >
+        <div className="w-full " >
+          <div className=" flex items-center justify-center " >
+            <ul className="w-[383px] flex items-center justify-between bg-[#F7F7F7] rounded-[100px] p-[4px] relative" >
+              {/* Animated background */}
+              <div 
+                className="absolute bg-white rounded-[100px] h-[23px] transition-all duration-300 ease-in-out"
+                style={{
+                  width: `${tabPositions.width}px`,
+                  left: `${tabPositions.left}px`,
+                }}
+              />
+              
+              {links.map(({ name, value }, index) => (
+                <div 
+                  ref={el => { tabRefs.current[index] = el; }}
+                  onClick={() => {
+                    setActiveTab(value)
+                  }} 
+                  key={value} 
+                  className={`w-min-[49px] rounded-[100px] h-[23px] cursor-pointer px-[12px] py-[4px] flex items-center justify-center z-10`} 
+                >
+                  <p style={{ fontFamily: "activo" }} className=" text-[#1E1E1ECC] text-xs md:text- font-normal text-center cursor-pointer" >{name}</p>
                 </div>
-            </div>
-        </>
-    );
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
-
 export default ShopNavigationBar;
