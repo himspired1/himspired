@@ -4,63 +4,10 @@ import CartItem from "@/components/pages/cart/cart-item.component";
 import CartSummary from "@/components/pages/cart/cart-summary.component";
 import React from "react";
 import { motion } from "framer-motion";
+import { selectCartItems } from "@/redux/slices/cartSlice";
+import { useAppSelector } from "@/redux/hooks";
 const Page = () => {
-  const clothsData = [
-    {
-      id: 1,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-    {
-      id: 2,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-    {
-      id: 3,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-    {
-      id: 4,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-    {
-      id: 5,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-    {
-      id: 6,
-      title: "Men's suit",
-      category: "Luxury",
-      no_of_item: 1,
-      size: "xl",
-      price: 25000,
-      image: "/images/jacket.svg",
-    },
-  ];
+  const cartItems = useAppSelector(selectCartItems)
   return (
     <div className=" min-h-screen  top-24 relative px-6 md:px-14 pb-52 ">
       <div className="w-full flex items-center justify-between">
@@ -77,21 +24,22 @@ const Page = () => {
 
       <div className="w-full flex flex-col items-start justify-between mt-8 lg:flex-row lg:gap-12 ">
         <div className="w-full lg:w-3/5">
-          {clothsData.map(
-            ({ title, id, size, price, no_of_item, image, category }) => (
+          {cartItems.map(
+            ({ title, _id, size, price, quantity, mainImage, category }, index) => (
               <motion.div
-                key={id}
+                key={_id}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -30 }}
-                transition={{ delay: id * 0.1, duration: 0.5 }}
+                transition={{ delay: index * 0.1, duration: 0.5 }}
               >
                 <CartItem
+                  key={_id}
                   title={title}
-                  id={id}
+                  id={_id}
                   price={price}
-                  no_of_item={no_of_item}
-                  image={image}
+                  no_of_item={quantity}
+                  image={mainImage}
                   category={category}
                   size={size}
                 />

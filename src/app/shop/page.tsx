@@ -19,7 +19,7 @@ const Shop = () => {
                 <ShopNavigationBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
                 <div className="w-full mt-[123px] px-[23px] md:px-[30px] lg:px-[120px]" >
-                    <div className="w-full flex items-center justify-center gap-20 flex-wrap" >
+                    <div className="w-full flex items-center justify-center gap-4 md:gap-20 flex-wrap" >
                         {clothes.length > 0 && clothes.map((item, index) => (
                             <ProductCard {...item} delay={index * 0.1} key={item?._id} />
                         ))}

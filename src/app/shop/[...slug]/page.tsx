@@ -42,7 +42,7 @@ const ProductDetails = () => {
 
   return (
     <motion.div
-      className="w-full min-h-screen"
+      className="w-full min-h-screen pb-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
