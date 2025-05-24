@@ -15,13 +15,28 @@ interface ProductProps {
   price: string;
   id: number;
   delay?: number;
+  description?: string;
+  size?: string;
+  availability?: boolean;
 }
 
-const ProductCard = ({ title, className = "", category, price, image, id, delay }: ProductProps) => {
+const ProductCard = ({ 
+  title, 
+  className = "", 
+  category, 
+  price, 
+  image, 
+  id, 
+  delay,
+  description = "",
+  size = "One Size",
+  availability = true 
+}: ProductProps) => {
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
   const handleClick = (e: MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     const slug = title.toLowerCase().replace(/\s+/g, '-');
     router.push(`/shop/${id}/${slug}`);
   };
@@ -39,7 +54,7 @@ const ProductCard = ({ title, className = "", category, price, image, id, delay 
   return (
     <AnimatePresence>
       <motion.div
-        onClick={(e) => handleClick(e)}
+        onClick={handleClick}
         className={`${className} mb-[70px] cursor-pointer hover:scale-[1.05] duration-700 transition`}
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -49,12 +64,19 @@ const ProductCard = ({ title, className = "", category, price, image, id, delay 
         <div className="w-full flex items-center justify-center">
           <Image alt={title} src={image || "/placeholder.svg"} width={150} height={150} />
         </div>
+        
         <div className="w-full mt-[38px]">
-          <P fontFamily="activo" className="text-[10px] font-normal uppercase text-[#1E1E1E80] text-center font-activo">{category}</P>
-          <P fontFamily="activo" className="text-xs md:text-base font-normal uppercase text-[#000] text-center font-activo mt-[8px]">{title}</P>
-          <P fontFamily="activo" className="text-xs md:text-base font-normal uppercase text-[#000] text-center font-activo mt-[8px]">₦{price}</P>
+          <P fontFamily="activo" className="text-[10px] font-normal uppercase text-[#1E1E1E80] text-center font-activo">
+            {category}
+          </P>
+          <P fontFamily="activo" className="text-xs md:text-base font-normal uppercase text-[#000] text-center font-activo mt-[8px]">
+            {title}
+          </P>
+          <P fontFamily="activo" className="text-xs md:text-base font-normal uppercase text-[#000] text-center font-activo mt-[8px]">
+            ₦{price}
+          </P>
         </div>
-
+        
         <div className="w-full flex flex-col items-center justify-center mt-[26px]">
           <div onClick={(e) => {
             e.stopPropagation();

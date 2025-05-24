@@ -1,7 +1,6 @@
 import Image from "next/image";
 import React from "react";
 import {
-  Homepage_Image,
   Stack_Image_1,
   Stack_Image_2,
   Stack_Image_3,
