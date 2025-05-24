@@ -194,7 +194,7 @@ const Products = () => {
           }}
         >
           <CarouselContent>
-            {SECTIONS.map((section, index) => (
+            {SECTIONS.map((section) => (
               <CarouselItem key={section.id} className="w-full">
                 <motion.div
                   className="w-full flex items-center justify-center"

@@ -1,13 +1,12 @@
 "use client";
 import React, { useRef, useEffect } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
 
 const Fashion = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
-  let lastLoggedViewport = 0; // Keep track of the last logged viewport
+  const lastLoggedViewport = useRef(0); // Keep track of the last logged viewport
 
   gsap.registerPlugin(ScrollTrigger);
 
@@ -32,8 +31,8 @@ const Fashion = () => {
             const scrollPosition = Math.round(self.progress * 300); // 300vw is the total width
             const currentViewport = Math.floor(scrollPosition / 100); // Determine the current 100vw scroll step
 
-            if (currentViewport !== lastLoggedViewport) {
-              lastLoggedViewport = currentViewport;
+            if (currentViewport !== lastLoggedViewport.current) {
+              lastLoggedViewport.current = currentViewport;
               console.log(`Scrolled to ${currentViewport * 100}vw`);
             }
           },
