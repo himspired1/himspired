@@ -18,7 +18,9 @@ import {
   vintageProducts,
   modernProducts,
 } from "@/data/products";
-import { ClothQuery } from "@/sanity/queries";
+import { useClothes, useClothesByCategory } from "@/sanity/queries";
+import React from "react";
+
 
 // Define our sections with their components and data
 const SECTIONS = [
@@ -53,7 +55,9 @@ const Products = () => {
   const autoplayRef = useRef<NodeJS.Timeout | null>(null);
   const autoplayDelay = 5000; // 5 seconds between slides - standard timing
   const initialDelayRef = useRef(false);
-
+  // const { clothes, loading, error, refetch } = useClothes();
+  const { clothesByCategory, loading } = useClothesByCategory(8);
+  console.log("clothes query:", clothesByCategory, loading)
   // Calculate items to show based on screen width
   useEffect(() => {
     const updateItemsToShow = () => {
@@ -149,14 +153,6 @@ const Products = () => {
   const isFirstSlide = current === 0;
   const isLastSlide = current === SECTIONS.length - 1;
 
-  useEffect(() => {
-    const getClothes = async () => {
-      const response = await ClothQuery();
-      console.log("clothes", response)
-    }
-    getClothes()
-  }, [])
-
   return (
     <div
       className="relative pt-8 md:pt-16 xl:pt-24 pb-24 mt-[5em] lg:mt-0"
@@ -169,7 +165,7 @@ const Products = () => {
       <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${SECTIONS[current].label.number}-${SECTIONS[current].label.name}`}
+            key={`${clothesByCategory[current]?.category}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -183,10 +179,10 @@ const Products = () => {
             className="text-2xl md:text-3xl lg:text-4xl text-left font-bold"
           >
             <span className="text-black">
-              {SECTIONS[current].label.number} /{" "}
+              {current + 1} /{" "}
             </span>
-            <span style={{ color: colors.primary_color }}>
-              {SECTIONS[current].label.name}
+            <span className=" capitalize" style={{ color: colors.primary_color }}>
+              {clothesByCategory[current]?.category}
             </span>
           </motion.div>
         </AnimatePresence>
@@ -199,11 +195,11 @@ const Products = () => {
           opts={{
             align: "start",
             loop: false,
-            duration: 50, // Slow down the transition speed (in milliseconds)
+            duration: 50,
           }}
         >
           <CarouselContent>
-            {SECTIONS.map((section) => (
+            {clothesByCategory.map((section) => (
               <CarouselItem key={section.id} className="w-full">
                 <motion.div
                   className="w-full flex items-center justify-center"
@@ -214,7 +210,7 @@ const Products = () => {
                   <div className="w-full max-w-7xl">
                     <ProductSection
                       itemsToShow={itemsToShow}
-                      products={section.products}
+                      products={section?.products}
                       key={`${section.id}-${itemsToShow}`}
                     />
                   </div>
@@ -292,7 +288,7 @@ const Products = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.5 }}
         >
-          {SECTIONS.map((section, index) => (
+          {clothesByCategory.map((section, index) => (
             <motion.button
               key={section.id}
               className={cn(
@@ -306,7 +302,7 @@ const Products = () => {
                   current === index ? colors.primary_color : undefined,
               }}
               onClick={() => goToSlide(index)}
-              aria-label={`Go to ${section.label.name}`}
+              aria-label={`Go to ${section.category}`}
               whileHover={{ scale: 1.2 }}
               whileTap={{ scale: 0.9 }}
             />
@@ -317,4 +313,4 @@ const Products = () => {
   );
 };
 
-export default Products;
+export default React.memo(Products);

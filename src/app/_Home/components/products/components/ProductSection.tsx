@@ -1,11 +1,7 @@
 "use client"
-
-import type { Product } from "@/data/products" 
-import Image from "next/image"
 import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
-
-
+import { SanityImageComponent } from "@/components/sanity/image"
 interface ProductSectionProps {
   itemsToShow?: number
   products: Product[]
@@ -43,7 +39,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
       const product = products[i]
       gridItems.push(
         <motion.div
-          key={product.id}
+          key={product._id}
           className="flex flex-col gap-y-2 items-center"
           variants={itemVariants}
           style={{
@@ -55,9 +51,9 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
             transition={{ duration: 0.3 }}
             className="relative group cursor-pointer"
           >
-            <Image
-              src={product.image || "/placeholder.svg"}
-              alt={product.name}
+            <SanityImageComponent
+              image={product.mainImage || "/placeholder.svg"}
+              alt={product.title}
               width={0}
               height={0}
               className="w-auto h-auto md:px-7 py-3 md:py-4.5"
@@ -65,8 +61,8 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
             <div className="absolute inset-0 bg-black/0  transition-all duration-300 rounded-lg"></div>
           </motion.div>
           <div className="flex flex-col gap-y-2.5">
-            <p className="text-gray-850/50 text-xs">{product.type}</p>
-            <h3 className="text-gray-850 text-sm md:text-base whitespace-nowrap overflow-hidden text-ellipsis w-40">{product.name}</h3>
+            <p className="text-gray-850/50 text-xs">{product.category}</p>
+            <h3 className="text-gray-850 text-sm md:text-base whitespace-nowrap overflow-hidden text-ellipsis w-40">{product.title}</h3>
             <p className="text-gray-850 text-xs md:text-base">NGN {product.price.toLocaleString()}</p>
           </div>
           <motion.button
