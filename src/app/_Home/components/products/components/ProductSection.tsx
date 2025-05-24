@@ -69,7 +69,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
               height={0}
               className="w-auto h-auto md:px-7 py-3 md:py-4.5"
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 rounded-lg"></div>
+            <div className="absolute inset-0 bg-black/0  transition-all duration-300 rounded-lg"></div>
           </motion.div>
           <div className="flex flex-col gap-y-2.5">
             <p className="text-gray-850/50 text-xs">{product.type}</p>
