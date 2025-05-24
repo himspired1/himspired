@@ -4,7 +4,7 @@ import type { Product } from "@/data/products"
 import Image from "next/image"
 import { Plus } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect, useState } from "react"
+
 
 interface ProductSectionProps {
   itemsToShow?: number
@@ -13,14 +13,7 @@ interface ProductSectionProps {
 
 
 const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
-  // Force component to re-render when itemsToShow changes
-  const [displayItems, setDisplayItems] = useState<Product[]>([])
-
-  // Update display items when itemsToShow changes
-  useEffect(() => {
-    // Force a new array to trigger re-render
-    setDisplayItems([...products].slice(0, itemsToShow))
-  }, [itemsToShow, products])
+  // No need for displayItems state, gridItems is generated directly from products and itemsToShow
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -69,7 +62,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
               height={0}
               className="w-auto h-auto md:px-7 py-3 md:py-4.5"
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 rounded-lg"></div>
+            <div className="absolute inset-0 bg-black/0  transition-all duration-300 rounded-lg"></div>
           </motion.div>
           <div className="flex flex-col gap-y-2.5">
             <p className="text-gray-850/50 text-xs">{product.type}</p>

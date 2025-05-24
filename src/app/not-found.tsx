@@ -122,7 +122,7 @@ export default function NotFound() {
         />
 
         <motion.p className="text-gray-600 mb-8 max-w-md mx-auto" variants={itemVariants}>
-          The page you're looking for doesn't exist or has been moved. Let us guide you back to our collection.
+          The page you`re looking for doesn`t exist or has been moved. Let us guide you back to our collection.
         </motion.p>
 
         {/* Buttons - with Go Back as the first button */}

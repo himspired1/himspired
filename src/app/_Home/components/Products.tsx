@@ -150,7 +150,7 @@ const Products = () => {
 
   return (
     <div
-      className="relative pt-8 md:pt-16 xl:pt-24 pb-24 xl:min-h-screen 2xl:max-h-screen"
+      className="relative pt-8 md:pt-16 xl:pt-24 pb-24 mt-[5em] lg:mt-0"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
@@ -194,7 +194,7 @@ const Products = () => {
           }}
         >
           <CarouselContent>
-            {SECTIONS.map((section, index) => (
+            {SECTIONS.map((section) => (
               <CarouselItem key={section.id} className="w-full">
                 <motion.div
                   className="w-full flex items-center justify-center"
