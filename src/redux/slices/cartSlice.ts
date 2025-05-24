@@ -10,7 +10,7 @@ interface ClothingItem {
   price: number;
 }
 
-export interface CartItem extends ClothingItem {
+export interface CartItem extends Product {
   quantity: number;
 }
 
@@ -30,7 +30,7 @@ const cartSlice = createSlice({
       toast.success("Item added to cart");
       const productDetails = action.payload;
       const existing = state.items.find(
-        (item) => item.id === productDetails.id
+        (item) => item._id === productDetails._id
       );
       if (existing) {
         existing.quantity += 1;
@@ -40,7 +40,7 @@ const cartSlice = createSlice({
     },
 
     removeItem: (state, action: PayloadAction<string | number>) => {
-      state.items = state.items.filter((item) => item.id !== action.payload);
+      state.items = state.items.filter((item) => item._id !== action.payload);
     },
 
     updateItemQuantity: (
@@ -48,7 +48,7 @@ const cartSlice = createSlice({
       action: PayloadAction<{ id: string | number; quantity: number }>
     ) => {
       const { id, quantity } = action.payload;
-      const item = state.items.find((item) => item.id === id);
+      const item = state.items.find((item) => item._id === id);
       if (item) {
         item.quantity = quantity;
       }
@@ -74,8 +74,13 @@ export const selectCartItems = (state: RootState) =>
   state.persistedReducer.cart.items;
 
 // Calculate total price of a specific item (price * quantity)
-export const selectItemTotal = (state: RootState, id: string | number): number => {
-  const item = state.persistedReducer.cart.items.find((item) => item.id === id);
+export const selectItemTotal = (
+  state: RootState,
+  id: string | number
+): number => {
+  const item = state.persistedReducer.cart.items.find(
+    (item) => item._id === id
+  );
   return item ? item.price * item.quantity : 0;
 };
 

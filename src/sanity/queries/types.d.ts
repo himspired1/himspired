@@ -3,10 +3,10 @@
  * Represents the main image structure of a product.
  */
 interface MainImage {
-  _type: string;
+  _type: "image";
   asset: {
-    _id: string;
-    url: string;
+    _ref: string;
+    _type: "reference";
   };
   alt?: string;
   caption?: string;
@@ -20,16 +20,17 @@ interface MainImage {
 interface Product {
   _id: string;
   title: string;
-  slug: {
+  slug?: {
     current: string;
   };
-  _createdAt: string;
+  _createdAt?: string;
   category: string;
   price: number;
-  availability: boolean;
-  stock: number;
-  size: string;
+  availability?: boolean;
+  stock?: number;
+  size?: string;
   mainImage: MainImage;
+  description?: string;
 }
 
 /**

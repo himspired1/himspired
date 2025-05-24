@@ -1,54 +1,48 @@
-import Image from "next/image";
 import { P } from "../common/typography";
 import { Plus } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppDispatch } from "@/redux/hooks";
 import { MouseEvent } from "react";
-import { addItem } from "@/redux/slices/cartSlice";
+import { addItem, CartItem } from "@/redux/slices/cartSlice";
+import { SanityImageComponent } from "../sanity/image";
 
-interface ProductProps {
+interface ProductProps extends Product {
   className?: string;
-  title: string;
-  image: string;
-  category: string;
-  price: string;
-  id: number;
   delay?: number;
-  description?: string;
-  size?: string;
-  availability?: boolean;
 }
 
-const ProductCard = ({ 
-  title, 
-  className = "", 
-  category, 
-  price, 
-  image, 
-  id, 
+const ProductCard = ({
+  title,
+  className = "",
+  category,
+  price,
+  mainImage,
+  _id,
   delay,
-  description = "",
+  description,
+  slug,
   size = "One Size",
-  availability = true 
+  availability = true
 }: ProductProps) => {
   const router = useRouter();
-  const dispatch = useAppDispatch();
+
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
-    const slug = title.toLowerCase().replace(/\s+/g, '-');
-    router.push(`/shop/${id}/${slug}`);
+    // const slug = title.toLowerCase().replace(/\s+/g, '-');
+    router.push(`/shop/${_id}/${slug?.current}`);
   };
 
   const dispatch = useAppDispatch()
-  
-  const data = {
-    id: id,
+  console.log("main image", mainImage)
+  const data: CartItem = {
+    _id: _id,
     title: title,
     category: category,
-    image: image,
-    price: parseFloat(price.replace(/,/g, '')) // Convert string price to number
+    mainImage: mainImage,
+    price: price,
+    quantity: 1
   }
 
   return (
@@ -62,9 +56,9 @@ const ProductCard = ({
         transition={{ duration: 0.5, delay }}
       >
         <div className="w-full flex items-center justify-center">
-          <Image alt={title} src={image || "/placeholder.svg"} width={150} height={150} />
+          <SanityImageComponent alt={title} image={mainImage || "/placeholder.svg"} width={150} height={150} />
         </div>
-        
+
         <div className="w-full mt-[38px]">
           <P fontFamily="activo" className="text-[10px] font-normal uppercase text-[#1E1E1E80] text-center font-activo">
             {category}
@@ -76,7 +70,7 @@ const ProductCard = ({
             ₦{price}
           </P>
         </div>
-        
+
         <div className="w-full flex flex-col items-center justify-center mt-[26px]">
           <div onClick={(e) => {
             e.stopPropagation();

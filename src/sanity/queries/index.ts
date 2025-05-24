@@ -55,7 +55,9 @@ export const useClothes = () => {
 // Hook to get clothes organized by categories
 export const useClothesByCategory = (limit = 12) => {
   // State for array of category objects: { id, category, products }
-  const [clothesByCategory, setClothesByCategory] = useState<CategoryGroup[]>([]);
+  const [clothesByCategory, setClothesByCategory] = useState<CategoryGroup[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -93,13 +95,15 @@ export const useClothesByCategory = (limit = 12) => {
       );
 
       // Build array of { id, category, products }
-      const groupedArray: CategoryGroup[] = uniqueCategories.map((category, index) => ({
-        id: index,
-        category,
-        products: allClothes
-          .filter((item) => item.category === category)
-          .slice(0, limit),
-      }));
+      const groupedArray: CategoryGroup[] = uniqueCategories.map(
+        (category, index) => ({
+          id: index,
+          category,
+          products: allClothes
+            .filter((item) => item.category === category)
+            .slice(0, limit),
+        })
+      );
 
       setClothesByCategory(groupedArray);
     } catch (err) {
@@ -124,13 +128,16 @@ export const useClothesByCategory = (limit = 12) => {
 
 // Hook to get clothes from a specific category
 export const useClothesBySpecificCategory = (category: string, limit = 12) => {
-  const [clothes, setClothes] = useState<SanityDocument[]>([]);
+  const [clothes, setClothes] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const categoryQuery = `*[
     _type == "clothingItem" 
-    && category == $category 
+    &&  (
+      $category == 'all' ||
+      category == $category
+    )
     && defined(slug.current)
   ] | order(_createdAt desc)[0...${limit}] {
     _id,
@@ -164,7 +171,7 @@ export const useClothesBySpecificCategory = (category: string, limit = 12) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await client.fetch<SanityDocument[]>(categoryQuery, {
+      const result = await client.fetch<Product[]>(categoryQuery, {
         category,
       });
       setClothes(result);
@@ -227,7 +234,7 @@ export const useClothesWithFilters = (
     limit?: number;
   } = {}
 ) => {
-  const [clothes, setClothes] = useState<SanityDocument[]>([]);
+  const [clothes, setClothes] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -298,7 +305,7 @@ export const useClothesWithFilters = (
       setLoading(true);
       setError(null);
       const { query, params } = buildFilterQuery();
-      const result = await client.fetch<SanityDocument[]>(query, params);
+      const result = await client.fetch<Product[]>(query, params);
       setClothes(result);
     } catch (err) {
       console.error("Error occurred while fetching filtered clothes", err);
