@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { P } from "../common/typography";
-import { Plus } from "lucide-react";
+import { Plus } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppDispatch } from "@/redux/hooks";
@@ -41,25 +41,15 @@ const ProductCard = ({
     router.push(`/shop/${id}/${slug}`);
   };
 
-  const handleAddToCart = (e: MouseEvent) => {
-    e.stopPropagation();
-    
-    // Create data object that matches ClothingItem interface
-    const data = {
-      id: id.toString(), // Convert to string to match cart slice expectations
-      title: title,
-      category: category,
-      image: image,
-      price: parseFloat(price.replace(/[^\d.]/g, '')), // Convert price string to number, removing currency symbols
-      description: description,
-      size: size,
-      availability: availability,
-      stock: 1, // Default stock value, adjust as needed
-      mainImage: image // Use image as mainImage, adjust if needed
-    };
-
-    dispatch(addItem(data));
-  };
+  const dispatch = useAppDispatch()
+  
+  const data = {
+    id: id,
+    title: title,
+    category: category,
+    image: image,
+    price: parseFloat(price.replace(/,/g, '')) // Convert string price to number
+  }
 
   return (
     <AnimatePresence>
@@ -72,7 +62,7 @@ const ProductCard = ({
         transition={{ duration: 0.5, delay }}
       >
         <div className="w-full flex items-center justify-center">
-          <Image alt={title} src={image} width={150} height={150} />
+          <Image alt={title} src={image || "/placeholder.svg"} width={150} height={150} />
         </div>
         
         <div className="w-full mt-[38px]">
@@ -88,10 +78,10 @@ const ProductCard = ({
         </div>
         
         <div className="w-full flex flex-col items-center justify-center mt-[26px]">
-          <div 
-            onClick={handleAddToCart}
-            className="w-12 cursor-pointer h-12 rounded-full flex items-center justify-center bg-[#F4F4F4] hover:bg-[#E4E4E4] transition-colors duration-200"
-          >
+          <div onClick={(e) => {
+            e.stopPropagation();
+            dispatch(addItem(data))
+          }} className="w-12 cursor-pointer h-12 rounded-full flex items-center justify-center bg-[#F4F4F4]">
             <Plus size={14} color="#1E1E1E" />
           </div>
         </div>
