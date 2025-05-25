@@ -2,17 +2,11 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "../store";
 import { toast } from "sonner";
 
-interface ClothingItem {
-  id: string | number;
-  title: string;
-  category: string;
-  image: string;
-  price: number;
-}
-
-export interface CartItem extends Product {
+// CartItem extends the common base but has a selected size instead
+export interface CartItem extends ProductBase {
   quantity: number;
-  price: number; // total price = price * quantity
+  price: number;
+  size: string;
 }
 
 export interface CartState {
@@ -29,22 +23,26 @@ const cartSlice = createSlice({
   reducers: {
     addItem: (state, action: PayloadAction<Omit<CartItem, "quantity">>) => {
       toast.success("Item added to cart");
-      const productDetails = action.payload;
+      const { size, ...productDetails } = action.payload;
       const existing = state.items.find(
-        (item) => item._id === productDetails._id
+        (item) => item._id === productDetails._id && item.size === size
       );
+
       if (existing) {
         existing.quantity += 1;
         existing.price = productDetails.price * existing.quantity;
       } else {
+        // Create a new unique id for the cart item with different size
+        const uniqueId = `${productDetails._id}-${size}`;
         state.items.push({
           ...productDetails,
+          _id: uniqueId,
           quantity: 1,
+          size,
           price: productDetails.price,
         });
       }
     },
-
     removeItem: (state, action: PayloadAction<string | number>) => {
       state.items = state.items.filter((item) => item._id !== action.payload);
     },

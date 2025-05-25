@@ -19,7 +19,7 @@ interface CartItemProps {
   image: MainImage;
   category: string;
   no_of_item: number;
-  size: string[];
+  size: string;
   price: string | number;
   id: string | number;
 }
@@ -117,7 +117,7 @@ const CartItem: FC<CartItemProps> = ({
                   className="text-xs text-[#1E1E1E99] uppercase m-0"
                 >
                   Size:{" "}
-                  {size?.map((size, index) => <span key={index}>{size}</span>)}
+                  {size}
                 </P>
                 <CartIncrementor id={id} no_of_item={no_of_item} />
               </div>

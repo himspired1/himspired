@@ -20,6 +20,7 @@ import {
 } from "@/data/products";
 import { useClothes, useClothesByCategory } from "@/sanity/queries";
 import React from "react";
+import ProductCardSkeleton from "@/components/common/skeleton/product-card-skeleton.component";
 
 
 // Define our sections with their components and data
@@ -57,7 +58,10 @@ const Products = () => {
   const initialDelayRef = useRef(false);
   // const { clothes, loading, error, refetch } = useClothes();
   const { clothesByCategory, loading } = useClothesByCategory(8);
-  console.log("clothes query:", clothesByCategory, loading)
+
+
+
+
   // Calculate items to show based on screen width
   useEffect(() => {
     const updateItemsToShow = () => {
@@ -152,7 +156,12 @@ const Products = () => {
   // Check if we're at the first or last slide
   const isFirstSlide = current === 0;
   const isLastSlide = current === SECTIONS.length - 1;
-
+  if (loading && clothesByCategory.length === 0) {
+    return (<div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10" >
+      {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} delay={i * 0.1} />)}
+    </div>
+    )
+  }
   return (
     <div
       className="relative pt-8 md:pt-16 xl:pt-24 pb-24 mt-[5em] lg:mt-0"
