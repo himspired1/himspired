@@ -25,6 +25,7 @@
     "next-sanity": "^9.10.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.8",
     "react-horizontal-scrolling-menu": "^8.2.0",
     "react-redux": "^9.2.0",
     "react-use": "^17.6.0",
