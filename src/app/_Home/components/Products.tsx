@@ -18,7 +18,7 @@ import {
   vintageProducts,
   modernProducts,
 } from "@/data/products";
-import { useClothes, useClothesByCategory } from "@/sanity/queries";
+import { useClothesByCategory } from "@/sanity/queries";
 import React from "react";
 import ProductCardSkeleton from "@/components/common/skeleton/product-card-skeleton.component";
 

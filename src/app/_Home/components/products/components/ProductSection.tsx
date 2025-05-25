@@ -38,7 +38,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
   const router = useRouter();
   const [showSizes, setShowSizes] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-
+      const dispatch = useAppDispatch();
   useEffect(() => {
     const handleClickOutside = (event: globalThis.MouseEvent) => {
       if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
@@ -64,7 +64,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
         router.push(`/shop/${product._id}/${product.slug?.current}`);
       };
 
-      const dispatch = useAppDispatch();
+
       const data: CartItem = {
         _id: product._id,
         title: product.title,
