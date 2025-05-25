@@ -67,7 +67,7 @@ const CheckoutItem: FC<CheckoutItem> = ({
                                     className="text-xs text-[#1E1E1E99] uppercase m-0"
                                 >
                                     Size:{" "}
-                                    {size?.map((size, index) => <span key={index}>{size}</span>)}
+                                   {size}
                                 </P>
                             </div>
                         </div>
