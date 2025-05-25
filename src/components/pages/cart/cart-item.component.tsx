@@ -2,7 +2,6 @@
 
 import { P } from "@/components/common/typography";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import Image from "next/image";
 import { FC, useState } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { useIsMobile } from "@/hooks/useIsMobile";

@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useClothingItem } from "@/sanity/queries";
 import { SanityImageComponent } from "@/components/sanity/image";
 import ProductDetailsSkeleton from "@/components/common/skeleton/product-details-skeleton.component";
-import { addItem, CartItem } from "@/redux/slices/cartSlice";
+import { addItem } from "@/redux/slices/cartSlice";
 import { useAppDispatch } from "@/redux/hooks";
 
 const ProductDetails = () => {
@@ -15,12 +15,15 @@ const ProductDetails = () => {
   const params = useParams();
   const dispatch = useAppDispatch();
   const productId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
-
+  const { item, loading, error } = useClothingItem(
+    typeof productId === "string" ? productId : "",
+    "id"
+  );
   if (!productId || typeof productId !== "string") {
     return <p className="text-center mt-32 text-sm">Invalid product ID</p>;
   }
 
-  const { item, loading, error } = useClothingItem(productId, "id");
+
 
   if (loading) {
     return <ProductDetailsSkeleton />;

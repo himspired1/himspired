@@ -19,13 +19,14 @@ const schema = yup.object({
     message: yup.string().required("Message is required"),
     file: yup.mixed().required("Proof of payment is required"),
 });
+type FormData = yup.InferType<typeof schema>;
 const CheckoutPage = () => {
     const methods = useForm({
         resolver: yupResolver(schema),
         mode: "onTouched",
     });
 
-    const onSubmit = (data: any) => {
+    const onSubmit = (data: FormData) => {
         console.log("Submitted Data:", data);
     };
     return (
