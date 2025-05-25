@@ -14,10 +14,7 @@ interface MainImage {
   crop?: Record<string, unknown>;
 }
 
-/**
- * Represents a single clothing product fetched from Sanity.
- */
-interface Product {
+type ProductBase = {
   _id: string;
   title: string;
   slug?: {
@@ -28,10 +25,16 @@ interface Product {
   price: number;
   availability?: boolean;
   stock?: number;
-  size?: string[];
   mainImage: MainImage;
   description?: string;
+};
+
+
+interface Product extends ProductBase {
+  size?: string[];
 }
+
+
 
 /**
  * Represents a grouped category with its products.

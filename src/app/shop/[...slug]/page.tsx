@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { ChevronLeft, Frown, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
@@ -11,9 +11,9 @@ import { useAppDispatch } from "@/redux/hooks";
 
 const ProductDetails = () => {
   const [showSizes, setShowSizes] = useState(false);
-  const router = useRouter()
+  const router = useRouter();
   const params = useParams();
-  const dispatch = useAppDispatch()
+  const dispatch = useAppDispatch();
   const productId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
 
   if (!productId || typeof productId !== "string") {
@@ -23,22 +23,25 @@ const ProductDetails = () => {
   const { item, loading, error } = useClothingItem(productId, "id");
 
   if (loading) {
-    return <p className="text-center mt-32 text-sm"><ProductDetailsSkeleton /></p>;
+    return <ProductDetailsSkeleton />;
   }
 
   if (error) {
-    return <p className="text-center mt-32 text-sm text-red-500">Error loading product.</p>;
+    return (
+      <p className="text-center mt-32 text-sm text-red-500">
+        Error loading product.
+      </p>
+    );
   }
 
   if (!item) {
     return (
-      <div className="w-full flex flex-1 items-center justify-center flex-col" >
+      <div className="w-full flex flex-1 items-center justify-center flex-col">
         <Frown size={50} color="68191E" />
         <p className="text-center mt-32 text-sm">Product not found.</p>;
       </div>
-    )
+    );
   }
-
 
   return (
     <motion.div
@@ -48,12 +51,22 @@ const ProductDetails = () => {
       transition={{ duration: 0.5 }}
     >
       <div className="w-full flex items-center justify-start gap-3 mt-[123px] px-[23px] lg:px-[120px]">
-        <ChevronLeft onClick={() => {
-          router.back()
-        }} color="#1C1B1F" size={18} className="cursor-pointer" />
-        <p onClick={() => {
-          router.back()
-        }} className="text-[#000000] text-sm font-activo cursor-pointer">Back</p>
+        <ChevronLeft
+          onClick={() => {
+            router.back();
+          }}
+          color="#1C1B1F"
+          size={18}
+          className="cursor-pointer"
+        />
+        <p
+          onClick={() => {
+            router.back();
+          }}
+          className="text-[#000000] text-sm font-activo cursor-pointer"
+        >
+          Back
+        </p>
       </div>
 
       <motion.div
@@ -99,14 +112,16 @@ const ProductDetails = () => {
           </div>
 
           <div className="w-full flex items-center justify-center mt-[26px] gap-4">
-            {item?.size && <motion.div
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowSizes((prev) => !prev)}
-              className=" w-12 cursor-pointer h-12 rounded-full  flex items-center justify-center bg-[#F4F4F4]"
-            >
-              <Plus size={14} color="#1E1E1E" />
-            </motion.div>}
+            {item?.size && (
+              <motion.div
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSizes((prev) => !prev)}
+                className=" w-12 cursor-pointer h-12 rounded-full  flex items-center justify-center bg-[#F4F4F4]"
+              >
+                <Plus size={14} color="#1E1E1E" />
+              </motion.div>
+            )}
 
             <AnimatePresence>
               {showSizes && (
@@ -120,13 +135,14 @@ const ProductDetails = () => {
                   {item?.size?.map((size) => (
                     <motion.div
                       onClick={() => {
-                        const cartData: CartItem = {
+                        const cartData = {
                           quantity: 1,
                           ...item,
-                          size: [size]
-                        }
-                        dispatch(addItem(cartData))
-                        setShowSizes((prev) => !prev)
+                          size: size,
+
+                        };
+                        dispatch(addItem(cartData));
+                        setShowSizes((prev) => !prev);
                       }}
                       key={size}
                       className="px-4 py-2 font-medium bg-[#F4F4F4] rounded-full flex items-center justify-center text-sm font-activo uppercase text-[#1E1E1E] cursor-pointer hover:bg-[#DADADA] transition"

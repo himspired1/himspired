@@ -34,7 +34,7 @@ const Page = () => {
                 transition={{ delay: index * 0.1, duration: 0.5 }}
               >
                 <CartItem
-                  key={_id}
+                  key={index}
                   title={title}
                   id={_id}
                   price={price}
