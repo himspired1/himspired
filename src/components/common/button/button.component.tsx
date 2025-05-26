@@ -10,6 +10,7 @@ interface ButtonProps {
     textColor?: string;
     textClassName?: string;
     left?: boolean;
+    type: "submit" | "reset" | "button" | undefined
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -22,16 +23,17 @@ const Button: React.FC<ButtonProps> = ({
     textColor = "text-white",
     textClassName = "",
     left = true,
+    type = "submit"
 }) => {
     return (
         <button
+            type={type}
             onClick={onClick}
             disabled={disabled || loading}
-            className={`flex items-center justify-center px-5 py-3 transition-opacity ${
-                disabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "bg-primary_color hover:bg-primary_color active:bg-primary_color"
-            } ${className}`}
+            className={`flex items-center justify-center px-5 py-3 transition-opacity ${disabled
+                ? "opacity-50 cursor-not-allowed"
+                : "bg-primary_color hover:bg-primary_color active:bg-primary_color"
+                } ${className}`}
         >
             {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
