@@ -1,63 +1,80 @@
-"use client";
-import { P } from "@/components/common/typography";
+'use client'
+
+import { useEffect, useRef, useState, useMemo } from "react";
 
 interface Props {
-  activeTab: string;
-  setActiveTab: (value: string) => void; // Improved type definition
+  activeTab: string,
+  setActiveTab: (tab: string) => void
 }
 
 const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
-  const links = [
+  const [tabPositions, setTabPositions] = useState({ width: 0, left: 0 });
+  const tabRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const links = useMemo(() => [
     {
-      name: "All",
+      name: "ALL",
       value: "all"
     },
     {
-      name: "Thrift",
+      name: "THRIFT",
       value: "thrift"
     },
     {
-      name: "Luxury",
+      name: "LUXURY",
       value: "luxury"
     },
     {
-      name: "Senetors",
+      name: "SENATORS",
       value: "senetors"
     },
-  ];
-
+  ], []);
+  
+  useEffect(() => {
+    const activeIndex = links.findIndex(link => link.value === activeTab);
+    if (tabRefs.current[activeIndex]) {
+      const activeTabElement = tabRefs.current[activeIndex];
+      if (activeTabElement) {
+        setTabPositions({
+          width: activeTabElement.offsetWidth,
+          left: activeTabElement.offsetLeft
+        });
+      }
+    }
+  }, [activeTab, links]);
+  
   return (
-    <nav className="w-full flex justify-center mt-10">
-      <div className="bg-[#F7F7F7] rounded-[100px] p-1">
-        <ul className="flex items-center gap-1 relative">
-          {links.map(({ name, value }) => (
-            <li key={value}>
-              <button
-                onClick={() => setActiveTab(value)}
-                className={`
-                  relative px-6 py-[6px] rounded-[100px] transition-all duration-300
-                  ${activeTab === value 
-                    ? "bg-white shadow-sm transform scale-105" 
-                    : "hover:bg-white/30"
-                  }
-                `}
-              >
-                <P 
-                  fontFamily="kiona" 
-                  className={`
-                    text-[#1E1E1ECC] text-sm font-normal transition-colors duration-300
-                    ${activeTab === value ? "text-black" : "text-gray-600"}
-                  `}
+    <>
+      <div className="w-full mt-[120px] lg:mt-[141.5px] px-[120px]" >
+        <div className="w-full " >
+          <div className=" flex items-center justify-center " >
+            <ul className="w-[383px] flex items-center justify-between bg-[#F7F7F7] rounded-[100px] p-[4px] relative" >
+              {/* Animated background */}
+              <div 
+                className="absolute bg-white rounded-[100px] h-[23px] transition-all duration-300 ease-in-out"
+                style={{
+                  width: `${tabPositions.width}px`,
+                  left: `${tabPositions.left}px`,
+                }}
+              />
+              
+              {links.map(({ name, value }, index) => (
+                <div 
+                  ref={el => { tabRefs.current[index] = el; }}
+                  onClick={() => {
+                    setActiveTab(value)
+                  }} 
+                  key={value} 
+                  className={`w-min-[49px] rounded-[100px] h-[23px] cursor-pointer px-[12px] py-[4px] flex items-center justify-center z-10`} 
                 >
-                  {name}
-                </P>
-              </button>
-            </li>
-          ))}
-        </ul>
+                  <p style={{ fontFamily: "activo" }} className=" text-[#1E1E1ECC] text-xs md:text- font-normal text-center cursor-pointer" >{name}</p>
+                </div>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
-    </nav>
+    </>
   );
-};
-
+}
 export default ShopNavigationBar;

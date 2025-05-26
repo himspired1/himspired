@@ -1,56 +1,38 @@
 "use client"
 import ShopNavigationBar from "@/components/pages/shop/shop-navigation-bar.component";
-import suit from "../../../public/images/suit.svg"
-import jacket from "../../../public/images/jacket.svg"
-import knit from "../../../public/images/knit-shirt.svg"
-import tuxedo from "../../../public/images/tuxedo.svg"
-import pants from "../../../public/images/pants.svg"
+
 import ProductCard from "@/components/product/product-card.component";
 import { useState } from "react";
+import { useClothesBySpecificCategory } from "@/sanity/queries";
+import { P } from "@/components/common/typography";
+import { Frown, Network } from "lucide-react";
+import ProductCardSkeleton from "@/components/common/skeleton/product-card-skeleton.component";
 const Shop = () => {
-    const products = [
-        {
-            name: "himspire mens suit",
-            price: "1,525,000.00",
-            category: "Suit",
-            image: suit
-        },
-        {
-            name: "hiMSPIRE OFF-WHITE",
-            price: "1,525,000.00",
-            category: "T-shirt",
-            image: pants
-        },
-        {
-            name: "hiMSPIRE Wine FOrt",
-            price: "1,525,000.00",
-            category: "Suit",
-            image: tuxedo
-        },
-        {
-            name: "himspire jackets",
-            price: "1,525,000.00",
-            category: "Jackets",
-            image: jacket
-        },
-        {
-            name: "V-neck knit",
-            price: "1,525,000.00",
-            category: "Suit",
-            image: knit
-        },
-    ]
+
     const [activeTab, setActiveTab] = useState("all")
+
+    const { clothes, loading, error } = useClothesBySpecificCategory(activeTab);
     return (
         <>
             <div className="w-full min-h-screen mt-[10em]">
                 <ShopNavigationBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-                <div className="w-full mt-[123px] px-[120px]" >
-                    <div className="w-full flex items-center justify-between flex-wrap" >
-                        {products.map(({ name, price, category, image }) => (
-                            <ProductCard title={name} price={price} category={category} image={image} key={name} />
-                        ))}
+                <div className="w-full mt-[123px] px-[23px] md:px-[30px] lg:px-[120px]" >
+                    <div className="w-full flex items-center justify-center gap-4 md:gap-20 flex-wrap" >
+                        {loading
+                            ? Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} delay={i * 0.1} />)
+                            : clothes.map((item, index) => (
+                                <ProductCard {...item} delay={index * 0.1} key={item?._id} />
+                            ))}
+
+                        {!loading && clothes.length === 0 && <div className="w-full flex-col items-center justify-center flex-1 flex" >
+                            <Frown size={40} color="#68191E" />
+                            <P className="mt-5" fontFamily="activo" >No item available</P>
+                        </div>}
+                        {!loading && error && <div className="w-full flex-col items-center justify-center flex-1 flex" >
+                            <Network size={40} color="#68191E" />
+                            <P className="mt-5 text-[68191E]" fontFamily="activo" >{error?.message || "Something went wrong"} </P>
+                        </div>}
                     </div>
                 </div>
             </div>
