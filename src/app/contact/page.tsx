@@ -1,4 +1,6 @@
 import React from 'react'
+import Backbtn from '../../../public/images/backbtn.svg'
+import Image from 'next/image'
 import Contactform from './components/contactform'
 
 

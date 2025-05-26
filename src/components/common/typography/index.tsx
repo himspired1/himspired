@@ -7,7 +7,7 @@ type Variant = 'small' | 'medium' | 'large';
 // Define props for typography components
 interface TypographyProps {
     variant?: Variant; // Size-based variants
-    fontFamily?: 'kiona' | 'moon'; // Font family options
+    fontFamily?: 'kiona' | 'moon' | 'activo'; // Font family options
     className?: string; // CSS class name
     children: React.ReactNode;
 }
@@ -18,20 +18,21 @@ interface LinkProps extends TypographyProps {
 
 // Tailwind mappings
 const sizeMapping: Record<Variant, string> = {
-    small: 'text-sm', // Tailwind's text-sm class
-    medium: 'text-base', // Tailwind's text-base class
-    large: 'text-xl', // Tailwind's text-xl class
+    small: 'text-sm',
+    medium: 'text-base',
+    large: 'text-xl',
 };
 
-const fontFamilyMapping: Record<Required<TypographyProps['fontFamily']>, string> = {
+const fontFamilyMapping: Record<'kiona' | 'moon' | 'activo', string> = {
     // light: 'font-light',
     // regular: 'font-normal',
     // medium: 'font-medium',
     // bold: 'font-bold',
     // semiBold: 'font-semibold',
     // extraBold: 'font-extrabold',
-    kiona:"font-kiona",
-    moon:"font-moon"
+    kiona: "font-kiona",
+    moon: "font-moon",
+    activo: "font-activo"
 };
 
 // Paragraph component
@@ -41,27 +42,31 @@ export const P: React.FC<TypographyProps> = ({
     className,
     children,
 }) => {
+
+    const hasCustomTextSize = className?.includes('text-');
     const combinedClasses = clsx(
-        sizeMapping[variant],
-        fontFamilyMapping[fontFamily],
-        'text-black leading-relaxed font-kiona', // Default Tailwind styles for text
+        !hasCustomTextSize && sizeMapping[variant],
+        fontFamilyMapping[fontFamily as keyof typeof fontFamilyMapping],
+        'leading-relaxed',
         className
     );
 
     return <p className={combinedClasses}>{children}</p>;
 };
 
+
 // Heading component
 export const H: React.FC<TypographyProps> = ({
     variant = 'large',
-    fontFamily = 'bold',
+    fontFamily = 'kiona',
     className,
     children,
 }) => {
+    const hasCustomTextSize = className?.includes('text-');
     const combinedClasses = clsx(
-        sizeMapping[variant],
+        !hasCustomTextSize && sizeMapping[variant],
         fontFamilyMapping[fontFamily],
-        'text-black leading-snug font-bold  font-kiona', // Default Tailwind styles for heading
+        'text-black leading-snug font-bold  font-kiona',
         className
     );
 
@@ -71,13 +76,14 @@ export const H: React.FC<TypographyProps> = ({
 // Link component
 export const Link: React.FC<LinkProps> = ({
     variant = 'medium',
-    fontFamily = 'regular',
+    fontFamily = 'kiona',
     className,
     children,
     onClick,
 }) => {
+    const hasCustomTextSize = className?.includes('text-');
     const combinedClasses = clsx(
-        sizeMapping[variant],
+        !hasCustomTextSize && sizeMapping[variant],
         fontFamilyMapping[fontFamily],
         'text-blue-500 underline cursor-pointer hover:text-blue-600 font-kiona', // Tailwind styles for links
         className
