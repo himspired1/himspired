@@ -72,7 +72,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
         mainImage: product.mainImage,
         price: product.price,
         quantity: 1,
-        size: product.size
+        size: product.size && product.size.length > 0 ? product.size[0] : ""
       };
 
 
@@ -136,7 +136,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
                       e.stopPropagation();
                       const cartData: CartItem = {
                         ...data,
-                        size: [size]
+                        size: size
                       }
                       dispatch(addItem(cartData))
                       setShowSizes((prev) => !prev)

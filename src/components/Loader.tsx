@@ -1,8 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
+import { useLoading } from "@/context/LoadingContext"
 
 const Loader = () => {
+  const { setIsLoading } = useLoading()
   const [welcomeText, setWelcomeText] = useState("")
   const [brandText, setBrandText] = useState("")
   const [showWelcome, setShowWelcome] = useState(true)
@@ -65,12 +67,23 @@ const Loader = () => {
     }
   }, [startBrandTyping, brandIndex])
 
+  // Handle animation completion
+  const handleAnimationComplete = () => {
+    if (fadeOut) {
+      // Small delay to ensure smooth transition, then unmount
+      setTimeout(() => {
+        setIsLoading(false)
+      }, 100)
+    }
+  }
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center bg-white"
       initial={{ opacity: 1 }}
       animate={{ opacity: fadeOut ? 0 : 1 }}
       transition={{ duration: 1.5, ease: "easeInOut" }}
+      onAnimationComplete={handleAnimationComplete}
     >
       <motion.div
         className="text-center flex flex-col gap-4"
