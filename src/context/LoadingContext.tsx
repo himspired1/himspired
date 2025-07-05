@@ -10,15 +10,22 @@ type LoadingContextType = {
 const LoadingContext = createContext<LoadingContextType | undefined>(undefined)
 
 export function LoadingProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Auto-hide loader after animation completes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 6500) // Match the animation duration in Loader.tsx
+    // Check if we're on the client side
+    if (typeof window === "undefined") return
 
-    return () => clearTimeout(timer)
+    // Check if loader has already been shown in this session
+    const hasShownLoader = sessionStorage.getItem("himspired_loader_shown")
+    
+    // Only show loader if it hasn't been shown in this session
+    if (!hasShownLoader) {
+      setIsLoading(true)
+      
+      // Mark that we've shown the loader in this session
+      sessionStorage.setItem("himspired_loader_shown", "true")
+    }
   }, [])
 
   return <LoadingContext.Provider value={{ isLoading, setIsLoading }}>{children}</LoadingContext.Provider>

@@ -37,11 +37,11 @@ const CartItem: FC<CartItemProps> = ({
   id,
 }) => {
   const controls = useAnimation();
-  const [isDragging, setIsDragging] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
+  const [, setIsDragging] = useState(false);
+  const [, setShowDelete] = useState(false);
   const dispatch = useDispatch();
   const isMobile = useIsMobile();
-  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
+  const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
     if (info.offset.x < -100) {
       setShowDelete(true);
       controls.start({ x: -100 });

@@ -11,7 +11,7 @@ const Page = () => {
   const cartItems = useAppSelector(selectCartItems);
   const dispatch = useAppDispatch();
   return (
-    <div className=" min-h-screen  top-24 relative px-6 md:px-14 pb-52 ">
+    <div className=" min-h-screen  top-24 relative px-6 md:px-14 lg:pb-52 ">
       <div className="w-full flex items-center justify-between">
         <P fontFamily={"moon"} className=" text-2xl uppercase lg:text-4xl">
           CART

@@ -17,11 +17,9 @@ interface CheckoutItem {
 const CheckoutItem: FC<CheckoutItem> = ({
     title,
     category,
-    no_of_item,
     size,
     price,
     image,
-    id,
 }) => {
     return (
         <div className="w-full mb-5 relative overflow-hidden">

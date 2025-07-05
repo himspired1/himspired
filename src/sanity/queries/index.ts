@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // queries.ts - Updated to match your schema
 export const ClothQueryPath = `*[
     _type == "clothingItem"
@@ -240,7 +241,7 @@ export const useClothesWithFilters = (
 
   const buildFilterQuery = () => {
     const conditions = ['_type == "clothingItem"', "defined(slug.current)"];
-    const params: Record<string, any> = {};
+    const params: Record<string, unknown> = {};
 
     if (filters.category) {
       conditions.push("category == $category");
@@ -456,9 +457,9 @@ export const getClothesByCategory = async (limit = 12) => {
     const uniqueCategories = result.categories.filter(Boolean);
 
     // Group clothes by category with limit
-    uniqueCategories.forEach((category: any) => {
+    uniqueCategories.forEach((category: string) => {
       processedData[category] = result.allClothes
-        .filter((item: any) => item.category === category)
+        .filter((item: { category: string }) => item.category === category)
         .slice(0, limit);
     });
 

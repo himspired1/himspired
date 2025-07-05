@@ -40,7 +40,7 @@ const CheckoutItems = () => {
                   no_of_item={quantity}
                   image={mainImage}
                   category={category}
-                  size={size}
+                  size={Array.isArray(size) ? size : [size]}
                 />
               </motion.div>
             )

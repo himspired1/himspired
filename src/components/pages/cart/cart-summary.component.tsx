@@ -73,23 +73,21 @@ const CartSummary = () => {
           <div className="w-full flex items-center justify-between mt-11 lg:flex-row-reverse lg:justify-end gap-2">
             <Button
               onClick={() => {
-                router.replace("/shop")
-              }}
+                router.replace("/shop");
+              } }
               btnTitle="Continue Shopping"
               className="bg-[#F4F4F4] w-auto  rounded-full lg:w-40 "
               textClassName="text-sm font-activo font-medium font-activo"
-              textColor="#E1E1E1"
-            />
+              textColor="#E1E1E1" type={undefined}            />
             <Button
               onClick={() => {
                 router.push("/cart/checkout");
 
-              }}
+              } }
               btnTitle="Checkout"
               className="bg-red-950 w-auto text-white rounded-full lg:w-40  "
               textClassName="text-sm font-activo font-medium  font-activo"
-              textColor="#E1E1E1"
-            />
+              textColor="#E1E1E1" type={undefined}            />
           </div>
         </div>
       </div>

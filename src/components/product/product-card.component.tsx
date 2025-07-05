@@ -39,7 +39,7 @@ const ProductCard = ({
     mainImage: mainImage,
     price: price,
     quantity: 1,
-    size: size?.[0]
+    size: size?.[0] || "default"
   };
 
 
