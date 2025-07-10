@@ -23,7 +23,7 @@ export default function RootLayout({
         <ReduxProvider>
           <LoadingProvider>
             <AppShell>{children}</AppShell>
-            <Toaster position="top-right" richColors expand={false} />
+            <Toaster position="bottom-left" richColors expand={false} />
           </LoadingProvider>
         </ReduxProvider>
       </body>

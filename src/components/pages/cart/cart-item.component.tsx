@@ -12,6 +12,7 @@ import {
   incrementQuantity,
   removeItem,
 } from "@/redux/slices/cartSlice";
+import { ChevronLeft } from "lucide-react";
 
 interface CartItemProps {
   title: string;
@@ -27,6 +28,7 @@ interface CartIncrementorProps {
   id: string | number;
   no_of_item: number;
 }
+
 const CartItem: FC<CartItemProps> = ({
   title,
   category,
@@ -41,6 +43,7 @@ const CartItem: FC<CartItemProps> = ({
   const [, setShowDelete] = useState(false);
   const dispatch = useDispatch();
   const isMobile = useIsMobile();
+
   const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
     if (info.offset.x < -100) {
       setShowDelete(true);
@@ -51,12 +54,17 @@ const CartItem: FC<CartItemProps> = ({
     }
   };
 
+  const handleRemove = () => {
+    dispatch(removeItem(id));
+  };
+
   return (
     <div className="w-full mb-5 relative overflow-hidden">
       {isMobile && (
-        <div onClick={() => {
-          dispatch(removeItem(id));
-        }} className="absolute top-1 w-[80%] right-2 h-[95%]  bg-red-500 flex items-center justify-end pr-5 z-0">
+        <div
+          onClick={handleRemove}
+          className="absolute top-1 w-[80%] right-2 h-[95%] bg-red-500 flex items-center justify-end pr-5 z-0"
+        >
           <Trash2 color="#fff" size={24} />
         </div>
       )}
@@ -88,12 +96,25 @@ const CartItem: FC<CartItemProps> = ({
               >
                 {title}
               </P>
-              <P
-                fontFamily={"activo"}
-                className="text-sm font-semibold uppercase lg:text-base"
-              >
-                NGN {price.toLocaleString("us")}
-              </P>
+              <div className="flex items-center gap-3">
+                <P
+                  fontFamily={"activo"}
+                  className="text-sm font-semibold uppercase lg:text-base"
+                >
+                  NGN {price.toLocaleString("us")}
+                </P>
+                {/* Desktop Remove Button */}
+                <button
+                  onClick={handleRemove}
+                  className="hidden md:flex items-center justify-center w-8 h-8 rounded-full bg-red-50 hover:bg-red-100 transition-colors group"
+                  title="Remove item"
+                >
+                  <Trash2
+                    size={16}
+                    className="text-red-500 group-hover:text-red-600 transition-colors"
+                  />
+                </button>
+              </div>
             </div>
 
             <div className="w-full mt-3">
@@ -115,22 +136,22 @@ const CartItem: FC<CartItemProps> = ({
                   fontFamily={"activo"}
                   className="text-xs text-[#1E1E1E99] uppercase m-0"
                 >
-                  Size:{" "}
-                  {size}
+                  Size: {size}
                 </P>
                 <CartIncrementor id={id} no_of_item={no_of_item} />
               </div>
-              <div
-                onClick={() => {
-                  dispatch(removeItem(id));
-                }}
-              >
-                <P
-                  fontFamily={"activo"}
-                  className="text-xs text-[#1E1E1E99] hidden md:block uppercase m-0 cursor-pointer"
+
+              {/* Alternative text remove button for desktop (if you prefer this style) */}
+              <div className="md:hidden mt-4 flex items-center justify-end ">
+                <span className="text-red-500">
+                  <ChevronLeft></ChevronLeft>
+                </span>
+                <button
+                  onClick={handleRemove}
+                  className="text-xs font-moon text-red-500 hover:text-red-700 uppercase block md:hidden cursor-pointer transition-colors"
                 >
-                  Remove
-                </P>
+                  Swipe to remove
+                </button>
               </div>
             </div>
           </div>
@@ -151,18 +172,18 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
         onClick={() => {
           dispatch(decrementQuantity(id));
         }}
-        className="w-7 h-7 rounded-full bg-[#F4F4F4]  flex items-center justify-center cursor-pointer"
+        className="w-7 h-7 rounded-full bg-[#F4F4F4] hover:bg-[#E0E0E0] transition-colors flex items-center justify-center cursor-pointer"
       >
         <Minus color="#000" cursor={"pointer"} size={14} />
       </div>
-      <P fontFamily={"activo"} className=" text-sm font-semibold">
+      <P fontFamily={"activo"} className="text-sm font-semibold">
         {no_of_item}
       </P>
       <div
         onClick={() => {
           dispatch(incrementQuantity(id));
         }}
-        className="w-7 h-7 rounded-full bg-[#F4F4F4] flex items-center justify-center cursor-pointer"
+        className="w-7 h-7 rounded-full bg-[#F4F4F4] hover:bg-[#E0E0E0] transition-colors flex items-center justify-center cursor-pointer"
       >
         <Plus color="#000" cursor={"pointer"} size={14} />
       </div>
