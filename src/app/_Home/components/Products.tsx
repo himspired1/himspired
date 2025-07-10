@@ -171,7 +171,7 @@ const Products = () => {
     >
       {" "}
       {/* Section indicator - with enhanced animation */}
-      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden">
+      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden font-moon">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${clothesByCategory[current]?.category}`}
@@ -187,7 +187,7 @@ const Products = () => {
             }}
             className="text-2xl md:text-3xl lg:text-4xl text-left font-bold"
           >
-            <span className="text-black">
+            <span className="text-black font-moon">
               {current + 1} /{" "}
             </span>
             <span className=" capitalize" style={{ color: colors.primary_color }}>
