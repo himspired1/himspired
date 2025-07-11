@@ -7,6 +7,7 @@ import { MouseEvent, useEffect, useRef, useState } from "react"
 import { useAppDispatch, useAppSelector } from "@/redux/hooks"
 import { addItem, CartItem, selectCartItemQuantity } from "@/redux/slices/cartSlice"
 import React from "react"
+import type { Variants } from "framer-motion"
 
 interface ProductSectionProps {
   itemsToShow?: number
@@ -63,9 +64,6 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
     </motion.div>
   )
 }
-
-// Separate component for individual product items
-import type { Variants } from "framer-motion"
 
 const ProductItem = ({ 
   product, 
@@ -196,7 +194,6 @@ const ProductItem = ({
         </motion.button>
       )}
 
-      {/* Show cart quantity if item is in cart (for products without sizes) */}
       {!product.size?.length && cartQuantity > 0 && (
         <p className="text-xs text-[#68191E] font-medium">
           In cart: {cartQuantity}
@@ -213,7 +210,6 @@ const ProductItem = ({
             transition={{ duration: 0.4 }}
           >
             {product.size?.map((sizeOption) => {
-              // Use pre-calculated quantity from hook called at component level
               const sizeCartQuantity = sizeQuantities[sizeOption] || 0;
               
               return (

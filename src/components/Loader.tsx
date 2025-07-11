@@ -67,10 +67,9 @@ const Loader = () => {
     }
   }, [startBrandTyping, brandIndex])
 
-  // Handle animation completion
+  
   const handleAnimationComplete = () => {
     if (fadeOut) {
-      // Small delay to ensure smooth transition, then unmount
       setTimeout(() => {
         setIsLoading(false)
       }, 100)

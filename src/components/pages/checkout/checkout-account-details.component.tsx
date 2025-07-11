@@ -1,33 +1,56 @@
 "use client";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { P } from "@/components/common/typography";
 import Image from "next/image";
 import Button from "@/components/common/button/button.component";
 import { useFormContext } from "react-hook-form";
+import { validateFile } from "@/lib/file-upload";
+import { toast } from "sonner";
 import React from "react";
 
 const CheckoutAccountDetails = () => {
     const {
         setValue,
         watch,
-        formState: { errors },
+        formState: { errors, isSubmitting },
     } = useFormContext();
 
     const file = watch("file");
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [dragActive, setDragActive] = useState(false);
 
     const onDrop = useCallback(
-        (acceptedFiles: File[]) => {
+        (acceptedFiles: File[], rejectedFiles: import('react-dropzone').FileRejection[]) => {
+            if (rejectedFiles.length > 0) {
+                const rejection = rejectedFiles[0];
+                if (rejection.errors[0]?.code === 'file-too-large') {
+                    toast.error('File size too large. Maximum 5MB allowed.');
+                } else if (rejection.errors[0]?.code === 'file-invalid-type') {
+                    toast.error('Invalid file type. Only JPEG, PNG, and WebP allowed.');
+                } else {
+                    toast.error('File upload failed. Please try again.');
+                }
+                return;
+            }
+
             if (acceptedFiles.length > 0) {
                 const uploadedFile = acceptedFiles[0];
+                
+                // Validate file on client side too
+                const validation = validateFile(uploadedFile);
+                if (!validation.valid) {
+                    toast.error(validation.error);
+                    return;
+                }
+                
                 setValue("file", uploadedFile, { shouldValidate: true });
+                toast.success('Receipt uploaded successfully!');
             }
         },
         [setValue]
     );
-    
-    const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-    
+
     const {
         getRootProps,
         getInputProps,
@@ -37,179 +60,205 @@ const CheckoutAccountDetails = () => {
         accept: {
             "image/png": [".png"],
             "image/jpeg": [".jpg", ".jpeg"],
+            "image/webp": [".webp"],
         },
-        maxSize: 5 * 1024 * 1024,
-        multiple: false, // Ensure only one file
+        maxSize: 5 * 1024 * 1024, // 5MB
+        multiple: false,
+        onDragEnter: () => setDragActive(true),
+        onDragLeave: () => setDragActive(false),
     });
 
     useEffect(() => {
-        if (file && file instanceof File) {
+        if (file) {
             const url = URL.createObjectURL(file);
             setPreviewUrl(url);
-            
-            // Cleanup function to revoke the URL
-            return () => {
-                URL.revokeObjectURL(url);
-            };
+            return () => URL.revokeObjectURL(url);
         } else {
             setPreviewUrl(null);
         }
     }, [file]);
 
-    // Function to remove the uploaded file
-    const removeFile = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const removeFile = () => {
         setValue("file", null);
         setPreviewUrl(null);
+        toast.info('Receipt removed');
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    // Helper function to get error message as string
+    const getErrorMessage = (error: unknown): string => {
+        if (typeof error === 'string') return error;
+        if (error && typeof error === 'object' && 'message' in error) {
+            const errorObj = error as { message: unknown };
+            return typeof errorObj.message === 'string' ? errorObj.message : 'Invalid file';
+        }
+        return 'Invalid file';
     };
 
     return (
-        <div className="w-full bg-[#F8F7FB] p-4 rounded-xl">
+        <div className="w-full bg-[#F8F7FB] p-6 rounded-xl">
             <div className="w-full">
                 <P
                     fontFamily="activo"
                     className="text-sm text-left font-semibold lg:text-base uppercase"
                 >
-                    TRANSFER TO THE ACCOUNT BELOW
+                    Transfer to the account below
+                </P>
+                <P className="text-xs text-gray-600 mt-2">
+                    Complete your payment and upload the receipt
                 </P>
             </div>
 
             {/* Bank Details */}
-            <div className="w-full mt-6">
-                <div className="w-full flex items-center justify-between">
-                    <P
-                        fontFamily="activo"
-                        className="text-[#1E1E1E99] font-normal uppercase text-sm"
-                    >
-                        ACCOUNT NAME
-                    </P>
-                    <P
-                        fontFamily="activo"
-                        className="font-semibold text-sm uppercase text-[#1E1E1E]"
-                    >
-                        HIMSPIRED PLC
-                    </P>
-                </div>
-                <div className="w-full flex items-center justify-between mt-7">
-                    <P
-                        fontFamily="activo"
-                        className="text-[#1E1E1E99] font-normal uppercase text-sm"
-                    >
-                        ACCOUNT NUMBER
-                    </P>
-                    <P
-                        fontFamily="activo"
-                        className="font-semibold text-sm uppercase text-[#1E1E1E]"
-                    >
-                        1234567890
-                    </P>
-                </div>
-                <div className="w-full flex items-center justify-between mt-7">
-                    <P
-                        fontFamily="activo"
-                        className="text-[#1E1E1E99] font-normal uppercase text-sm"
-                    >
-                        BANK NAME
-                    </P>
-                    <P
-                        fontFamily="activo"
-                        className="font-semibold text-sm uppercase text-[#1E1E1E]"
-                    >
-                        ZENITH BANK
-                    </P>
+            <div className="w-full mt-6 bg-white p-4 rounded-lg">
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <P className="text-[#1E1E1E99] font-normal uppercase text-sm">
+                            Account Name
+                        </P>
+                        <P className="font-semibold text-sm uppercase text-[#1E1E1E]">
+                            HIMSPIRED PLC
+                        </P>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                        <P className="text-[#1E1E1E99] font-normal uppercase text-sm">
+                            Account Number
+                        </P>
+                        <div className="flex items-center gap-2">
+                            <P className="font-semibold text-sm uppercase text-[#1E1E1E]">
+                                1234567890
+                            </P>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    navigator.clipboard.writeText('1234567890');
+                                    toast.success('Account number copied!');
+                                }}
+                                className="text-xs text-[#68191E] hover:underline"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                        <P className="text-[#1E1E1E99] font-normal uppercase text-sm">
+                            Bank Name
+                        </P>
+                        <P className="font-semibold text-sm uppercase text-[#1E1E1E]">
+                            ZENITH BANK
+                        </P>
+                    </div>
                 </div>
             </div>
 
-            <div
-                {...getRootProps()}
-                className={`w-full bg-white shadow-md shadow-white border-dashed border-2 rounded-xl ${
-                    isDragActive 
-                        ? "border-[#68191E] bg-[#68191E]/5" 
-                        : "border-[#D0D5DD]"
-                } ${file && previewUrl ? 'p-0' : 'p-4'} cursor-pointer text-center mt-7 transition-colors duration-200 relative overflow-hidden`}
-            >
-                <input {...getInputProps()} />
-                {file && previewUrl ? (
-                    <div className="relative w-full h-48 group">
-                        {/* Close button overlay */}
-                        <button
-                            type="button"
-                            onClick={removeFile}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm hover:bg-red-600 transition-all duration-200 z-20 opacity-80 hover:opacity-100 shadow-lg"
-                        >
-                            ×
-                        </button>
-                        
-                        {/* Image preview filling the container */}
-                        <Image
-                            src={previewUrl}
-                            alt={file.name}
-                            fill
-                            className="object-contain rounded-xl"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            unoptimized
-                        />
-                        
-                        {/* File details overlay at bottom */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 rounded-b-xl">
-                            <div className="text-left">
-                                <P className="text-sm text-white font-semibold truncate">
-                                    {file.name}
+            <div className="mt-6">
+                <P className="text-sm font-medium mb-3">Upload Payment Receipt *</P>
+                
+                <div
+                    {...getRootProps()}
+                    className={`w-full bg-white border-dashed border-2 rounded-xl p-6 cursor-pointer text-center transition-all duration-200 ${
+                        isDragActive || dragActive
+                            ? 'border-[#68191E] bg-[#68191E]/5 scale-[1.02]' 
+                            : 'border-[#D0D5DD] hover:border-[#68191E]/50 hover:bg-gray-50'
+                    }`}
+                >
+                    <input {...getInputProps()} />
+                    
+                    {file && previewUrl ? (
+                        <div className="space-y-4">
+                            <div className="relative inline-block">
+                                <Image
+                                    src={previewUrl}
+                                    alt={file.name}
+                                    className="w-24 h-24 object-cover rounded-lg shadow-sm"
+                                    width={96}
+                                    height={96}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeFile();
+                                    }}
+                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 transition-colors"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            
+                            <div>
+                                <P className="text-sm font-medium text-[#1E1E1E]">{file.name}</P>
+                                <P className="text-xs text-[#475367]">{formatFileSize(file.size)}</P>
+                            </div>
+                            
+                            <P className="text-xs text-green-600">✓ Receipt uploaded successfully</P>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="w-14 h-14 mx-auto bg-[#68191E]/10 rounded-full flex items-center justify-center">
+                                <svg className="w-6 h-6 text-[#68191E]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+                            
+                            <div>
+                                <P className="text-[#68191E] text-sm font-semibold">
+                                    {isDragActive || dragActive
+                                        ? "Drop your receipt here..." 
+                                        : "Click to upload or drag and drop"
+                                    }
                                 </P>
-                                <P className="text-xs text-white/80 mt-1">
-                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                <P className="text-[#475367] text-xs mt-1">
+                                    PNG, JPG, or WebP (max. 5MB)
                                 </P>
                             </div>
                         </div>
-                        
-                        {/* Hover overlay with upload hint */}
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl">
-                            <P className="text-white text-sm font-medium">
-                                Click to upload a different image
-                            </P>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="p-4">
-                        <Image
-                            src={"/images/file-upload.svg"}
-                            className="mx-auto"
-                            alt="file-upload"
-                            width={56}
-                            height={56}
-                        />
-                        <div className="w-full mt-4">
-                            <P className="text-[#68191E] text-xs font-semibold text-center cursor-pointer">
-                                {isDragActive 
-                                    ? "Drop your image here..." 
-                                    : "Drag and drop or click to upload"
-                                }
-                            </P>
-                            <P className="text-[#475367] text-xs font-semibold text-center mt-1">
-                                PNG or JPG (max. 5MB)
-                            </P>
-                        </div>
-                    </div>
+                    )}
+                </div>
+                
+                {errors.file && (
+                    <P className="text-red-500 text-xs mt-2">{getErrorMessage(errors.file)}</P>
                 )}
             </div>
-            
-            {/* Error message */}
-            {errors.file && (
-                <div className="mt-2">
-                    <p className="text-red-500 text-xs">
-                        {typeof errors.file === "object" && "message" in errors.file
-                            ? (errors.file.message as string)
-                            : "Please upload a valid image file"}
-                    </p>
-                </div>
-            )}
 
-            <div className="w-full mt-6">
+            
+            <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-white text-xs">!</span>
+                    </div>
+                    <div>
+                        <P className="text-sm font-medium text-orange-800">Important</P>
+                        <P className="text-xs text-orange-700 mt-1">
+                            Please ensure your payment receipt is clear and includes the transaction details. 
+                            Your order will be processed after payment verification.
+                        </P>
+                    </div>
+                </div>
+            </div>
+            <div className="w-full mt-8">
                 <Button
-                    btnTitle="Continue"
-                    className="bg-[#68191E] w-full rounded-full"
+                    btnTitle={isSubmitting ? "Processing Order..." : "Submit Order"}
+                    className="bg-[#68191E] hover:bg-[#5a1519] w-full rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
                     type="submit"
+                    loading={isSubmitting}
+                    disabled={isSubmitting || !file}
                 />
+                
+                {!file && (
+                    <P className="text-xs text-gray-500 text-center mt-2">
+                        Please upload your payment receipt to continue
+                    </P>
+                )}
             </div>
         </div>
     );

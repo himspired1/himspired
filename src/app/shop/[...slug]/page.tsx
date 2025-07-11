@@ -1,7 +1,7 @@
 "use client";
 import { ChevronLeft, Frown, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useClothingItem } from "@/sanity/queries";
 import { SanityImageComponent } from "@/components/sanity/image";
@@ -11,19 +11,34 @@ import { useAppDispatch } from "@/redux/hooks";
 
 const ProductDetails = () => {
   const [showSizes, setShowSizes] = useState(false);
+  const [productId, setProductId] = useState<string>("");
   const router = useRouter();
   const params = useParams();
   const dispatch = useAppDispatch();
-  const productId = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
+
+  // Handle async params in Next.js 15+
+  useEffect(() => {
+    const getProductId = async () => {
+      // Handle the [...slug] dynamic route
+      const slugArray = Array.isArray(params?.slug) ? params.slug : [params?.slug];
+      const id = slugArray[0]; // First segment is the product ID
+      
+      if (typeof id === 'string') {
+        setProductId(id);
+      }
+    };
+    
+    getProductId();
+  }, [params]);
+
   const { item, loading, error } = useClothingItem(
-    typeof productId === "string" ? productId : "",
+    productId,
     "id"
   );
-  if (!productId || typeof productId !== "string") {
-    return <p className="text-center mt-32 text-sm">Invalid product ID</p>;
+
+  if (!productId) {
+    return <ProductDetailsSkeleton />;
   }
-
-
 
   if (loading) {
     return <ProductDetailsSkeleton />;
@@ -41,7 +56,7 @@ const ProductDetails = () => {
     return (
       <div className="w-full flex flex-1 items-center justify-center flex-col">
         <Frown size={50} color="68191E" />
-        <p className="text-center mt-32 text-sm">Product not found.</p>;
+        <p className="text-center mt-32 text-sm">Product not found.</p>
       </div>
     );
   }
@@ -142,7 +157,6 @@ const ProductDetails = () => {
                           quantity: 1,
                           ...item,
                           size: size,
-
                         };
                         dispatch(addItem(cartData));
                         setShowSizes((prev) => !prev);
