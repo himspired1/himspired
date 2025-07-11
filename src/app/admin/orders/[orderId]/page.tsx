@@ -1,11 +1,75 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { P, H } from '@/components/common/typography';
 import { ArrowLeft, Package, User, Phone, Mail, MapPin, Calendar, Receipt, ExternalLink, Download } from 'lucide-react';
 import { Order } from '@/models/order';
 import Image from 'next/image';
+
+// Product Image Component for Order Details
+interface OrderItem {
+  title: string;
+  mainImage?: {
+    asset?: {
+      _ref?: string;
+      _id?: string;
+      url?: string;
+    };
+    alt?: string;
+  };
+}
+
+const ProductImage = ({ 
+  item, 
+  size = 64, 
+  className = "w-16 h-16 rounded-lg" 
+}: { 
+  item: OrderItem; 
+  size?: number; 
+  className?: string;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  
+  const getSanityImageUrl = (imageRef: string) => {
+    if (!imageRef) return null;
+    
+    let ref = imageRef;
+    if (ref.startsWith('image-')) {
+      ref = ref.replace('image-', '').replace('-jpg', '.jpg').replace('-png', '.png').replace('-webp', '.webp');
+    }
+    
+    return `https://cdn.sanity.io/images/qdpdd240/production/${ref}?w=${size}&h=${size}&fit=crop`;
+  };
+  
+  // Check multiple possible image paths
+  const imageRef = item.mainImage?.asset?._ref || item.mainImage?.asset?._id;
+  const imageUrl = item.mainImage?.asset?.url;
+  const sanityUrl = imageRef ? getSanityImageUrl(imageRef) : null;
+  
+  const finalImageUrl = imageUrl || sanityUrl;
+  
+  if (!finalImageUrl || imageError) {
+    return (
+      <div className={`${className} bg-gray-100 flex items-center justify-center overflow-hidden`}>
+        <Package className="w-8 h-8 text-gray-400" />
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`${className} bg-gray-100 overflow-hidden`}>
+      <Image 
+        src={finalImageUrl}
+        alt={item.mainImage?.alt || item.title}
+        width={size}
+        height={size}
+        className="w-full h-full object-cover"
+        onError={() => setImageError(true)}
+      />
+    </div>
+  );
+};
 
 const OrderDetails = () => {
  const [order, setOrder] = useState<Order | null>(null);
@@ -13,6 +77,7 @@ const OrderDetails = () => {
  const [imageLoading, setImageLoading] = useState(true);
  const [orderId, setOrderId] = useState<string>("");
  const params = useParams();
+ const router = useRouter();
 
  useEffect(() => {
    const getOrderId = async () => {
@@ -35,14 +100,19 @@ const OrderDetails = () => {
      if (data.order) {
        setOrder(data.order);
      } else {
-       console.error('Order not found');
+       // Order not found - redirect to orders list
+       router.push('/admin/orders');
+       return;
      }
    } catch (error) {
      console.error('Failed to fetch order:', error);
+     // On any error, redirect to orders list
+     router.push('/admin/orders');
+     return;
    } finally {
      setLoading(false);
    }
- }, [orderId]);
+ }, [orderId, router]);
 
  useEffect(() => {
    if (orderId) {
@@ -84,7 +154,7 @@ const OrderDetails = () => {
      <div className="max-w-6xl mx-auto">
        <div className="flex items-center gap-4 mb-8">
          <button
-           onClick={() => window.history.back()}
+           onClick={() => router.push('/admin/orders')}
            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
          >
            <ArrowLeft className="w-5 h-5" />
@@ -211,9 +281,12 @@ const OrderDetails = () => {
          <div className="space-y-4">
            {order.items.map((item, index) => (
              <div key={index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
-               <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                 <Package className="w-8 h-8 text-gray-400" />
-               </div>
+               {/* Product Image with Better Component */}
+               <ProductImage
+                 item={item}
+                 size={64}
+                 className="w-16 h-16 rounded-lg"
+               />
                
                <div className="flex-1">
                  <P className="font-medium">{item.title}</P>

@@ -5,6 +5,16 @@ export interface OrderItem {
   quantity: number;
   size?: string;
   category: string;
+  // Add mainImage field with proper typing
+  mainImage?: {
+    _type: "image";
+    asset: {
+      _ref: string;
+      _type: "reference";
+    };
+    alt?: string;
+    caption?: string;
+  };
 }
 
 export interface CustomerInfo {

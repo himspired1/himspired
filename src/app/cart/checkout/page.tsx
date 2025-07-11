@@ -90,7 +90,8 @@ const CheckoutPage = () => {
                 price: item.price / item.quantity, // Get unit price
                 quantity: item.quantity,
                 size: item.size,
-                category: item.category
+                category: item.category,
+                mainImage: item.mainImage // Include the image data!
             }));
             
             formData.append('items', JSON.stringify(orderItems));
@@ -106,18 +107,6 @@ const CheckoutPage = () => {
             if (data.file && data.file instanceof File) {
                 formData.append('file', data.file, data.file.name);
             }
-
-            console.log('Submitting order with data:', {
-                customerInfo: {
-                    name: data.name,
-                    email: data.email,
-                    phone: data.phone,
-                    address: data.address
-                },
-                itemsCount: orderItems.length,
-                total: finalTotal,
-                hasReceipt: !!data.file
-            });
 
             // Submit to API
             const response = await fetch('/api/orders', {
