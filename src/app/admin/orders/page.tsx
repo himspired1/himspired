@@ -6,6 +6,70 @@ import { Eye, Mail, Package, CheckCircle, Clock, Truck, Image as ImageIcon, Exte
 import { Order, OrderStatus } from '@/models/order';
 import Image from 'next/image';
 
+// Product Image Component
+interface OrderItem {
+  title: string;
+  mainImage?: {
+    asset?: {
+      _ref?: string;
+      _id?: string;
+      url?: string;
+    };
+    alt?: string;
+  };
+}
+
+const ProductImage = ({ 
+  item, 
+  size = 32, 
+  className = "w-8 h-8 rounded-full" 
+}: { 
+  item: OrderItem; 
+  size?: number; 
+  className?: string;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  
+  const getSanityImageUrl = (imageRef: string) => {
+    if (!imageRef) return null;
+    
+    let ref = imageRef;
+    if (ref.startsWith('image-')) {
+      ref = ref.replace('image-', '').replace('-jpg', '.jpg').replace('-png', '.png').replace('-webp', '.webp');
+    }
+    
+    return `https://cdn.sanity.io/images/qdpdd240/production/${ref}?w=${size}&h=${size}&fit=crop`;
+  };
+  
+  // Check multiple possible image paths
+  const imageRef = item.mainImage?.asset?._ref || item.mainImage?.asset?._id;
+  const imageUrl = item.mainImage?.asset?.url;
+  const sanityUrl = imageRef ? getSanityImageUrl(imageRef) : null;
+  
+  const finalImageUrl = imageUrl || sanityUrl;
+  
+  if (!finalImageUrl || imageError) {
+    return (
+      <div className={`${className} bg-gray-200 flex items-center justify-center overflow-hidden`}>
+        <span className="text-xs text-gray-500">?</span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`${className} bg-gray-100 overflow-hidden`}>
+      <Image 
+        src={finalImageUrl}
+        alt={item.mainImage?.alt || item.title}
+        width={size}
+        height={size}
+        className="w-full h-full object-cover"
+        onError={() => setImageError(true)}
+      />
+    </div>
+  );
+};
+
 const AdminOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
@@ -264,6 +328,9 @@ const AdminOrders = () => {
                     Customer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Items Preview
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Total
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -294,6 +361,25 @@ const AdminOrders = () => {
                           {order.customerInfo.email}
                         </P>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {/* Items Preview with Images */}
+                      <div className="flex -space-x-2 mb-1">
+                        {order.items.slice(0, 3).map((item, idx) => (
+                          <ProductImage
+                            key={idx}
+                            item={item}
+                            size={32}
+                            className="w-8 h-8 rounded-full border-2 border-white"
+                          />
+                        ))}
+                        {order.items.length > 3 && (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center">
+                            <span className="text-xs text-gray-600">+{order.items.length - 3}</span>
+                          </div>
+                        )}
+                      </div>
+                      <P className="text-xs text-gray-500">{order.items.length} item{order.items.length !== 1 ? 's' : ''}</P>
                     </td>
                     <td className="px-6 py-4">
                       <P className="text-sm font-medium text-gray-900">
