@@ -68,12 +68,12 @@ const ProductDetails = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="w-full flex items-center justify-start gap-3 mt-[123px] px-[23px] lg:px-[120px]">
+      <div className="w-full flex items-center justify-start gap-3 mt-[123px] px-[23px] lg:px-[120px] ">
         <ChevronLeft
           onClick={() => {
             router.back();
           }}
-          color="#1C1B1F"
+          color="#68191E"
           size={18}
           className="cursor-pointer"
         />
@@ -81,7 +81,7 @@ const ProductDetails = () => {
           onClick={() => {
             router.back();
           }}
-          className="text-[#000000] text-sm font-activo cursor-pointer"
+          className="text-[#68191E] text-sm  cursor-pointer font-activo uppercase"
         >
           Back
         </p>

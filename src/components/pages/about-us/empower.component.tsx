@@ -8,7 +8,7 @@ const Empowering = () => {
                 <div className="lg:w-[60%] h-full" >
                     <h1 className=" text-[40px] font-moon font-bold">
                         Empowering Style,
-                        <span className=" text-grey"> Inspiring Confidence</span>
+                        <span className=" text-gray-500"> Inspiring <br className="hidden lg:block" />Confidence</span>
                     </h1>
                 </div>
                 <div className="lg:w-[40%] flex items-end h-full relative mt-[">

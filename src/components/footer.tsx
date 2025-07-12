@@ -1,17 +1,26 @@
+// src/components/footer.tsx
 "use client"
 import Wrapper from "./layout/Wrapper"
 import Link from "next/link"
-import { Him, Instagram, Logo_Large, Tiktok, Twitter } from "../../public/images"
+import { Him, Instagram, Logo_Large, Tiktok} from "../../public/images"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { useLoading } from "@/context/LoadingContext"
+import { useState } from "react"
+import TrackOrderModal from "@/components/modals/track-order"
 
 const Footer = () => {
   const { isLoading } = useLoading()
   const isHomePage = typeof window !== "undefined" && window.location.pathname === "/"
+  const [isTrackOrderModalOpen, setIsTrackOrderModalOpen] = useState(false)
 
   // Skip animation if not on homepage or if still loading
   const shouldAnimate = !isLoading && isHomePage
+
+  const handleTrackOrderClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsTrackOrderModalOpen(true)
+  }
 
   const sections = [
     {
@@ -36,15 +45,15 @@ const Footer = () => {
         { href: "/help", label: "help" },
         { href: "/delivery", label: "delivery" },
         { href: "/return&refunds", label: "return & refunds" },
-        { href: "/track", label: "track your orders" },
+        { href: "#", label: "track your orders", onClick: handleTrackOrderClick },
       ],
     },
   ]
 
   const socialLinks = [
-    { href: "www.x.com", src: Twitter, alt: "twitter" },
-    { href: "www.instagram.com", src: Instagram, alt: "instagram" },
-    { href: "www.tiktok.com", src: Tiktok, alt: "tiktok" },
+    // { href: "www.x.com", src: Twitter, alt: "twitter" },
+    { href: "https://www.instagram.com/himspired.ng?igsh=MWV3NHd5ZTFpNThwdA%3D%3D&utm_source=qr", src: Instagram, alt: "instagram" },
+    { href: "https://www.tiktok.com/@himspired.ng?_t=ZM-8xxDhBrZKqu&_r=1", src: Tiktok, alt: "tiktok" },
   ]
 
   // Animation variants
@@ -86,69 +95,86 @@ const Footer = () => {
   }
 
   return (
-    <motion.div
-      className="bg-[#68191E] h-fit text-white uppercase"
-      initial={shouldAnimate ? "hidden" : "visible"}
-      animate="visible"
-      variants={containerVariants}
-    >
-      <Wrapper className="flex flex-col gap-y-15 md:flex-row pt-10">
-        <motion.div className="space-y-6" variants={itemVariants}>
-          <Image src={Him || "/placeholder.svg"} alt="logo" />
-          <p className="text-white-100 font-normal text-sm max-w-56">We provide you with quality and premium wears</p>
-        </motion.div>
-
-        <div className="flex gap-y-10 gap-x-20 flex-wrap">
-          {sections.map((section, index) => (
-            <motion.div key={index} className="flex flex-col space-y-6" variants={itemVariants} custom={index}>
-              <h1 className="font-normal text-base lg:text-lg text-white-100">{section.title}</h1>
-              <div className="flex flex-col space-y-4 text-white-100/70">
-                {section.links.map((link, idx) => (
-                  <motion.div
-                    key={idx}
-                    whileHover={{ x: 5, color: "#ffffff" }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <Link href={link.href} className="text-xs lg:text-sm">
-                      {link.label}
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </Wrapper>
-
-      <div className="border-t-[0.4px] border-white/70 mt-15 md:mt-24 mb-12.5"></div>
-
-      <div className="space-y-15 lg:space-y-32.5 pb-2 md:pb-14">
-        <Wrapper className="flex-col md:flex-row gap-y-12">
-          <motion.div className="flex space-x-5" variants={itemVariants}>
-            {socialLinks.map((social, index) => (
-              <motion.a
-                key={index}
-                href={social.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ y: -5, scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Image src={social.src || "/placeholder.svg"} alt={social.alt} />
-              </motion.a>
-            ))}
+    <>
+      <motion.div
+        className="bg-[#68191E] h-fit text-white uppercase"
+        initial={shouldAnimate ? "hidden" : "visible"}
+        animate="visible"
+        variants={containerVariants}
+      >
+        <Wrapper className="flex flex-col gap-y-15 md:flex-row pt-10">
+          <motion.div className="space-y-6" variants={itemVariants}>
+            <Image src={Him || "/placeholder.svg"} alt="logo" />
+            <p className="text-white-100 font-normal text-sm max-w-56">We provide you with quality and premium wears</p>
           </motion.div>
 
-          <motion.p className="text-white-100/70 text-sm" variants={itemVariants}>
-            all rights reserved - himspire 2025
-          </motion.p>
+          <div className="flex gap-y-10 gap-x-20 flex-wrap">
+            {sections.map((section, index) => (
+              <motion.div key={index} className="flex flex-col space-y-6" variants={itemVariants} custom={index}>
+                <h1 className="font-normal text-base lg:text-lg text-white-100">{section.title}</h1>
+                <div className="flex flex-col space-y-4 text-white-100/70">
+                  {section.links.map((link, idx) => (
+                    <motion.div
+                      key={idx}
+                      whileHover={{ x: 5, color: "#ffffff" }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      {link.onClick ? (
+                        <button
+                          onClick={link.onClick}
+                          className="text-xs lg:text-sm text-left hover:text-white transition-colors uppercase"
+                        >
+                          {link.label}
+                        </button>
+                      ) : (
+                        <Link href={link.href} className="text-xs lg:text-sm">
+                          {link.label}
+                        </Link>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </Wrapper>
 
-        <motion.div className="px-2 md:px-12 w-full flex justify-center" variants={logoVariants}>
-          <Image src={Logo_Large || "/placeholder.svg"} alt="logo" className="w-full" />
-        </motion.div>
-      </div>
-    </motion.div>
+        <div className="border-t-[0.4px] border-white/70 mt-15 md:mt-24 mb-12.5"></div>
+
+        <div className="space-y-15 lg:space-y-32.5 pb-2 md:pb-14">
+          <Wrapper className="flex-col md:flex-row gap-y-12">
+            <motion.div className="flex space-x-5" variants={itemVariants}>
+              {socialLinks.map((social, index) => (
+                <motion.a
+                  key={index}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -5, scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Image src={social.src || "/placeholder.svg"} alt={social.alt} />
+                </motion.a>
+              ))}
+            </motion.div>
+
+            <motion.p className="text-white-100/70 text-sm" variants={itemVariants}>
+              all rights reserved - himspire 2025
+            </motion.p>
+          </Wrapper>
+
+          <motion.div className="px-2 md:px-12 w-full flex justify-center" variants={logoVariants}>
+            <Image src={Logo_Large || "/placeholder.svg"} alt="logo" className="w-full" />
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* Track Order Modal */}
+      <TrackOrderModal 
+        isOpen={isTrackOrderModalOpen}
+        onClose={() => setIsTrackOrderModalOpen(false)}
+      />
+    </>
   )
 }
 
