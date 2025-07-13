@@ -1,25 +1,42 @@
-"use client"
+'use client';
 
-import type { ReactNode } from "react"
-import { usePathname } from "next/navigation"
-import Navbar from "@/components/navbar"
-import Footer from "@/components/footer"
-import Loader from "@/components/Loader"
-import { useLoading } from "@/context/LoadingContext"
-import { motion, AnimatePresence } from "framer-motion"
+import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import Navbar from "@/components/navbar";
+import Footer from "@/components/footer";
+import Loader from "@/components/Loader";
+import { useLoading } from "@/context/LoadingContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { isLoading } = useLoading()
-  const pathname = usePathname()
-  const isHomePage = pathname === "/"
+  const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
+  
+  // Only access the loading context after component mounts
+  const { isLoading } = useLoading();
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // Only show loader on homepage
-  const showLoader = isLoading && isHomePage
+  // Don't render anything on server or until mounted
+  if (!mounted) {
+    return (
+      <main className="flex-grow flex flex-col">
+        <Navbar />
+        <div className="flex-grow">{children}</div>
+        <Footer />
+      </main>
+    );
+  }
+
+  const isHomePage = pathname === "/";
+  const showLoader = isLoading && isHomePage;
 
   return (
     <>
       {showLoader && <Loader />}
-
       <AnimatePresence>
         {(!isLoading || !isHomePage) && (
           <motion.main
@@ -35,5 +52,5 @@ export default function AppShell({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
     </>
-  )
+  );
 }

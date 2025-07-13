@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
-import Fashion from "./_Home/components/Fashion"
-import Newsletter from "./_Home/components/Newsletter"
-import Owners from "./_Home/components/Owners"
-import Products from "./_Home/components/Products"
-import { useLoading } from "@/context/LoadingContext"
+import { motion } from "framer-motion";
+import Fashion from "./_Home/components/Fashion";
+import Newsletter from "./_Home/components/Newsletter";
+import Owners from "./_Home/components/Owners";
+import Products from "./_Home/components/Products";
+import { useLoading } from "@/context/LoadingContext";
 
 export default function Home() {
-  const { isLoading } = useLoading()
+  const { isLoading } = useLoading();
 
   // Animation variants for staggered section reveals
   const containerVariants = {
@@ -20,7 +20,7 @@ export default function Home() {
         delayChildren: 0.2,
       },
     },
-  }
+  };
 
   const sectionVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -33,12 +33,17 @@ export default function Home() {
         stiffness: 100,
       },
     },
-  }
+  };
 
-  if (isLoading) return null
+  if (isLoading) return null;
 
   return (
-    <motion.div className="font-activo" initial="hidden" animate="visible" variants={containerVariants}>
+    <motion.div
+      className="font-activo"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
       <motion.div variants={sectionVariants}>
         <Products />
       </motion.div>
@@ -55,5 +60,5 @@ export default function Home() {
         <Newsletter />
       </motion.div>
     </motion.div>
-  )
+  );
 }

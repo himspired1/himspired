@@ -8,16 +8,14 @@ const CheckoutIDDetails = () => {
     formState: { errors },
   } = useFormContext();
 
-  
-  const getErrorMessage = (error: unknown): string | null => {
-    if (!error) return null;
-    if (typeof error === 'string') return error;
-    if (error && typeof error === 'object' && 'message' in error) {
-      const errorObj = error as { message?: unknown };
-      return typeof errorObj.message === 'string' ? errorObj.message : null;
-    }
-    return null;
+  // Quick error helper - handles the react-hook-form error format
+  const showError = (error: unknown) => {
+    return error && typeof error === 'object' && 'message' in error 
+      ? (error as { message: string }).message 
+      : null;
   };
+
+  const inputClass = "border-b border-black py-4 w-full focus:outline-none placeholder:uppercase placeholder:text-sm uppercase";
 
   return (
     <div className="w-full py-4">
@@ -29,55 +27,67 @@ const CheckoutIDDetails = () => {
           INPUT YOUR DETAILS FOR IDENTIFICATION
         </P>
       </div>
-      <div className="w-full mt-8">
-        <input
-          type="text"
-          {...register("name")}
-          className="border-b-[1px] border-black py-4 w-full focus:outline-none placeholder:uppercase placeholder:text-sm"
-          placeholder="ENTER NAME"
-        />
-        {getErrorMessage(errors.name) && (
-          <p className="text-red-500 text-xs mt-1">{getErrorMessage(errors.name)}</p>
-        )}
 
-        <input
-          type="email"
-          {...register("email")}
-          className="border-b-[1px] border-black py-4 w-full mt-10 focus:outline-none placeholder:uppercase placeholder:text-sm"
-          placeholder="Enter email address"
-        />
-        {getErrorMessage(errors.email) && (
-          <p className="text-red-500 text-xs mt-1">{getErrorMessage(errors.email)}</p>
-        )}
+      <div className="w-full mt-8 space-y-6">
+        <div>
+          <input
+            type="text"
+            {...register("name")}
+            className={inputClass}
+            placeholder="ENTER NAME"
+          />
+          {showError(errors.name) && (
+            <p className="text-red-500 text-xs mt-1">{showError(errors.name)}</p>
+          )}
+        </div>
 
-        <input
-          type="tel"
-          {...register("phone")}
-          className="border-b-[1px] border-black py-4 w-full mt-10 focus:outline-none placeholder:uppercase placeholder:text-sm"
-          placeholder="Enter Phone number"
-        />
-        {getErrorMessage(errors.phone) && (
-          <p className="text-red-500 text-xs mt-1">{getErrorMessage(errors.phone)}</p>
-        )}
+        <div>
+          <input
+            type="email"
+            {...register("email")}
+            className={inputClass}
+            placeholder="Enter email address"
+          />
+          {showError(errors.email) && (
+            <p className="text-red-500 text-xs mt-1">{showError(errors.email)}</p>
+          )}
+        </div>
 
-        <input
-          type="text"
-          {...register("address")}
-          className="border-b-[1px] border-black py-4 w-full mt-10 focus:outline-none placeholder:uppercase placeholder:text-sm"
-          placeholder="Enter Mailing address"
-        />
-        {getErrorMessage(errors.address) && (
-          <p className="text-red-500 text-xs mt-1">{getErrorMessage(errors.address)}</p>
-        )}
+        <div>
+          <input
+            type="tel"
+            {...register("phone")}
+            className={inputClass}
+            placeholder="Enter Phone number"
+          />
+          {showError(errors.phone) && (
+            <p className="text-red-500 text-xs mt-1">{showError(errors.phone)}</p>
+          )}
+        </div>
 
-        <textarea
-          {...register("message")}
-          className="border-b-[1px] border-black py-4 w-full mt-10 focus:outline-none placeholder:uppercase placeholder:text-sm"
-          placeholder="message"
-        />
-        {getErrorMessage(errors.message) && (
-          <p className="text-red-500 text-xs mt-1">{getErrorMessage(errors.message)}</p>
-        )}
+        <div>
+          <input
+            type="text"
+            {...register("address")}
+            className={inputClass}
+            placeholder="Enter Mailing address"
+          />
+          {showError(errors.address) && (
+            <p className="text-red-500 text-xs mt-1">{showError(errors.address)}</p>
+          )}
+        </div>
+
+        <div>
+          <textarea
+            {...register("message")}
+            className={inputClass}
+            placeholder="message"
+            rows={3}
+          />
+          {showError(errors.message) && (
+            <p className="text-red-500 text-xs mt-1">{showError(errors.message)}</p>
+          )}
+        </div>
       </div>
     </div>
   );
