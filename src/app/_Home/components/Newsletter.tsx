@@ -10,15 +10,12 @@ const Newsletter = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    // Validate email format
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailPattern.test(email)) {
       toast.error("Please enter a valid email address.");
       return;
     }
 
-    // Prevent multiple submissions
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -77,7 +74,7 @@ const Newsletter = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isSubmitting}
-            className="placeholder:uppercase outline-none border-b-[1px] border-gray-850 flex-1 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="placeholder:uppercase outline-none border-b-[1px] border-gray-850 flex-1 py-2 disabled:opacity-50 disabled:cursor-not-allowed uppercase"
           />
           <button 
             type="submit" 

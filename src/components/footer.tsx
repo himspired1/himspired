@@ -1,4 +1,3 @@
-// src/components/footer.tsx
 "use client"
 import Wrapper from "./layout/Wrapper"
 import Link from "next/link"
