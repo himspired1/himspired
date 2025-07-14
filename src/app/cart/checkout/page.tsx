@@ -184,7 +184,7 @@ const CheckoutPage = () => {
                             >
                                 <CheckoutIDDetails />
                                                         <motion.div
-                            className="bg-white rounded-lg p-6 shadow-sm mt-8 max-w-md mx-auto"
+                            className="bg-white rounded-lg p-6 shadow-sm mt-8 lg:mt-0 mx-auto"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.8, duration: 0.5 }}
