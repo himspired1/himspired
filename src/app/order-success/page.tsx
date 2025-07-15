@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle, Package, ArrowRight, Clock, Truck, AlertCircle, RefreshCw } from 'lucide-react';
 import { P, H } from '@/components/common/typography';
 import { useAppDispatch } from '@/redux/hooks';
-import { clearCart } from '@/redux/slices/cartSlice';
+import { clearCartForOrder } from '@/redux/slices/cartSlice'; // Import the new action
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -157,7 +157,8 @@ const OrderSuccess = () => {
       return;
     }
     
-    dispatch(clearCart());
+    // Use the new clearCartForOrder action that prevents duplicate toasts
+    dispatch(clearCartForOrder(orderId));
     fetchOrderStatus();
   }, [orderId, router, dispatch, fetchOrderStatus]);
 
