@@ -1,19 +1,34 @@
 "use client";
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Package, MessageCircle, LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 
 const AdminNav = () => {
   const pathname = usePathname();
+  const router = useRouter();
   
   const navItems = [
     { href: '/admin/orders', label: 'Orders', icon: Package },
     { href: '/admin/messages', label: 'Messages', icon: MessageCircle },
   ];
 
-  const logout = () => {
-    localStorage.removeItem('adminAuth');
-    window.location.href = '/admin/login';
+  const logout = async () => {
+    try {
+      const response = await fetch('/api/admin/auth', {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Logged out successfully');
+        router.push('/admin/login');
+      } else {
+        toast.error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
+    }
   };
 
   return (

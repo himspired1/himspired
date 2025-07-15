@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { P, H } from '@/components/common/typography';
 import { Eye, Mail, MessageCircle, CheckCircle, Clock, Trash2 } from 'lucide-react';
 import { ContactMessage, ContactStats, ContactReply } from '@/models/contact';
@@ -14,18 +15,29 @@ const AdminMessages = () => {
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const router = useRouter();
 
   const fetchMessages = async () => {
     try {
       const response = await fetch('/api/contact');
+      
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        router.push('/admin/login?redirect=/admin/messages');
+        return;
+      }
+
       const data = await response.json();
       
       if (data.success) {
         setMessages(data.messages);
         setStats(data.stats);
+      } else {
+        toast.error('Failed to fetch messages');
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
+      toast.error('Failed to fetch messages');
       setMessages([]);
       setStats({ total: 0, unread: 0, replied: 0, recent: 0 });
     } finally {
@@ -34,13 +46,54 @@ const AdminMessages = () => {
   };
 
   useEffect(() => {
-    // Quick auth check
-    if (!localStorage.getItem('adminAuth')) {
-      window.location.href = '/admin/login';
-      return;
-    }
-    fetchMessages();
-  }, []);
+    // Check authentication using the new API
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/admin/verify');
+        if (!response.ok) {
+          // Not authenticated, redirect to login
+          router.push('/admin/login?redirect=/admin/messages');
+          return;
+        }
+        
+        // Authenticated, load messages inline
+        try {
+          const messagesResponse = await fetch('/api/contact');
+          
+          if (messagesResponse.status === 401) {
+            // Unauthorized - redirect to login
+            router.push('/admin/login?redirect=/admin/messages');
+            return;
+          }
+
+          if (messagesResponse.ok) {
+            const data = await messagesResponse.json();
+            
+            if (data.success) {
+              setMessages(data.messages);
+              setStats(data.stats);
+            } else {
+              toast.error('Failed to fetch messages');
+            }
+          } else {
+            toast.error('Failed to fetch messages');
+          }
+        } catch (messagesError) {
+          console.error('Failed to fetch messages:', messagesError);
+          toast.error('Failed to fetch messages');
+          setMessages([]);
+          setStats({ total: 0, unread: 0, replied: 0, recent: 0 });
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        router.push('/admin/login?redirect=/admin/messages');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const filteredMessages = messages.filter(message => {
     if (filter === 'unread') return !message.isRead;
@@ -56,15 +109,24 @@ const AdminMessages = () => {
         body: JSON.stringify({ action: 'mark_read' }),
       });
 
+      if (response.status === 401) {
+        router.push('/admin/login?redirect=/admin/messages');
+        return;
+      }
+
       const result = await response.json();
       if (response.ok && result.success) {
         setMessages(prev => prev.map(msg => 
           msg.messageId === messageId ? { ...msg, isRead: true } : msg
         ));
         setStats(prev => ({ ...prev, unread: Math.max(0, prev.unread - 1) }));
+        toast.success('Message marked as read');
+      } else {
+        toast.error('Failed to mark message as read');
       }
     } catch (error) {
       console.error('Mark as read failed:', error);
+      toast.error('Failed to mark message as read');
     }
   };
 
@@ -83,10 +145,15 @@ const AdminMessages = () => {
         body: JSON.stringify({ action: 'reply', replyMessage: replyText.trim() }),
       });
 
+      if (response.status === 401) {
+        router.push('/admin/login?redirect=/admin/messages');
+        return;
+      }
+
       const result = await response.json();
       
       if (response.ok && result.success) {
-        toast.success('Reply sent!');
+        toast.success('Reply sent successfully!');
         setReplyText('');
         setSelectedMessage(null);
         await fetchMessages();
@@ -109,10 +176,17 @@ const AdminMessages = () => {
         method: 'DELETE',
       });
 
+      if (response.status === 401) {
+        router.push('/admin/login?redirect=/admin/messages');
+        return;
+      }
+
       if (response.ok) {
         setMessages(prev => prev.filter(msg => msg.messageId !== messageId));
         setStats(prev => ({ ...prev, total: prev.total - 1 }));
-        toast.success('Message deleted');
+        toast.success('Message deleted successfully');
+      } else {
+        toast.error('Failed to delete message');
       }
     } catch (error) {
       console.error('Delete failed:', error);

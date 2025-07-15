@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { P, H } from '@/components/common/typography';
 import { Package, MessageCircle, TrendingUp, Users } from 'lucide-react';
 import Link from 'next/link';
 import AdminNav from '@/components/admin/admin-nav';
 import { Order } from '@/models/contact';
+import { toast } from 'sonner';
 
 interface OrdersApiResponse {
   orders?: Order[];
@@ -27,56 +29,69 @@ const AdminDashboard = () => {
     messages: { total: 0, unread: 0, recent: 0 }
   });
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    if (!localStorage.getItem('adminAuth')) {
-      window.location.href = '/admin/login';
-      return;
-    }
-
-    const fetchStats = async () => {
+    // Check authentication using the new API
+    const checkAuth = async () => {
       try {
-        const [ordersRes, messagesRes] = await Promise.all([
-          fetch('/api/orders'),
-          fetch('/api/contact', {
-            headers: {
-              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY || 'admin-key'}`,
-            },
-          })
-        ]);
-
-        const ordersData: OrdersApiResponse = await ordersRes.json();
-        const messagesData: MessagesApiResponse = await messagesRes.json();
-
-        if (ordersData.orders) {
-          const orders = ordersData.orders;
-          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-          
-          setStats(prev => ({
-            ...prev,
-            orders: {
-              total: orders.length,
-              pending: orders.filter((o: Order) => o.status === 'payment_pending').length,
-              recent: orders.filter((o: Order) => new Date(o.createdAt) >= twentyFourHoursAgo).length
-            }
-          }));
+        const response = await fetch('/api/admin/verify');
+        if (!response.ok) {
+          // Not authenticated, redirect to login
+          router.push('/admin/login?redirect=/admin');
+          return;
         }
+        
+        // Authenticated, load dashboard stats inline
+        try {
+          const [ordersRes, messagesRes] = await Promise.all([
+            fetch('/api/orders'),
+            fetch('/api/contact')
+          ]);
 
-        if (messagesData.success && messagesData.stats) {
-          setStats(prev => ({
-            ...prev,
-            messages: messagesData.stats || { total: 0, unread: 0, recent: 0 }
-          }));
+          // Handle 401 responses
+          if (ordersRes.status === 401 || messagesRes.status === 401) {
+            router.push('/admin/login?redirect=/admin');
+            return;
+          }
+
+          const ordersData: OrdersApiResponse = await ordersRes.json();
+          const messagesData: MessagesApiResponse = await messagesRes.json();
+
+          if (ordersData.orders) {
+            const orders = ordersData.orders;
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            
+            setStats(prev => ({
+              ...prev,
+              orders: {
+                total: orders.length,
+                pending: orders.filter((o: Order) => o.status === 'payment_pending').length,
+                recent: orders.filter((o: Order) => new Date(o.createdAt) >= twentyFourHoursAgo).length
+              }
+            }));
+          }
+
+          if (messagesData.success && messagesData.stats) {
+            setStats(prev => ({
+              ...prev,
+              messages: messagesData.stats || { total: 0, unread: 0, recent: 0 }
+            }));
+          }
+        } catch (statsError) {
+          console.error('Failed to fetch stats:', statsError);
+          toast.error('Failed to load dashboard statistics');
         }
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
+        console.error('Auth check failed:', error);
+        router.push('/admin/login?redirect=/admin');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStats();
-  }, []);
+    checkAuth();
+  }, [router]);
 
   const quickActions = [
     {
@@ -109,9 +124,9 @@ const AdminDashboard = () => {
   }
 
   return (
-    <>
+    <div className='h-screen bg-gray-50'>
       <AdminNav />
-      <div className="bg-gray-50 p-6">
+      <div className=" p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <H className="text-3xl mb-2 text-[#68191E]">
@@ -209,6 +224,7 @@ const AdminDashboard = () => {
               })}
             </div>
           </div>
+          
           <div className="bg-white rounded-lg p-6 shadow-sm">
             <H className="text-lg mb-4">Recent Activity (24 hours)</H>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -226,7 +242,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
