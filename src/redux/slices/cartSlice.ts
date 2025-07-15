@@ -13,10 +13,12 @@ export interface CartItem extends ProductBase {
 
 export interface CartState {
   items: CartItem[];
+  lastClearedOrderId: string | null; // Track which order last cleared the cart
 }
 
 const initialState: CartState = {
   items: [],
+  lastClearedOrderId: null,
 };
 
 const cartSlice = createSlice({
@@ -99,9 +101,28 @@ const cartSlice = createSlice({
       }
     },
 
+    // Clear cart with toast (for order completion)
     clearCart: (state) => {
       state.items = [];
       toast.success("Cart cleared");
+    },
+
+    // Clear cart for specific order (prevents duplicate toasts)
+    clearCartForOrder: (state, action: PayloadAction<string>) => {
+      const orderId = action.payload;
+      
+      // Only clear and show toast if this order hasn't already cleared the cart
+      if (state.lastClearedOrderId !== orderId) {
+        state.items = [];
+        state.lastClearedOrderId = orderId;
+        toast.success("Cart cleared");
+      }
+    },
+
+    // Clear cart silently (for order tracking, etc.)
+    clearCartSilent: (state) => {
+      state.items = [];
+      // No toast shown
     },
 
     // Helper action to clean up any potential duplicates (can be called if needed)
@@ -139,6 +160,8 @@ export const {
   incrementQuantity,
   decrementQuantity,
   clearCart,
+  clearCartForOrder, // Export the new order-specific action
+  clearCartSilent, // Export the new silent action
   cleanupDuplicates,
 } = cartSlice.actions;
 

@@ -43,7 +43,6 @@ const CheckoutPage = () => {
     // Redirect if cart is empty
     useEffect(() => {
         if (cartItems.length === 0) {
-            toast.error("Your cart is empty. Add items before checkout.");
             router.push('/cart');
         }
     }, [cartItems.length, router]);

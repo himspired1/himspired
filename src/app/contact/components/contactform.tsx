@@ -115,7 +115,7 @@ const ContactForm = () => {
             name="name"
             value={formData.name}
             onChange={handleChange}
-            className='border-b border-black py-4 lg:w-[75%] focus:outline-none placeholder:uppercase' 
+            className='border-b border-black py-4 lg:w-[75%] focus:outline-none placeholder:uppercase uppercase' 
             placeholder='ENTER NAME'
             required
             disabled={loading}
@@ -126,7 +126,7 @@ const ContactForm = () => {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className='border-b border-black py-4 lg:w-[75%] focus:outline-none placeholder:uppercase' 
+            className='border-b border-black py-4 lg:w-[75%] focus:outline-none placeholder:uppercase uppercase' 
             placeholder='ENTER EMAIL ADDRESS'
             required
             disabled={loading}
@@ -137,7 +137,7 @@ const ContactForm = () => {
               name="message"
               value={formData.message}
               onChange={handleChange}
-              className='border-b w-[80%] h-[7em] border-black p-5 focus:outline-none placeholder:uppercase' 
+              className='border-b w-[80%] h-[7em] border-black p-5 focus:outline-none placeholder:uppercase uppercase' 
               placeholder='HOW CAN WE HELP?'
               required
               disabled={loading}

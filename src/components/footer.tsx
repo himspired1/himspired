@@ -26,8 +26,7 @@ const Footer = () => {
       title: "shop",
       links: [
         { href: "/shop/men", label: "men" },
-        { href: "/shop/women", label: "women" },
-        { href: "/shop/kids", label: "kids" },
+        { href: "/shop/women", label: "unisex" },
       ],
     },
     {
@@ -41,9 +40,8 @@ const Footer = () => {
     {
       title: "support",
       links: [
-        { href: "/help", label: "help" },
+        { href: "/contact", label: "help" },
         { href: "/delivery", label: "delivery" },
-        { href: "/return&refunds", label: "return & refunds" },
         { href: "#", label: "track your orders", onClick: handleTrackOrderClick },
       ],
     },
