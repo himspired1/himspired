@@ -1,10 +1,12 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { P, H } from '@/components/common/typography';
 import { Eye, Mail, Package, CheckCircle, Clock, Truck, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import { Order, OrderStatus } from '@/models/order';
 import Image from 'next/image';
 import AdminNav from '@/components/admin/admin-nav';
+import { toast } from 'sonner';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -18,6 +20,7 @@ const AdminOrders = () => {
     shipped: 0,
     complete: 0
   });
+  const router = useRouter();
 
   const calculateStats = (orderList: Order[]) => {
     const newStats = {
@@ -32,12 +35,19 @@ const AdminOrders = () => {
   const fetchOrders = async () => {
     try {
       const response = await fetch('/api/orders');
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        router.push('/admin/login');
+        return;
+      }
+      
       const data = await response.json();
       setOrders(data.orders);
       calculateStats(data.orders);
       filterOrdersByStatus(data.orders, filter);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
+      toast.error('Failed to fetch orders');
     } finally {
       setLoading(false);
     }
@@ -52,28 +62,47 @@ const AdminOrders = () => {
   };
 
   useEffect(() => {
-    // Quick auth check
-    if (!localStorage.getItem('adminAuth')) {
-      window.location.href = '/admin/login';
-      return;
-    }
-    
-    const loadOrders = async () => {
+    // Check authentication using the new API
+    const checkAuth = async () => {
       try {
-        const response = await fetch('/api/orders');
-        const data = await response.json();
-        setOrders(data.orders);
-        calculateStats(data.orders);
-        filterOrdersByStatus(data.orders, filter);
+        const response = await fetch('/api/admin/verify');
+        if (!response.ok) {
+          // Not authenticated, redirect to login
+          router.push('/admin/login?redirect=/admin/orders');
+          return;
+        }
+        
+        // Authenticated, load orders inline
+        try {
+          const ordersResponse = await fetch('/api/orders');
+          if (ordersResponse.status === 401) {
+            // Unauthorized - redirect to login
+            router.push('/admin/login?redirect=/admin/orders');
+            return;
+          }
+          
+          if (ordersResponse.ok) {
+            const data = await ordersResponse.json();
+            setOrders(data.orders);
+            calculateStats(data.orders);
+            filterOrdersByStatus(data.orders, filter);
+          } else {
+            toast.error('Failed to fetch orders');
+          }
+        } catch (ordersError) {
+          console.error('Failed to fetch orders:', ordersError);
+          toast.error('Failed to fetch orders');
+        }
       } catch (error) {
-        console.error('Failed to fetch orders:', error);
+        console.error('Auth check failed:', error);
+        router.push('/admin/login?redirect=/admin/orders');
       } finally {
         setLoading(false);
       }
     };
-    
-    loadOrders();
-  }, [filter]);
+
+    checkAuth();
+  }, [router, filter]);
 
   // Filter orders whenever orders or filter changes
   useEffect(() => {
@@ -86,28 +115,50 @@ const AdminOrders = () => {
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
     try {
-      await fetch(`/api/orders/${orderId}`, {
+      const response = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      fetchOrders(); // Refresh list
+
+      if (response.status === 401) {
+        router.push('/admin/login');
+        return;
+      }
+
+      if (response.ok) {
+        toast.success('Order status updated successfully');
+        fetchOrders(); // Refresh list
+      } else {
+        toast.error('Failed to update order status');
+      }
     } catch (error) {
       console.error('Status update failed:', error);
+      toast.error('Failed to update order status');
     }
   };
 
   const sendEmail = async (orderId: string) => {
     try {
-      await fetch('/api/orders/send-email', {
+      const response = await fetch('/api/orders/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId }),
       });
-      alert('Email sent!');
+
+      if (response.status === 401) {
+        router.push('/admin/login');
+        return;
+      }
+
+      if (response.ok) {
+        toast.success('Email sent successfully!');
+      } else {
+        toast.error('Failed to send email');
+      }
     } catch (error) {
       console.error('Email failed:', error);
-      alert('Email failed');
+      toast.error('Failed to send email');
     }
   };
 
@@ -143,9 +194,9 @@ const AdminOrders = () => {
   }
 
   return (
-    <div >
+    <div className='h-screen '>
       <AdminNav />
-      <div className="bg-gray-50 p-6">
+      <div className=" p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <H className="text-3xl mb-2 text-[#68191E]">Orders</H>
