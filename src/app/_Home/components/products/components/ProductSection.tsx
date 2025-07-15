@@ -3,7 +3,7 @@ import { Plus, Check } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { SanityImageComponent } from "@/components/sanity/image"
 import { useRouter } from "next/navigation"
-import { MouseEvent, useEffect, useRef, useState } from "react"
+import { MouseEvent, useEffect, useRef, useState, useMemo } from "react"
 import { useAppDispatch, useAppSelector } from "@/redux/hooks"
 import { addItem, CartItem, selectCartItemQuantity } from "@/redux/slices/cartSlice"
 import React from "react"
@@ -90,16 +90,22 @@ const ProductItem = ({
     selectCartItemQuantity(state, product._id, product.size?.[0] || "")
   );
 
-  // Get cart quantities for all sizes (moved outside of callback)
-  const sizeQuantities = useAppSelector(state => {
+  // Get all cart items to avoid multiple selector calls
+  const cartItems = useAppSelector(state => state.persistedReducer.cart.items);
+
+  // ✅ FIXED: Memoize the sizeQuantities to prevent new object creation on every render
+  const sizeQuantities = useMemo(() => {
     const quantities: Record<string, number> = {};
     if (product.size) {
       product.size.forEach(sizeOption => {
-        quantities[sizeOption] = selectCartItemQuantity(state, product._id, sizeOption);
+        const quantity = cartItems
+          .filter(item => item.originalProductId === product._id && item.size === sizeOption)
+          .reduce((total, item) => total + item.quantity, 0);
+        quantities[sizeOption] = quantity;
       });
     }
     return quantities;
-  });
+  }, [cartItems, product._id, product.size]);
 
   const handleAddToCart = (selectedSize?: string) => {
     // Fixed: Updated to match new CartItem interface

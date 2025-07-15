@@ -33,7 +33,6 @@ const Fashion = () => {
 
             if (currentViewport !== lastLoggedViewport.current) {
               lastLoggedViewport.current = currentViewport;
-              console.log(`Scrolled to ${currentViewport * 100}vw`);
             }
           },
         },
