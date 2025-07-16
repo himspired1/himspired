@@ -1,43 +1,69 @@
-import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
-import { newsletterService } from '@/lib/newsletter';
+import { NextRequest, NextResponse } from "next/server";
+import nodemailer from "nodemailer";
+import { newsletterService } from "@/lib/newsletter";
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
 
+// In-memory rate limiting per IP
+const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
+const MAX_SUBSCRIPTIONS = 3;
+const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+
+function getClientIp(req: NextRequest) {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
 export async function POST(req: NextRequest) {
+  // Rate limiting logic
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let entry = newsletterAttempts.get(ip);
+  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+    entry = { count: 0, firstAttempt: now };
+  }
+  entry.count++;
+  newsletterAttempts.set(ip, entry);
+  if (entry.count > MAX_SUBSCRIPTIONS) {
+    return NextResponse.json(
+      { error: "Too many newsletter subscriptions. Please try again later." },
+      { status: 429 }
+    );
+  }
+
   try {
     const { email } = await req.json();
-    
+
     // Validate email
     if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailPattern.test(email)) {
       return NextResponse.json(
-        { error: 'Invalid email format' },
+        { error: "Invalid email format" },
         { status: 400 }
       );
     }
 
     // Save to database
     const subscriptionResult = await newsletterService.subscribe(email);
-    
+
     if (!subscriptionResult.success) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: subscriptionResult.message 
+          error: subscriptionResult.message,
         },
         { status: 400 }
       );
@@ -48,7 +74,7 @@ export async function POST(req: NextRequest) {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Welcome to Himspired',
+        subject: "Welcome to Himspired",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -78,7 +104,7 @@ export async function POST(req: NextRequest) {
               </p>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.NEXT_PUBLIC_URL || 'https://himspired.com'}/shop" 
+                <a href="${process.env.NEXT_PUBLIC_URL || "https://himspired.com"}/shop" 
                    style="background: #68191E; color: white; padding: 12px 30px; text-decoration: none; 
                           border-radius: 25px; display: inline-block; font-weight: bold;">
                   Start Shopping
@@ -108,24 +134,21 @@ export async function POST(req: NextRequest) {
       };
 
       await transporter.sendMail(mailOptions);
-      console.log('Newsletter welcome email sent to:', email);
+      console.log("Newsletter welcome email sent to:", email);
     } catch (emailError) {
-      console.error('Failed to send welcome email:', emailError);
+      console.error("Failed to send welcome email:", emailError);
       // Don't fail the subscription if email fails
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: subscriptionResult.message 
+    return NextResponse.json({
+      success: true,
+      subscriberId: subscriptionResult.subscriberId,
+      message: subscriptionResult.message,
     });
-
   } catch (error) {
-    console.error('Newsletter signup failed:', error);
+    console.error("Newsletter subscription failed:", error);
     return NextResponse.json(
-      { 
-        error: 'Failed to process newsletter signup',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: "Failed to subscribe to newsletter" },
       { status: 500 }
     );
   }
