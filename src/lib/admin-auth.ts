@@ -163,12 +163,3 @@ export class AdminAuth {
     }
   }
 }
-
-// TODO: Remove this debug function before production
-export async function verifyAuthSetup() {
-  return {
-    hasSecret: !!env.JWT_SECRET,
-    hasPasswordHash: !!env.ADMIN_PASSWORD_HASH,
-    secretLength: env.JWT_SECRET?.length || 0,
-  };
-}

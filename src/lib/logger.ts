@@ -1,4 +1,10 @@
 import winston from "winston";
+import { existsSync, mkdirSync } from "fs";
+
+const logDir = "logs";
+if (!existsSync(logDir)) {
+  mkdirSync(logDir, { recursive: true });
+}
 
 // Define log levels
 const levels = {

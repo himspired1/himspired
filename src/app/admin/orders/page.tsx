@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { P, H } from "@/components/common/typography";
 import {
@@ -54,49 +54,66 @@ const AdminOrders = () => {
   });
   const router = useRouter();
 
-  const calculateStats = (orderList: Order[]) => {
-    const newStats = {
-      pending: orderList.filter((o) => o.status === "payment_pending").length,
-      confirmed: orderList.filter((o) => o.status === "payment_confirmed")
-        .length,
-      shipped: orderList.filter((o) => o.status === "shipped").length,
-      complete: orderList.filter((o) => o.status === "complete").length,
-    };
-    setStats(newStats);
-  };
-
-  const fetchOrders = async (page: number = 1, status?: string) => {
-    try {
-      const params = new URLSearchParams();
-      if (page > 1) params.append("page", page.toString());
-      if (status && status !== "all") params.append("status", status);
-
-      const response = await fetch(`/api/orders?${params.toString()}`);
-      if (response.status === 401) {
-        router.push("/admin/login");
-        return;
+  const filterOrdersByStatus = useCallback(
+    (orderList: Order[], status: string) => {
+      if (status === "all") {
+        setFilteredOrders(orderList);
+      } else {
+        setFilteredOrders(orderList.filter((order) => order.status === status));
       }
+    },
+    [setFilteredOrders]
+  );
 
-      const data: OrdersResponse = await response.json();
-      setOrders(data.orders);
-      setPagination(data.pagination);
-      calculateStats(data.orders);
-      filterOrdersByStatus(data.orders, filter);
-    } catch (error) {
-      console.error("Failed to fetch orders:", error);
-      toast.error("Failed to fetch orders");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const calculateStats = useCallback(
+    (orderList: Order[]) => {
+      const newStats = {
+        pending: orderList.filter((o) => o.status === "payment_pending").length,
+        confirmed: orderList.filter((o) => o.status === "payment_confirmed")
+          .length,
+        shipped: orderList.filter((o) => o.status === "shipped").length,
+        complete: orderList.filter((o) => o.status === "complete").length,
+      };
+      setStats(newStats);
+    },
+    [setStats]
+  );
 
-  const filterOrdersByStatus = (orderList: Order[], status: string) => {
-    if (status === "all") {
-      setFilteredOrders(orderList);
-    } else {
-      setFilteredOrders(orderList.filter((order) => order.status === status));
-    }
-  };
+  const fetchOrders = useCallback(
+    async (page: number = 1, status?: string) => {
+      try {
+        const params = new URLSearchParams();
+        if (page > 1) params.append("page", page.toString());
+        if (status && status !== "all") params.append("status", status);
+
+        const response = await fetch(`/api/orders?${params.toString()}`);
+        if (response.status === 401) {
+          router.push("/admin/login");
+          return;
+        }
+
+        const data: OrdersResponse = await response.json();
+        setOrders(data.orders);
+        setPagination(data.pagination);
+        calculateStats(data.orders);
+        filterOrdersByStatus(data.orders, filter);
+      } catch (error) {
+        console.error("Failed to fetch orders:", error);
+        toast.error("Failed to fetch orders");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      router,
+      setOrders,
+      setPagination,
+      calculateStats,
+      filterOrdersByStatus,
+      filter,
+      setLoading,
+    ]
+  );
 
   useEffect(() => {
     // Check authentication using the new API
@@ -108,34 +125,8 @@ const AdminOrders = () => {
           return;
         }
 
-        // Authenticated, load orders inline
-        try {
-          const params = new URLSearchParams();
-          if (pagination.page > 1)
-            params.append("page", pagination.page.toString());
-          if (filter !== "all") params.append("status", filter);
-
-          const ordersResponse = await fetch(
-            `/api/orders?${params.toString()}`
-          );
-          if (ordersResponse.status === 401) {
-            router.push("/admin/login?redirect=/admin/orders");
-            return;
-          }
-
-          if (ordersResponse.ok) {
-            const data: OrdersResponse = await ordersResponse.json();
-            setOrders(data.orders);
-            setPagination(data.pagination);
-            calculateStats(data.orders);
-            filterOrdersByStatus(data.orders, filter);
-          } else {
-            toast.error("Failed to fetch orders");
-          }
-        } catch (ordersError) {
-          console.error("Failed to fetch orders:", ordersError);
-          toast.error("Failed to fetch orders");
-        }
+        // Authenticated, fetch orders using the existing fetchOrders function
+        fetchOrders(pagination.page, filter !== "all" ? filter : undefined);
       } catch (error) {
         console.error("Auth check failed:", error);
         router.push("/admin/login?redirect=/admin/orders");
@@ -145,7 +136,7 @@ const AdminOrders = () => {
     };
 
     checkAuth();
-  }, [router, filter, pagination.page]);
+  }, [router, filter, pagination.page, fetchOrders]);
 
   // Filter orders whenever orders or filter changes
   useEffect(() => {
