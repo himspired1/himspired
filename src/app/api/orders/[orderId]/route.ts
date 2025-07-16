@@ -19,7 +19,9 @@ export async function PUT(
      'payment_pending',
      'payment_confirmed',
      'shipped',
-     'complete'
+     'complete',
+     'payment_not_confirmed',
+     'canceled'
    ];
 
    if (!validStatuses.includes(status)) {

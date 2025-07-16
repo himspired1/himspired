@@ -39,10 +39,23 @@ const validateEnvironment = () => {
 const env = validateEnvironment();
 const JWT_SECRET = new TextEncoder().encode(env.JWT_SECRET);
 
+// Use a global variable for simulated hash if present (for password change API)
+declare global {
+  // eslint-disable-next-line no-var
+  var simulatedAdminPasswordHash: string | undefined;
+}
+
+function getCurrentAdminPasswordHash() {
+  return (
+    global.simulatedAdminPasswordHash || process.env.ADMIN_PASSWORD_HASH || ""
+  );
+}
+
 export interface AdminUser {
   sub: string;
   username: string;
   role: "admin";
+  passwordHash: string; // Add passwordHash to payload
   iat?: number;
   exp?: number;
 }
@@ -53,6 +66,7 @@ export class AdminAuth {
       sub: username,
       username,
       role: "admin" as const,
+      passwordHash: getCurrentAdminPasswordHash(), // Use latest hash
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -65,6 +79,15 @@ export class AdminAuth {
   static async verifyToken(token: string): Promise<AdminUser | null> {
     try {
       const { payload } = await jwtVerify(token, JWT_SECRET);
+      // Check if passwordHash in token matches current hash
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        payload.passwordHash !== getCurrentAdminPasswordHash()
+      ) {
+        // Password has changed since token was issued
+        return null;
+      }
       return payload as unknown as AdminUser;
     } catch (error) {
       console.error("Token verification failed:", error);
@@ -116,7 +139,7 @@ export class AdminAuth {
   static async authenticate(username: string, password: string) {
     console.log("Auth attempt for:", username);
 
-    const passwordHash = env.ADMIN_PASSWORD_HASH;
+    const passwordHash = getCurrentAdminPasswordHash();
 
     // Only allow configured admin username
     if (username !== env.ADMIN_USERNAME) {
