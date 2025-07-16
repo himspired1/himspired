@@ -28,12 +28,18 @@ export async function GET(req: NextRequest) {
 
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+    // Calculate stats using the full collection, not just paginated messages
+    const [unreadCount, repliedCount, recentCount] = await Promise.all([
+      collection.countDocuments({ isRead: false }),
+      collection.countDocuments({ "replies.0": { $exists: true } }),
+      collection.countDocuments({ createdAt: { $gte: yesterday } }),
+    ]);
+
     const stats = {
       total: totalCount,
-      unread: messages.filter((msg) => !msg.isRead).length,
-      replied: messages.filter((msg) => msg.replies?.length > 0).length,
-      recent: messages.filter((msg) => new Date(msg.createdAt) >= yesterday)
-        .length,
+      unread: unreadCount,
+      replied: repliedCount,
+      recent: recentCount,
     };
 
     // Calculate pagination metadata
