@@ -28,28 +28,28 @@ Himspired is a premium fashion e-commerce platform that bridges the gap between 
 
 ## Project Structure
 
-\`\`\`
+```text
 src/
-├── app/                  # Next.js App Router
-│   ├── _Home/            # Home page components
-│   ├── about/            # About page
-│   ├── cart/             # Shopping cart
-│   ├── contact/          # Contact page
-│   ├── shop/             # Shop page
-│   ├── globals.css       # Global styles
-│   └── layout.tsx        # Root layout
-├── components/           # Reusable components
-│   ├── common/           # Common UI elements
-│   ├── layout/           # Layout components
-│   ├── pages/            # Page-specific components
-│   ├── product/          # Product-related components
-│   └── ui/               # UI components from shadcn
-├── constants/            # Constants and configuration
-├── data/                 # Data files
-├── hooks/                # Custom React hooks
-├── lib/                  # Utility functions
-└── redux/                # State management
-\`\`\`
+├── app/ # Next.js App Router
+│ ├── _Home/ # Home page components
+│ ├── about/ # About page
+│ ├── cart/ # Shopping cart
+│ ├── contact/ # Contact page
+│ ├── shop/ # Shop page
+│ ├── globals.css # Global styles
+│ └── layout.tsx # Root layout
+├── components/ # Reusable components
+│ ├── common/ # Common UI elements
+│ ├── layout/ # Layout components
+│ ├── pages/ # Page-specific components
+│ ├── product/ # Product-related components
+│ └── ui/ # UI components from shadcn
+├── constants/ # Constants and configuration
+├── data/ # Data files
+├── hooks/ # Custom React hooks
+├── lib/ # Utility functions
+└── redux/ # State management
+```
 
 ### Key Components
 
@@ -70,24 +70,31 @@ src/
 ### Installation
 
 1. Clone the repository:
-   \`\`\`bash
-   git clone https://github.com/yourusername/himspired.git
+
+   ```bash
+   git clone <https://github.com/yourusername/himspired.git>
    cd himspired
-   \`\`\`
+   ```
 
 2. Install dependencies:
-   \`\`\`bash
+
+   ```bash
    npm install
+
    # or
+
    yarn install
-   \`\`\`
+   ```
 
 3. Run the development server:
-   \`\`\`bash
+
+   ```bash
    npm run dev
+
    # or
+
    yarn dev
-   \`\`\`
+   ```
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
@@ -96,6 +103,7 @@ src/
 ### Home Page
 
 The home page features a product carousel showcasing different categories. Users can:
+
 - Navigate between categories using the dots or arrow buttons
 - View products in a responsive grid layout
 - Hover over products for subtle animations
@@ -104,6 +112,7 @@ The home page features a product carousel showcasing different categories. Users
 ### Shop Page
 
 The shop page allows users to browse all products with filtering options:
+
 - Filter by category (All, Thrift, Luxury, Senators)
 - View product details
 - Add products to cart

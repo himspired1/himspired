@@ -1,149 +1,174 @@
-import { SignJWT, jwtVerify } from 'jose';
-import bcrypt from 'bcryptjs';
-import { cookies } from 'next/headers';
-import { NextRequest } from 'next/server';
+import { SignJWT, jwtVerify } from "jose";
+import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key-change-this');
+// Environment validation - will throw if validation fails
+const validateEnvironment = () => {
+  const requiredEnvVars = {
+    JWT_SECRET: process.env.JWT_SECRET,
+    ADMIN_USERNAME: process.env.ADMIN_USERNAME,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH,
+    NODE_ENV: process.env.NODE_ENV || "development",
+  };
+
+  const missing = Object.entries(requiredEnvVars)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+
+  if (!requiredEnvVars.JWT_SECRET || requiredEnvVars.JWT_SECRET.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters long");
+  }
+
+  return requiredEnvVars as {
+    JWT_SECRET: string;
+    ADMIN_USERNAME: string;
+    ADMIN_PASSWORD: string;
+    ADMIN_PASSWORD_HASH: string;
+    NODE_ENV: string;
+  };
+};
+
+const env = validateEnvironment();
+const JWT_SECRET = new TextEncoder().encode(env.JWT_SECRET);
 
 export interface AdminUser {
   sub: string;
   username: string;
-  role: 'admin';
+  role: "admin";
   iat?: number;
   exp?: number;
 }
 
 export class AdminAuth {
-  static async hashPassword(password: string) {
-    return bcrypt.hash(password, 12);
-  }
-
-  static async verifyPassword(password: string, hash: string) {
-    return bcrypt.compare(password, hash);
-  }
-
-  static async generateToken(username: string) {
-    return new SignJWT({
+  static async generateToken(username: string): Promise<string> {
+    const token = await new SignJWT({
       sub: username,
-      role: 'admin',
-      username
+      username,
+      role: "admin" as const,
     })
-      .setProtectedHeader({ alg: 'HS256' })
+      .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime('24h')
+      .setExpirationTime("24h")
       .sign(JWT_SECRET);
+
+    return token;
   }
 
   static async verifyToken(token: string): Promise<AdminUser | null> {
     try {
       const { payload } = await jwtVerify(token, JWT_SECRET);
-      
-      if (
-        typeof payload.sub === 'string' &&
-        typeof payload.username === 'string' &&
-        payload.role === 'admin'
-      ) {
-        return {
-          sub: payload.sub,
-          username: payload.username,
-          role: payload.role,
-          iat: payload.iat,
-          exp: payload.exp
-        };
-      }
-      
-      return null;
+      return payload as unknown as AdminUser;
     } catch (error) {
-      console.error('Token verification failed:', error);
+      console.error("Token verification failed:", error);
       return null;
     }
   }
 
-  static async authenticate(username: string, password: string) {
-    console.log('Auth attempt for:', username);
-    
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-    if (!passwordHash) {
-      console.error('ADMIN_PASSWORD_HASH not configured');
+  static async isAuthenticatedFromRequest(
+    request: NextRequest
+  ): Promise<boolean> {
+    try {
+      const token = request.cookies.get("admin-token")?.value;
+      if (!token) return false;
+
+      const user = await this.verifyToken(token);
+      return !!user;
+    } catch (error) {
+      console.error("Auth check failed:", error);
       return false;
     }
+  }
 
-    // Only allow 'admin' username for now
-    if (username !== 'admin') {
-      console.log('Invalid username:', username);
+  static async isAuthenticated(): Promise<boolean> {
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("admin-token")?.value;
+      if (!token) return false;
+
+      const user = await this.verifyToken(token);
+      return !!user;
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      return false;
+    }
+  }
+
+  static async verifyPassword(
+    password: string,
+    hash: string
+  ): Promise<boolean> {
+    try {
+      return await bcrypt.compare(password, hash);
+    } catch (error) {
+      console.error("Password verification error:", error);
+      return false;
+    }
+  }
+
+  static async authenticate(username: string, password: string) {
+    console.log("Auth attempt for:", username);
+
+    const passwordHash = env.ADMIN_PASSWORD_HASH;
+
+    // Only allow configured admin username
+    if (username !== env.ADMIN_USERNAME) {
+      console.log("Invalid username:", username);
       return false;
     }
 
     try {
       const result = await this.verifyPassword(password, passwordHash);
-      console.log('Password verification:', result ? 'success' : 'failed');
+      console.log("Password verification:", result ? "success" : "failed");
       return result;
     } catch (error) {
-      console.error('Password verification error:', error);
+      console.error("Password verification error:", error);
       return false;
     }
   }
 
   static async setAuthCookie(token: string) {
     const cookieStore = await cookies();
-    cookieStore.set('admin-token', token, {
+    cookieStore.set("admin-token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: env.NODE_ENV === "production",
+      sameSite: "strict",
       maxAge: 60 * 60 * 24, // 24 hours
-      path: '/'
+      path: "/",
     });
-  }
-
-  static async getAuthCookie() {
-    const cookieStore = await cookies();
-    return cookieStore.get('admin-token')?.value || null;
   }
 
   static async clearAuthCookie() {
     const cookieStore = await cookies();
-    cookieStore.delete('admin-token');
+    cookieStore.delete("admin-token");
   }
 
-  static async getCurrentUser() {
-    const token = await this.getAuthCookie();
-    if (!token) return null;
-    
-    return this.verifyToken(token);
-  }
+  static async getUser(): Promise<AdminUser | null> {
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("admin-token")?.value;
+      if (!token) return null;
 
-  static async isAuthenticated() {
-    const user = await this.getCurrentUser();
-    return user !== null;
+      return await this.verifyToken(token);
+    } catch (error) {
+      console.error("Get user failed:", error);
+      return null;
+    }
   }
-
-  // For middleware
-  static async isAuthenticatedFromRequest(request: NextRequest) {
-    const token = request.cookies.get('admin-token')?.value;
-    if (!token) return false;
-    
-    const user = await this.verifyToken(token);
-    return user !== null;
-  }
-
-  static async getUserFromRequest(request: NextRequest) {
-    const token = request.cookies.get('admin-token')?.value;
-    if (!token) return null;
-    
-    return this.verifyToken(token);
-  }
-}
-
-// Helper for setup
-export async function generatePasswordHash(password: string) {
-  return AdminAuth.hashPassword(password);
 }
 
 // TODO: Remove this debug function before production
 export async function verifyAuthSetup() {
   return {
-    hasSecret: !!process.env.JWT_SECRET,
-    hasPasswordHash: !!process.env.ADMIN_PASSWORD_HASH,
-    secretLength: process.env.JWT_SECRET?.length || 0
+    hasSecret: !!env.JWT_SECRET,
+    hasPasswordHash: !!env.ADMIN_PASSWORD_HASH,
+    secretLength: env.JWT_SECRET?.length || 0,
   };
 }
