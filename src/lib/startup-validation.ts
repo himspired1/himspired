@@ -6,6 +6,13 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+/**
+ * Performs a series of startup checks to validate environment configuration, database connectivity, and required credentials.
+ *
+ * Validates environment variables, attempts to connect to the MongoDB database, checks Cloudinary and email configuration, verifies JWT secret strength, and ensures admin credentials are set. Returns a `ValidationResult` indicating overall success, with lists of errors and warnings encountered during validation.
+ *
+ * @returns A promise that resolves to a `ValidationResult` object containing the outcome of the startup validation.
+ */
 export async function validateStartup(): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -110,6 +117,11 @@ export async function validateStartup(): Promise<ValidationResult> {
   }
 }
 
+/**
+ * Logs the outcome of the startup validation process to the console, including errors and warnings if present.
+ *
+ * @param result - The result object containing validation success status, errors, and warnings
+ */
 export function logValidationResult(result: ValidationResult) {
   if (result.success) {
     console.log("✅ Startup validation passed");

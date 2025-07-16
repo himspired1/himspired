@@ -13,7 +13,14 @@ const transporter = nodemailer.createTransport({
 // In-memory rate limiting per IP
 const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
 const MAX_SUBSCRIPTIONS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const WINDOW_MS = 30 * 60 * 1000; /**
+ * Retrieves the client IP address from the request headers.
+ *
+ * Checks the "x-forwarded-for" and "x-real-ip" headers in order, returning "unknown" if neither is present.
+ *
+ * @param req - The incoming Next.js request object
+ * @returns The client IP address as a string, or "unknown" if not found
+ */
 
 function getClientIp(req: NextRequest) {
   return (
@@ -23,6 +30,11 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+/**
+ * Handles newsletter subscription requests with rate limiting, email validation, database persistence, and welcome email delivery.
+ *
+ * Accepts a POST request containing an email address, enforces a maximum of three subscription attempts per IP within a 30-minute window, validates the email format, subscribes the email to the newsletter, and sends a welcome email. Returns a JSON response indicating success or failure, including a subscriber ID on success.
+ */
 export async function POST(req: NextRequest) {
   // Rate limiting logic
   const ip = getClientIp(req);

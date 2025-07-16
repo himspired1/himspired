@@ -164,7 +164,11 @@ export class AdminAuth {
   }
 }
 
-// TODO: Remove this debug function before production
+/**
+ * Returns information about the presence and length of authentication environment variables for debugging purposes.
+ *
+ * @returns An object indicating whether JWT_SECRET and ADMIN_PASSWORD_HASH are set, and the length of JWT_SECRET.
+ */
 export async function verifyAuthSetup() {
   return {
     hasSecret: !!env.JWT_SECRET,
