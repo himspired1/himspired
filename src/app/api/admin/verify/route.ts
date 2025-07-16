@@ -1,15 +1,15 @@
-import { NextResponse } from 'next/server';
-import { AdminAuth } from '@/lib/admin-auth';
+import { NextResponse } from "next/server";
+import { AdminAuth } from "@/lib/admin-auth";
 
 export async function GET() {
   try {
-    const user = await AdminAuth.getCurrentUser();
-    
+    const user = await AdminAuth.getUser();
+
     if (!user) {
       return NextResponse.json(
-        { 
+        {
           authenticated: false,
-          error: 'Not authenticated' 
+          error: "Not authenticated",
         },
         { status: 401 }
       );
@@ -19,17 +19,16 @@ export async function GET() {
       authenticated: true,
       user: {
         username: user.username,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
-
   } catch (error) {
-    console.error('Verification error:', error);
-    
+    console.error("Verification error:", error);
+
     return NextResponse.json(
-      { 
+      {
         authenticated: false,
-        error: 'Verification failed' 
+        error: "Verification failed",
       },
       { status: 500 }
     );
