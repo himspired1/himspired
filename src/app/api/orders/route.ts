@@ -125,6 +125,8 @@ export async function POST(req: NextRequest) {
       await orderService.uploadPaymentReceipt(order.orderId, receiptUrl);
     }
 
+    // Email confirmation is no longer sent here. This responsibility has been moved to the admin UI.
+    // See: src/app/admin/orders/page.tsx at line 436, where sendEmail(order.orderId) is called from the client side.
     return NextResponse.json({ success: true, orderId: order.orderId });
   } catch (error) {
     console.error("Order submission failed:", error);

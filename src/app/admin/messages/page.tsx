@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { P, H } from "@/components/common/typography";
 import {
@@ -57,36 +57,39 @@ const AdminMessages = () => {
   });
   const router = useRouter();
 
-  const fetchMessages = async (page: number = 1) => {
-    try {
-      const params = new URLSearchParams();
-      if (page > 1) params.append("page", page.toString());
+  const fetchMessages = useCallback(
+    async (page: number = 1) => {
+      try {
+        const params = new URLSearchParams();
+        if (page > 1) params.append("page", page.toString());
 
-      const response = await fetch(`/api/contact?${params.toString()}`);
+        const response = await fetch(`/api/contact?${params.toString()}`);
 
-      if (response.status === 401) {
-        router.push("/admin/login?redirect=/admin/messages");
-        return;
-      }
+        if (response.status === 401) {
+          router.push("/admin/login?redirect=/admin/messages");
+          return;
+        }
 
-      const data: MessagesResponse = await response.json();
+        const data: MessagesResponse = await response.json();
 
-      if (data.success) {
-        setMessages(data.messages);
-        setStats(data.stats);
-        setPagination(data.pagination);
-      } else {
+        if (data.success) {
+          setMessages(data.messages);
+          setStats(data.stats);
+          setPagination(data.pagination);
+        } else {
+          toast.error("Failed to fetch messages");
+        }
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
         toast.error("Failed to fetch messages");
+        setMessages([]);
+        setStats({ total: 0, unread: 0, replied: 0, recent: 0 });
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Failed to fetch messages:", error);
-      toast.error("Failed to fetch messages");
-      setMessages([]);
-      setStats({ total: 0, unread: 0, replied: 0, recent: 0 });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [router, setMessages, setStats, setPagination, setLoading]
+  );
 
   useEffect(() => {
     // Check authentication using the new API
@@ -98,40 +101,8 @@ const AdminMessages = () => {
           return;
         }
 
-        // Authenticated, load messages inline
-        try {
-          const params = new URLSearchParams();
-          if (pagination.page > 1)
-            params.append("page", pagination.page.toString());
-
-          const messagesResponse = await fetch(
-            `/api/contact?${params.toString()}`
-          );
-
-          if (messagesResponse.status === 401) {
-            router.push("/admin/login?redirect=/admin/messages");
-            return;
-          }
-
-          if (messagesResponse.ok) {
-            const data: MessagesResponse = await messagesResponse.json();
-
-            if (data.success) {
-              setMessages(data.messages);
-              setStats(data.stats);
-              setPagination(data.pagination);
-            } else {
-              toast.error("Failed to fetch messages");
-            }
-          } else {
-            toast.error("Failed to fetch messages");
-          }
-        } catch (messagesError) {
-          console.error("Failed to fetch messages:", messagesError);
-          toast.error("Failed to fetch messages");
-          setMessages([]);
-          setStats({ total: 0, unread: 0, replied: 0, recent: 0 });
-        }
+        // Authenticated, fetch messages using the existing fetchMessages function
+        fetchMessages(pagination.page);
       } catch (error) {
         console.error("Auth check failed:", error);
         router.push("/admin/login?redirect=/admin/messages");
@@ -141,7 +112,7 @@ const AdminMessages = () => {
     };
 
     checkAuth();
-  }, [router, pagination.page]);
+  }, [router, pagination.page, fetchMessages]);
 
   const filteredMessages = messages.filter((message) => {
     if (filter === "unread") return !message.isRead;
