@@ -5,7 +5,14 @@ import { z } from "zod";
 // Simple in-memory rate limiting (per IP)
 const loginAttempts = new Map(); // key: IP, value: { count, firstAttempt }
 const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const WINDOW_MS = 10 * 60 * 1000; /**
+ * Retrieves the client's IP address from the request headers.
+ *
+ * Checks the "x-forwarded-for" and "x-real-ip" headers, returning "unknown" if neither is present.
+ *
+ * @param req - The incoming Next.js request object
+ * @returns The client IP address as a string, or "unknown" if not found
+ */
 
 function getClientIp(req: NextRequest) {
   return (
@@ -15,6 +22,11 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+/**
+ * Handles admin login requests with rate limiting and JWT authentication.
+ *
+ * Accepts a JSON payload with `username` and `password`, enforces a limit of 5 login attempts per IP within a 10-minute window, and authenticates credentials using the AdminAuth service. On successful authentication, issues a JWT token as an HTTP-only cookie valid for 24 hours and resets the attempt counter. Returns appropriate HTTP error responses for rate limiting, invalid credentials, or server errors.
+ */
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const now = Date.now();
@@ -82,6 +94,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Logs out the admin user by clearing the authentication cookie.
+ *
+ * @returns A JSON response indicating success, with the "admin-token" cookie cleared.
+ */
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
   response.cookies.set("admin-token", "", {
@@ -93,7 +110,11 @@ export async function DELETE() {
   return response;
 }
 
-// Check current auth status
+/**
+ * Returns the authentication status and user details for the current admin session.
+ *
+ * Responds with a 401 error if the user is not authenticated, or with user information if authenticated.
+ */
 export async function GET() {
   try {
     const user = await AdminAuth.getUser();

@@ -7,7 +7,13 @@ import { OrderStatus } from "@/models/order";
 // In-memory rate limiting per IP
 const orderAttempts = new Map(); // key: IP, value: { count, firstAttempt }
 const MAX_ORDERS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+const WINDOW_MS = 30 * 60 * 1000; /**
+ * Extracts the client IP address from the request headers.
+ *
+ * Checks the "x-forwarded-for" and "x-real-ip" headers in order, returning "unknown" if neither is present.
+ *
+ * @returns The client IP address as a string, or "unknown" if not available.
+ */
 
 function getClientIp(req: NextRequest) {
   return (
@@ -17,6 +23,11 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+/**
+ * Handles order submission requests with rate limiting, form data validation, optional file upload, and order creation.
+ *
+ * Enforces a maximum number of orders per client IP within a 30-minute window. Accepts multipart form data containing customer information, order items, total amount, and an optional file upload (e.g., payment receipt). Validates required fields and uploaded files. If a file is provided and Cloudinary is configured, uploads the file and associates its URL with the order. Returns a JSON response with the order ID on success, or an error message with appropriate HTTP status on failure.
+ */
 export async function POST(req: NextRequest) {
   // Rate limiting logic
   const ip = getClientIp(req);
@@ -126,6 +137,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Handles GET requests to retrieve orders with optional status filtering and pagination.
+ *
+ * Supports filtering by order status and paginating results using `page` and `limit` query parameters. Returns a JSON response containing the paginated list of orders and associated metadata.
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

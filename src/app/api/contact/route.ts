@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 
+/**
+ * Handles GET requests to retrieve paginated contact messages with statistics and pagination metadata.
+ *
+ * Parses `page` and `limit` query parameters to paginate results, fetches messages from the database, and computes statistics such as total messages, unread count, replied count, and messages received in the last 24 hours. Returns a JSON response containing the messages, statistics, and pagination details.
+ *
+ * @param req - The incoming HTTP request containing optional `page` and `limit` query parameters
+ * @returns A JSON response with success status, messages, statistics, and pagination metadata
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -69,6 +77,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * Handles submission of a new contact message via POST request.
+ *
+ * Validates input fields, enforces a rate limit of one message per email per day, and stores the message in the database. Returns a success response with the message ID on success, or an error response if validation fails, the rate limit is exceeded, or an internal error occurs.
+ */
 export async function POST(req: NextRequest) {
   try {
     const { name, email, message } = await req.json();
