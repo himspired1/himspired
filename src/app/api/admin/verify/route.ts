@@ -1,10 +1,25 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await AdminAuth.getUser();
-
+    // Get the admin-token cookie from the request
+    const cookieHeader = req.headers.get("cookie") || "";
+    const token = cookieHeader
+      .split(";")
+      .find((c) => c.trim().startsWith("admin-token="))
+      ?.split("=")[1];
+    if (!token) {
+      return NextResponse.json(
+        {
+          authenticated: false,
+          error: "Not authenticated",
+        },
+        { status: 401 }
+      );
+    }
+    const user = await AdminAuth.verifyToken(token);
     if (!user) {
       return NextResponse.json(
         {
@@ -14,17 +29,15 @@ export async function GET() {
         { status: 401 }
       );
     }
-
     return NextResponse.json({
       authenticated: true,
       user: {
         username: user.username,
-        role: user.role,
+        role: "admin",
       },
     });
   } catch (error) {
     console.error("Verification error:", error);
-
     return NextResponse.json(
       {
         authenticated: false,
