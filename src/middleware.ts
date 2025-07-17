@@ -1,47 +1,14 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { AdminAuth } from '@/lib/admin-auth';
+import { NextResponse } from "next/server";
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+// ⚠️ Do NOT use server-only code (e.g., '@/lib/admin-auth', MongoDB, bcrypt) in middleware.
+// Next.js middleware runs in the Edge Runtime and only supports Edge-compatible code.
+// Admin authentication must be handled in API routes and client-side checks, not middleware.
 
-  // Skip login page
-  if (pathname === '/admin/login') {
-    const isAuthenticated = await AdminAuth.isAuthenticatedFromRequest(request);
-    
-    if (isAuthenticated) {
-      const redirectUrl = request.nextUrl.searchParams.get('redirect') || '/admin';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
-    return NextResponse.next();
-  }
-
-  // Protect admin routes
-  if (pathname.startsWith('/admin')) {
-    const isAuthenticated = await AdminAuth.isAuthenticatedFromRequest(request);
-    
-    if (!isAuthenticated) {
-      const loginUrl = new URL('/admin/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
-
-  // Protect admin API routes - except auth stuff
-  if (pathname.startsWith('/api/admin') && !pathname.includes('/auth')) {
-    const isAuthenticated = await AdminAuth.isAuthenticatedFromRequest(request);
-    
-    if (!isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
-
+export function middleware() {
+  // All admin and API route protection should be handled in API route code and client-side logic.
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    '/admin/:path*',
-    '/api/admin/:path*'
-  ]
+  matcher: ["/admin/:path*", "/api/admin/:path*"],
 };

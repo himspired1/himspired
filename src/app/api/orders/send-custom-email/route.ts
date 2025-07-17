@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { sendCustomOrderEmail } from "@/lib/email";
 import { orderService } from "@/lib/order";

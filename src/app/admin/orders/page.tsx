@@ -537,7 +537,7 @@ const AdminOrders = () => {
           {/* Image Modal */}
           {selectedImage && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-4 rounded-lg max-w-2xl max-h-2xl">
+              <div className="bg-white p-4 rounded-lg max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <P className="font-semibold">Payment Receipt</P>
                   <button
@@ -552,7 +552,7 @@ const AdminOrders = () => {
                   alt="Payment Receipt"
                   width={800}
                   height={600}
-                  className="max-w-full max-h-full object-contain"
+                  className="max-w-full max-h-[70vh] object-contain"
                 />
               </div>
             </div>
