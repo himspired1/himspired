@@ -124,7 +124,6 @@ const AdminDashboard = () => {
       stats: `${stats.messages.total} total, ${stats.messages.unread} unread`,
     },
   ];
-
   if (loading) {
     return (
       <>

@@ -23,22 +23,6 @@ export class AdminAuth {
     return bcrypt.compare(password, admin.passwordHash);
   }
 
-  static async changePassword(
-    username: string,
-    newPassword: string
-  ): Promise<boolean> {
-    const client = await clientPromise;
-    const db = client.db();
-    const newHash = await bcrypt.hash(newPassword, 12);
-    const result = await db
-      .collection<AdminUser>("admin_users")
-      .updateOne(
-        { username },
-        { $set: { passwordHash: newHash, updatedAt: new Date() } }
-      );
-    return result.modifiedCount === 1;
-  }
-
   static async generateToken(username: string): Promise<string> {
     const admin = await this.getAdminByUsername(username);
     if (!admin) throw new Error("Admin not found");
@@ -46,7 +30,6 @@ export class AdminAuth {
       sub: username,
       username,
       role: "admin" as const,
-      passwordHash: admin.passwordHash,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
@@ -61,7 +44,7 @@ export class AdminAuth {
       if (!payload || typeof payload !== "object" || !payload.username)
         return null;
       const admin = await this.getAdminByUsername(payload.username as string);
-      if (!admin || payload.passwordHash !== admin.passwordHash) return null;
+      if (!admin) return null;
       return admin;
     } catch {
       return null;

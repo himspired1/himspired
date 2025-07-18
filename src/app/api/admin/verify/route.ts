@@ -1,15 +1,11 @@
 export const runtime = "nodejs";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    // Get the admin-token cookie from the request
-    const cookieHeader = req.headers.get("cookie") || "";
-    const token = cookieHeader
-      .split(";")
-      .find((c) => c.trim().startsWith("admin-token="))
-      ?.split("=")[1];
+    // Use NextRequest's built-in cookie parser
+    const token = req.cookies.get("admin-token")?.value;
     if (!token) {
       return NextResponse.json(
         {

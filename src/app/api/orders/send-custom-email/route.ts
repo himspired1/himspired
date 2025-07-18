@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendCustomOrderEmail } from "@/lib/email";
 import { orderService } from "@/lib/order";
 import { OrderStatus } from "@/models/order";
+import { isValidOrderStatus } from "@/models/order";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,17 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Optionally update order status
-    if (
-      updateStatus &&
-      [
-        "payment_pending",
-        "payment_confirmed",
-        "shipped",
-        "complete",
-        "payment_not_confirmed",
-        "canceled",
-      ].includes(updateStatus)
-    ) {
+    if (updateStatus && isValidOrderStatus(updateStatus)) {
       await orderService.updateOrderStatus(
         orderId,
         updateStatus as OrderStatus

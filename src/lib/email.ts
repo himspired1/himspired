@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { escape } from "html-escaper";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -243,7 +244,7 @@ export const sendCustomOrderEmail = async (
           <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
         </div>
         <div style="background: #f8f8f8; padding: 25px; border-radius: 8px;">
-          <p>${message.replace(/\n/g, "<br>")}</p>
+          <p>${escape(message).replace(/\n/g, "<br>")}</p>
           <hr style="border: none; border-top: 1px solid #ddd; margin: 25px 0;">
           <p style="color: #666; font-size: 14px; margin: 0;">
             Best regards,<br>

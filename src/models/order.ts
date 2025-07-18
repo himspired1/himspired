@@ -52,3 +52,17 @@ export interface CreateOrderRequest {
   total: number;
   message?: string;
 }
+
+export function isValidOrderStatus(status: unknown): status is OrderStatus {
+  return (
+    typeof status === "string" &&
+    [
+      "payment_pending",
+      "payment_confirmed",
+      "shipped",
+      "complete",
+      "payment_not_confirmed",
+      "canceled",
+    ].includes(status)
+  );
+}
