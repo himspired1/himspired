@@ -30,7 +30,13 @@ const envSchema = z.object({
     .default("development"),
 });
 
-// Validate environment variables
+/**
+ * Validates the application's environment variables against the predefined schema.
+ *
+ * Attempts to parse and validate `process.env` using the environment schema. Returns an object indicating success and the validated environment variables, or failure with the validation error.
+ *
+ * @returns An object with `{ success: true, env }` if validation succeeds, or `{ success: false, error }` if validation fails.
+ */
 export function validateEnv() {
   try {
     const env = envSchema.parse(process.env);
@@ -50,7 +56,11 @@ export function validateEnv() {
   }
 }
 
-// Get validated environment variables
+/**
+ * Returns the validated environment variables, throwing an error if validation fails.
+ *
+ * @returns The validated environment variables object
+ */
 export function getEnv() {
   const result = validateEnv();
   if (!result.success) {
@@ -59,12 +69,20 @@ export function getEnv() {
   return result.env;
 }
 
-// Check if we're in production
+/**
+ * Determines whether the current runtime environment is set to production.
+ *
+ * @returns `true` if `NODE_ENV` is "production", otherwise `false`
+ */
 export function isProduction() {
   return process.env.NODE_ENV === "production";
 }
 
-// Check if we're in development
+/**
+ * Determines if the current runtime environment is set to development.
+ *
+ * @returns True if `NODE_ENV` is "development", otherwise false.
+ */
 export function isDevelopment() {
   return process.env.NODE_ENV === "development";
 }

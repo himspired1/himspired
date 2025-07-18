@@ -24,6 +24,11 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+/**
+ * Handles newsletter subscription requests with rate limiting, email validation, database persistence, and welcome email delivery.
+ *
+ * Accepts a POST request containing an email address, enforces a maximum of three subscription attempts per IP within a 30-minute window, validates the email format, subscribes the email to the newsletter, and sends a welcome email. Returns a JSON response indicating success or failure, including a subscriber ID on success.
+ */
 export async function POST(req: NextRequest) {
   // Rate limiting logic
   const ip = getClientIp(req);
