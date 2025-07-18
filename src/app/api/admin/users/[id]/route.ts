@@ -14,6 +14,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await context.params;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  if (!ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid id format" }, { status: 400 });
+  }
   const client = await clientPromise;
   const db = client.db();
 

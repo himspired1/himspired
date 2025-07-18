@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Order } from "@/models/order";
 import Image from "next/image";
+import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
+import { toast } from "sonner";
 
 // Product Image Component for Order Details
 interface OrderItem {
@@ -87,24 +89,6 @@ const ProductImage = ({
     </div>
   );
 };
-
-const QUICK_ACTIONS = [
-  {
-    label: "Payment not confirmed",
-    value: "payment_not_confirmed",
-    template: `Dear Customer,\n\nWe were unable to confirm your payment for your recent order. Please check your payment details or contact support for assistance.\n\nThank you.`,
-  },
-  {
-    label: "Missing receipt",
-    value: "missing_receipt",
-    template: `Dear Customer,\n\nWe did not receive a payment receipt for your order. Please upload your receipt or contact support.\n\nThank you.`,
-  },
-  {
-    label: "Bank transfer delay",
-    value: "bank_transfer_delay",
-    template: `Dear Customer,\n\nYour payment is being processed, but there may be a delay due to bank transfer times. We will notify you once confirmed.\n\nThank you for your patience.`,
-  },
-];
 
 const OrderDetails = () => {
   const [order, setOrder] = useState<Order | null>(null);
@@ -180,12 +164,35 @@ const OrderDetails = () => {
     setEmailModalOpen(true);
   };
   const handleQuickAction = (actionValue: string) => {
-    const action = QUICK_ACTIONS.find((a) => a.value === actionValue);
+    const action = PAYMENT_ISSUE_TEMPLATES.find((a) => a.value === actionValue);
     if (action) {
       setEmailText(action.template);
       setSelectedQuickAction(action.value);
     }
   };
+
+  // Helper to update order status and state
+  const updateOrderStatus = async (newStatus: Order["status"]) => {
+    if (!order) return;
+    try {
+      const res = await fetch(`/api/orders/${order.orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setOrder((prev) => (prev ? { ...prev, status: newStatus } : prev));
+        toast.success(
+          `Order status updated to "${newStatus.replace("_", " ")}"`
+        );
+      } else {
+        toast.error("Failed to update order status");
+      }
+    } catch {
+      toast.error("Failed to update order status");
+    }
+  };
+
   const handleSendEmail = async () => {
     if (!order) return;
     setSendingEmail(true);
@@ -207,33 +214,28 @@ const OrderDetails = () => {
       if (res.ok && data.success) {
         setEmailModalOpen(false);
         setPaymentIssueSent(true);
-        window.location.reload();
+        // If status was updated, update state
+        if (selectedQuickAction === "payment_not_confirmed") {
+          setOrder((prev) =>
+            prev ? { ...prev, status: "payment_not_confirmed" } : prev
+          );
+        }
+        toast.success("Email sent successfully!");
       } else {
-        alert(data.error || "Failed to send email");
+        toast.error(data.error || "Failed to send email");
       }
     } catch {
-      alert("Failed to send email");
+      toast.error("Failed to send email");
     } finally {
       setSendingEmail(false);
     }
   };
+
   const handleCancelOrder = async () => {
-    if (!order) return;
-    await fetch(`/api/orders/${order.orderId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "canceled" }),
-    });
-    window.location.reload();
+    await updateOrderStatus("canceled");
   };
   const handleResolveIssue = async () => {
-    if (!order) return;
-    await fetch(`/api/orders/${order.orderId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "payment_confirmed" }),
-    });
-    window.location.reload();
+    await updateOrderStatus("payment_confirmed");
   };
 
   if (loading) {
@@ -497,15 +499,7 @@ const OrderDetails = () => {
             {order.status === "payment_pending" && (
               <>
                 <button
-                  onClick={() => {
-                    fetch(`/api/orders/${order.orderId}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "payment_confirmed" }),
-                    }).then(() => {
-                      window.location.reload();
-                    });
-                  }}
+                  onClick={() => updateOrderStatus("payment_confirmed")}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                   Confirm Payment
@@ -544,15 +538,7 @@ const OrderDetails = () => {
             )}
             {order.status === "payment_confirmed" && (
               <button
-                onClick={() => {
-                  fetch(`/api/orders/${order.orderId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "shipped" }),
-                  }).then(() => {
-                    window.location.reload();
-                  });
-                }}
+                onClick={() => updateOrderStatus("shipped")}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Mark as Shipped
@@ -560,15 +546,7 @@ const OrderDetails = () => {
             )}
             {order.status === "shipped" && (
               <button
-                onClick={() => {
-                  fetch(`/api/orders/${order.orderId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "complete" }),
-                  }).then(() => {
-                    window.location.reload();
-                  });
-                }}
+                onClick={() => updateOrderStatus("complete")}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 Mark as Complete
@@ -592,7 +570,7 @@ const OrderDetails = () => {
             <div className="mb-4">
               <P className="text-sm text-gray-700 mb-2">Quick Actions:</P>
               <div className="flex gap-2 mb-2 flex-wrap">
-                {QUICK_ACTIONS.map((action) => (
+                {PAYMENT_ISSUE_TEMPLATES.map((action) => (
                   <button
                     key={action.value}
                     type="button"

@@ -17,6 +17,7 @@ import { Order, OrderStatus } from "@/models/order";
 import Image from "next/image";
 import AdminNav from "@/components/admin/admin-nav";
 import { toast } from "sonner";
+import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 
 interface PaginationData {
   page: number;
@@ -31,24 +32,6 @@ interface OrdersResponse {
   orders: Order[];
   pagination: PaginationData;
 }
-
-const QUICK_ACTIONS = [
-  {
-    label: "Payment not confirmed",
-    value: "payment_not_confirmed",
-    template: `Dear Customer,\n\nWe were unable to confirm your payment for your recent order. Please check your payment details or contact support for assistance.\n\nThank you.`,
-  },
-  {
-    label: "Missing receipt",
-    value: "missing_receipt",
-    template: `Dear Customer,\n\nWe did not receive a payment receipt for your order. Please upload your receipt or contact support.\n\nThank you.`,
-  },
-  {
-    label: "Bank transfer delay",
-    value: "bank_transfer_delay",
-    template: `Dear Customer,\n\nYour payment is being processed, but there may be a delay due to bank transfer times. We will notify you once confirmed.\n\nThank you for your patience.`,
-  },
-];
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -208,7 +191,7 @@ const AdminOrders = () => {
   };
 
   const handleQuickAction = (actionValue: string) => {
-    const action = QUICK_ACTIONS.find((a) => a.value === actionValue);
+    const action = PAYMENT_ISSUE_TEMPLATES.find((a) => a.value === actionValue);
     if (action) {
       setEmailText(action.template);
       setSelectedQuickAction(action.value);
@@ -575,7 +558,7 @@ const AdminOrders = () => {
             <div className="mb-4">
               <P className="text-sm text-gray-700 mb-2">Quick Actions:</P>
               <div className="flex gap-2 mb-2 flex-wrap">
-                {QUICK_ACTIONS.map((action) => (
+                {PAYMENT_ISSUE_TEMPLATES.map((action) => (
                   <button
                     key={action.value}
                     type="button"
