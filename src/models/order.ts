@@ -24,7 +24,13 @@ export interface CustomerInfo {
   address: string;
 }
 
-export type OrderStatus = 'payment_pending' | 'payment_confirmed' | 'shipped' | 'complete';
+export type OrderStatus =
+  | "payment_pending"
+  | "payment_confirmed"
+  | "shipped"
+  | "complete"
+  | "payment_not_confirmed"
+  | "canceled";
 
 export interface Order {
   _id?: string;
@@ -45,4 +51,18 @@ export interface CreateOrderRequest {
   items: OrderItem[];
   total: number;
   message?: string;
+}
+
+export function isValidOrderStatus(status: unknown): status is OrderStatus {
+  return (
+    typeof status === "string" &&
+    [
+      "payment_pending",
+      "payment_confirmed",
+      "shipped",
+      "complete",
+      "payment_not_confirmed",
+      "canceled",
+    ].includes(status)
+  );
 }

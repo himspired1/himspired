@@ -1,7 +1,7 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -47,11 +47,11 @@ export const sendContactConfirmation = async (
 
   try {
     const result = await transporter.sendMail(mailOptions);
-    console.log('Confirmation sent:', result.messageId);
+    console.log("Confirmation sent:", result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error('Email send failed:', error);
-    throw new Error('Failed to send confirmation email');
+    console.error("Email send failed:", error);
+    throw new Error("Failed to send confirmation email");
   }
 };
 
@@ -94,14 +94,13 @@ export const sendContactReply = async (
       </div>
     `,
   };
-
   try {
     const result = await transporter.sendMail(mailOptions);
-    console.log('Reply sent:', result.messageId);
+    console.log("Reply sent:", result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error('Reply send failed:', error);
+    console.error("Reply send failed:", error);
     // TODO: Add retry logic for failed sends
-    throw new Error('Failed to send reply email');
+    throw new Error("Failed to send reply email");
   }
 };

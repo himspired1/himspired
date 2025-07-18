@@ -1,6 +1,12 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { newsletterService } from "@/lib/newsletter";
+
+// In-memory rate limiting per IP
+const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
+const MAX_SUBSCRIPTIONS = 3;
+const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -9,11 +15,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
-// In-memory rate limiting per IP
-const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_SUBSCRIPTIONS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 
 function getClientIp(req: NextRequest) {
   return (
