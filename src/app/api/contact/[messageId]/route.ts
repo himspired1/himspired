@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-import nodemailer from 'nodemailer';
+export const runtime = "nodejs";
+import { NextRequest, NextResponse } from "next/server";
+import clientPromise from "@/lib/mongodb";
+import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -54,7 +55,7 @@ async function sendReplyEmail(
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error('Email send failed:', error);
+    console.error("Email send failed:", error);
     return false;
   }
 }
@@ -65,21 +66,24 @@ export async function GET(
 ) {
   try {
     const { messageId } = await context.params;
-    
+
     const client = await clientPromise;
-    const db = client.db('himspired');
-    const collection = db.collection('contact_messages');
-    
+    const db = client.db("himspired");
+    const collection = db.collection("contact_messages");
+
     const message = await collection.findOne({ messageId });
 
     if (!message) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
     return NextResponse.json({ message });
   } catch (error) {
-    console.error('Get message failed:', error);
-    return NextResponse.json({ error: 'Failed to fetch message' }, { status: 500 });
+    console.error("Get message failed:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch message" },
+      { status: 500 }
+    );
   }
 }
 
@@ -90,28 +94,31 @@ export async function PUT(
   try {
     const { messageId } = await context.params;
     const { action, replyMessage } = await req.json();
-    
+
     const client = await clientPromise;
-    const db = client.db('himspired');
-    const collection = db.collection('contact_messages');
+    const db = client.db("himspired");
+    const collection = db.collection("contact_messages");
 
     const message = await collection.findOne({ messageId });
     if (!message) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
-    if (action === 'mark_read') {
+    if (action === "mark_read") {
       await collection.updateOne(
         { messageId },
         { $set: { isRead: true, updatedAt: new Date() } }
       );
 
-      return NextResponse.json({ success: true, message: 'Marked as read' });
+      return NextResponse.json({ success: true, message: "Marked as read" });
     }
 
-    if (action === 'reply') {
+    if (action === "reply") {
       if (!replyMessage?.trim()) {
-        return NextResponse.json({ error: 'Reply message required' }, { status: 400 });
+        return NextResponse.json(
+          { error: "Reply message required" },
+          { status: 400 }
+        );
       }
 
       // Try to send email
@@ -126,31 +133,33 @@ export async function PUT(
       const newReply = {
         _id: Date.now().toString(),
         message: replyMessage.trim(),
-        sentBy: 'admin',
+        sentBy: "admin",
         sentAt: new Date(),
         emailSent,
       };
 
       await collection.updateOne(
         { messageId },
-        { 
+        {
           $push: { replies: newReply } as object,
-          $set: { isRead: true, updatedAt: new Date() }
+          $set: { isRead: true, updatedAt: new Date() },
         }
       );
 
       return NextResponse.json({
         success: true,
-        message: emailSent ? 'Reply sent!' : 'Reply saved (email failed)',
-        emailSent
+        message: emailSent ? "Reply sent!" : "Reply saved (email failed)",
+        emailSent,
       });
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    console.error('Update failed:', error);
-    return NextResponse.json({ error: 'Failed to update message' }, { status: 500 });
+    console.error("Update failed:", error);
+    return NextResponse.json(
+      { error: "Failed to update message" },
+      { status: 500 }
+    );
   }
 }
 
@@ -160,20 +169,23 @@ export async function DELETE(
 ) {
   try {
     const { messageId } = await context.params;
-    
+
     const client = await clientPromise;
-    const db = client.db('himspired');
-    const collection = db.collection('contact_messages');
-    
+    const db = client.db("himspired");
+    const collection = db.collection("contact_messages");
+
     const result = await collection.deleteOne({ messageId });
 
     if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: 'Message deleted' });
+    return NextResponse.json({ success: true, message: "Message deleted" });
   } catch (error) {
-    console.error('Delete failed:', error);
-    return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
+    console.error("Delete failed:", error);
+    return NextResponse.json(
+      { error: "Failed to delete message" },
+      { status: 500 }
+    );
   }
 }

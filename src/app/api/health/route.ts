@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import logger from "@/lib/logger";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     logger.info("Health check requested");

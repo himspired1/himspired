@@ -1,31 +1,32 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
+import { escape } from "html-escaper";
 
 const transporter = nodemailer.createTransport({
- service: 'gmail',
- auth: {
-   user: process.env.EMAIL_USER,
-   pass: process.env.EMAIL_PASS,
- },
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 type OrderItem = {
- title: string;
- size?: string;
- quantity: number;
- price: number;
+  title: string;
+  size?: string;
+  quantity: number;
+  price: number;
 };
 
 export const sendPaymentIssueEmail = async (
- email: string,
- name: string,
- orderId: string
+  email: string,
+  name: string,
+  orderId: string
 ) => {
- try {
-   const mailOptions = {
-     from: process.env.EMAIL_USER,
-     to: email,
-     subject: `Payment Issue - Order ${orderId}`,
-     html: `
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: `Payment Issue - Order ${orderId}`,
+      html: `
        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
          <div style="text-align: center; margin-bottom: 30px;">
            <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
@@ -46,37 +47,40 @@ export const sendPaymentIssueEmail = async (
          </div>
        </div>
      `,
-   };
+    };
 
-   const result = await transporter.sendMail(mailOptions);
-   console.log('Payment issue email sent:', result.messageId);
-   return { success: true, messageId: result.messageId };
- } catch (error) {
-   console.error('Email send failed:', error);
-   throw new Error('Failed to send payment issue email');
- }
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Payment issue email sent:", result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Email send failed:", error);
+    throw new Error("Failed to send payment issue email");
+  }
 };
 
 export const sendPaymentConfirmationEmail = async (
- email: string,
- name: string,
- orderId: string,
- orderItems: OrderItem[],
- total: number
+  email: string,
+  name: string,
+  orderId: string,
+  orderItems: OrderItem[],
+  total: number
 ) => {
- try {
-   const itemsList = orderItems.map(item =>
-     `<li style="margin: 10px 0; padding: 10px; background: #f9f9f9;">
+  try {
+    const itemsList = orderItems
+      .map(
+        (item) =>
+          `<li style="margin: 10px 0; padding: 10px; background: #f9f9f9;">
         <strong>${item.title}</strong><br>
-        <span style="color: #666; font-size: 14px;">Size: ${item.size || 'N/A'} | Qty: ${item.quantity} | ₦${item.price.toLocaleString()}</span>
+        <span style="color: #666; font-size: 14px;">Size: ${item.size || "N/A"} | Qty: ${item.quantity} | ₦${item.price.toLocaleString()}</span>
       </li>`
-   ).join('');
+      )
+      .join("");
 
-   const mailOptions = {
-     from: process.env.EMAIL_USER,
-     to: email,
-     subject: `Payment Confirmed - Order ${orderId}`,
-     html: `
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: `Payment Confirmed - Order ${orderId}`,
+      html: `
        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
          <div style="text-align: center; margin-bottom: 30px;">
            <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
@@ -102,28 +106,28 @@ export const sendPaymentConfirmationEmail = async (
          </div>
        </div>
      `,
-   };
+    };
 
-   const result = await transporter.sendMail(mailOptions);
-   console.log('Payment confirmation sent:', result.messageId);
-   return { success: true, messageId: result.messageId };
- } catch (error) {
-   console.error('Email send failed:', error);
-   throw new Error('Failed to send payment confirmation email');
- }
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Payment confirmation sent:", result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Email send failed:", error);
+    throw new Error("Failed to send payment confirmation email");
+  }
 };
 
 export const sendOrderShippedEmail = async (
- email: string,
- name: string,
- orderId: string
+  email: string,
+  name: string,
+  orderId: string
 ) => {
- try {
-   const mailOptions = {
-     from: process.env.EMAIL_USER,
-     to: email,
-     subject: `Order Shipped - Order ${orderId}`,
-     html: `
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: `Order Shipped - Order ${orderId}`,
+      html: `
        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
          <div style="text-align: center; margin-bottom: 30px;">
            <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
@@ -147,37 +151,40 @@ export const sendOrderShippedEmail = async (
          </div>
        </div>
      `,
-   };
+    };
 
-   const result = await transporter.sendMail(mailOptions);
-   console.log('Shipped email sent:', result.messageId);
-   return { success: true, messageId: result.messageId };
- } catch (error) {
-   console.error('Email send failed:', error);
-   throw new Error('Failed to send order shipped email');
- }
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Shipped email sent:", result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Email send failed:", error);
+    throw new Error("Failed to send order shipped email");
+  }
 };
 
 export const sendOrderCompletionEmail = async (
- email: string,
- name: string,
- orderId: string,
- orderItems: OrderItem[],
- total: number
+  email: string,
+  name: string,
+  orderId: string,
+  orderItems: OrderItem[],
+  total: number
 ) => {
- try {
-   const itemsList = orderItems.map(item =>
-     `<li style="margin: 10px 0; padding: 10px; background: #f9f9f9;">
+  try {
+    const itemsList = orderItems
+      .map(
+        (item) =>
+          `<li style="margin: 10px 0; padding: 10px; background: #f9f9f9;">
         <strong>${item.title}</strong><br>
-        <span style="color: #666; font-size: 14px;">Size: ${item.size || 'N/A'} | Qty: ${item.quantity} | ₦${item.price.toLocaleString()}</span>
+        <span style="color: #666; font-size: 14px;">Size: ${item.size || "N/A"} | Qty: ${item.quantity} | ₦${item.price.toLocaleString()}</span>
       </li>`
-   ).join('');
+      )
+      .join("");
 
-   const mailOptions = {
-     from: process.env.EMAIL_USER,
-     to: email,
-     subject: `Order Delivered - Order ${orderId}`,
-     html: `
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: `Order Delivered - Order ${orderId}`,
+      html: `
        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
          <div style="text-align: center; margin-bottom: 30px;">
            <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
@@ -211,13 +218,46 @@ export const sendOrderCompletionEmail = async (
          </div>
        </div>
      `,
-   };
+    };
 
-   const result = await transporter.sendMail(mailOptions);
-   console.log('Completion email sent:', result.messageId);
-   return { success: true, messageId: result.messageId };
- } catch (error) {
-   console.error('Email send failed:', error);
-   throw new Error('Failed to send order completion email');
- }
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Completion email sent:", result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Email send failed:", error);
+    throw new Error("Failed to send order completion email");
+  }
+};
+
+export const sendCustomOrderEmail = async (
+  email: string,
+  subject: string,
+  message: string
+) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #68191E; margin: 0;">HIMSPIRED</h1>
+        </div>
+        <div style="background: #f8f8f8; padding: 25px; border-radius: 8px;">
+          <p>${escape(message).replace(/\n/g, "<br>")}</p>
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 25px 0;">
+          <p style="color: #666; font-size: 14px; margin: 0;">
+            Best regards,<br>
+            <strong style="color: #68191E;">The Himspired Team</strong>
+          </p>
+        </div>
+      </div>`,
+    };
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Custom order email sent:", result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Custom email send failed:", error);
+    throw new Error("Failed to send custom order email");
+  }
 };

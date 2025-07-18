@@ -17,6 +17,7 @@ import { Order, OrderStatus } from "@/models/order";
 import Image from "next/image";
 import AdminNav from "@/components/admin/admin-nav";
 import { toast } from "sonner";
+import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 
 interface PaginationData {
   page: number;
@@ -53,6 +54,13 @@ const AdminOrders = () => {
     hasPrevPage: false,
   });
   const router = useRouter();
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailOrder, setEmailOrder] = useState<Order | null>(null);
+  const [emailText, setEmailText] = useState("");
+  const [selectedQuickAction, setSelectedQuickAction] = useState<string | null>(
+    null
+  );
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const filterOrdersByStatus = useCallback(
     (orderList: Order[], status: string) => {
@@ -151,31 +159,6 @@ const AdminOrders = () => {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
-  const updateStatus = async (orderId: string, status: OrderStatus) => {
-    try {
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-
-      if (response.status === 401) {
-        router.push("/admin/login");
-        return;
-      }
-
-      if (response.ok) {
-        toast.success("Order status updated successfully");
-        fetchOrders(pagination.page, filter !== "all" ? filter : undefined);
-      } else {
-        toast.error("Failed to update order status");
-      }
-    } catch (error) {
-      console.error("Status update failed:", error);
-      toast.error("Failed to update order status");
-    }
-  };
-
   const sendEmail = async (orderId: string) => {
     try {
       const response = await fetch("/api/orders/send-email", {
@@ -197,6 +180,54 @@ const AdminOrders = () => {
     } catch (error) {
       console.error("Email failed:", error);
       toast.error("Failed to send email");
+    }
+  };
+
+  const openEmailModal = (order: Order) => {
+    setEmailOrder(order);
+    setEmailText("");
+    setSelectedQuickAction(null);
+    setEmailModalOpen(true);
+  };
+
+  const handleQuickAction = (actionValue: string) => {
+    const action = PAYMENT_ISSUE_TEMPLATES.find((a) => a.value === actionValue);
+    if (action) {
+      setEmailText(action.template);
+      setSelectedQuickAction(action.value);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailOrder) return;
+    setSendingEmail(true);
+    try {
+      // Send email and optionally update status
+      const res = await fetch("/api/orders/send-custom-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: emailOrder.orderId,
+          email: emailOrder.customerInfo.email,
+          message: emailText,
+          updateStatus:
+            selectedQuickAction === "payment_not_confirmed"
+              ? "payment_not_confirmed"
+              : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Email sent successfully!");
+        setEmailModalOpen(false);
+        fetchOrders(pagination.page, filter !== "all" ? filter : undefined);
+      } else {
+        toast.error(data.error || "Failed to send email");
+      }
+    } catch {
+      toast.error("Failed to send email");
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -411,17 +442,28 @@ const AdminOrders = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() =>
-                              window.open(
-                                `/admin/orders/${order.orderId}`,
-                                "_blank"
-                              )
+                              router.push(`/admin/orders/${order.orderId}`)
                             }
                             className="p-1 text-gray-400 hover:text-gray-600"
                             title="View Details"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-
+                          {/* Only show the red payment issue email icon for orders that are not payment_confirmed, shipped, complete, or canceled */}
+                          {![
+                            "payment_confirmed",
+                            "shipped",
+                            "complete",
+                            "canceled",
+                          ].includes(order.status) && (
+                            <button
+                              onClick={() => openEmailModal(order)}
+                              className="p-1 text-red-500 hover:text-red-700"
+                              title="Send Custom Email"
+                            >
+                              <Mail className="w-4 h-4" />
+                            </button>
+                          )}
                           {order.status === "payment_pending" && (
                             <button
                               onClick={() => sendEmail(order.orderId)}
@@ -431,26 +473,6 @@ const AdminOrders = () => {
                               <Mail className="w-4 h-4" />
                             </button>
                           )}
-
-                          <select
-                            value={order.status}
-                            onChange={(e) =>
-                              updateStatus(
-                                order.orderId,
-                                e.target.value as OrderStatus
-                              )
-                            }
-                            className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#68191E]"
-                          >
-                            <option value="payment_pending">
-                              Pending Payment
-                            </option>
-                            <option value="payment_confirmed">
-                              Payment Confirmed
-                            </option>
-                            <option value="shipped">Shipped</option>
-                            <option value="complete">Complete</option>
-                          </select>
                         </div>
                       </td>
                     </tr>
@@ -498,7 +520,7 @@ const AdminOrders = () => {
           {/* Image Modal */}
           {selectedImage && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-4 rounded-lg max-w-2xl max-h-2xl">
+              <div className="bg-white p-4 rounded-lg max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <P className="font-semibold">Payment Receipt</P>
                   <button
@@ -513,13 +535,67 @@ const AdminOrders = () => {
                   alt="Payment Receipt"
                   width={800}
                   height={600}
-                  className="max-w-full max-h-full object-contain"
+                  className="max-w-full max-h-[70vh] object-contain"
                 />
               </div>
             </div>
           )}
         </div>
       </div>
+      {/* Email Modal */}
+      {emailModalOpen && emailOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-lg w-full shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <P className="font-semibold">Send Custom Email</P>
+              <button
+                onClick={() => setEmailModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mb-4">
+              <P className="text-sm text-gray-700 mb-2">Quick Actions:</P>
+              <div className="flex gap-2 mb-2 flex-wrap">
+                {PAYMENT_ISSUE_TEMPLATES.map((action) => (
+                  <button
+                    key={action.value}
+                    type="button"
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${selectedQuickAction === action.value ? "bg-[#68191E] text-white border-[#68191E]" : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"}`}
+                    onClick={() => handleQuickAction(action.value)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="w-full min-h-[120px] border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#68191E] text-sm"
+                value={emailText}
+                onChange={(e) => setEmailText(e.target.value)}
+                placeholder="Type your message here..."
+                disabled={sendingEmail}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setEmailModalOpen(false)}
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                disabled={sendingEmail}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmail}
+                className="px-4 py-2 rounded bg-[#68191E] text-white hover:bg-[#5a1519] disabled:opacity-50"
+                disabled={sendingEmail || !emailText.trim()}
+              >
+                {sendingEmail ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
