@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 import { z } from "zod";
@@ -110,29 +111,28 @@ export async function DELETE() {
   return response;
 }
 
-/**
- * Returns the authentication status and user details for the current admin session.
- *
- * Responds with a 401 error if the user is not authenticated, or with user information if authenticated.
- */
-export async function GET() {
-  try {
-    const user = await AdminAuth.getUser();
 
+// Check current auth status
+export async function GET(req: NextRequest) {
+
+  try {
+    const token = req.cookies.get("admin-token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const user = await AdminAuth.verifyToken(token);
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
-
     return NextResponse.json({
       authenticated: true,
       user: {
         username: user.username,
-        role: user.role,
+        role: "admin",
       },
     });
   } catch (error) {
     console.error("Auth check error:", error);
-
     return NextResponse.json(
       { error: "Authentication check failed" },
       { status: 500 }

@@ -1,6 +1,12 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { newsletterService } from "@/lib/newsletter";
+
+// In-memory rate limiting per IP
+const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
+const MAX_SUBSCRIPTIONS = 3;
+const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -9,18 +15,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
-// In-memory rate limiting per IP
-const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_SUBSCRIPTIONS = 3;
-const WINDOW_MS = 30 * 60 * 1000; /**
- * Retrieves the client IP address from the request headers.
- *
- * Checks the "x-forwarded-for" and "x-real-ip" headers in order, returning "unknown" if neither is present.
- *
- * @param req - The incoming Next.js request object
- * @returns The client IP address as a string, or "unknown" if not found
- */
 
 function getClientIp(req: NextRequest) {
   return (

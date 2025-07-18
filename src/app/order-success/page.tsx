@@ -1,16 +1,29 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { CheckCircle, Package, ArrowRight, Clock, Truck, AlertCircle, RefreshCw } from 'lucide-react';
-import { P, H } from '@/components/common/typography';
-import { useAppDispatch } from '@/redux/hooks';
-import { clearCartForOrder } from '@/redux/slices/cartSlice'; // Import the new action
-import Link from 'next/link';
-import { toast } from 'sonner';
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  CheckCircle,
+  Package,
+  ArrowRight,
+  Clock,
+  Truck,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
+import { P, H } from "@/components/common/typography";
+import { useAppDispatch } from "@/redux/hooks";
+import { clearCartForOrder } from "@/redux/slices/cartSlice"; // Import the new action
+import Link from "next/link";
+import { toast } from "sonner";
 
 // Order status type from your existing models
-type OrderStatus = 'payment_pending' | 'payment_confirmed' | 'shipped' | 'complete';
+type OrderStatus =
+  | "payment_pending"
+  | "payment_confirmed"
+  | "shipped"
+  | "complete"
+  | "canceled";
 
 // Interface matching your existing Order model
 interface OrderData {
@@ -42,44 +55,53 @@ interface OrderData {
 const statusConfig = {
   payment_pending: {
     icon: Clock,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-100',
-    label: 'Payment Verification',
-    description: 'We\'re verifying your payment receipt',
-    step: 1
+    color: "text-orange-500",
+    bgColor: "bg-orange-100",
+    label: "Payment Verification",
+    description: "We're verifying your payment receipt",
+    step: 1,
   },
   payment_confirmed: {
     icon: CheckCircle,
-    color: 'text-green-500',
-    bgColor: 'bg-green-100',
-    label: 'Payment Confirmed',
-    description: 'Payment verified, preparing your order',
-    step: 2
+    color: "text-green-500",
+    bgColor: "bg-green-100",
+    label: "Payment Confirmed",
+    description: "Payment verified, preparing your order",
+    step: 2,
   },
   shipped: {
     icon: Truck,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-100',
-    label: 'Order Shipped',
-    description: 'Your order is on its way',
-    step: 3
+    color: "text-blue-500",
+    bgColor: "bg-blue-100",
+    label: "Order Shipped",
+    description: "Your order is on its way",
+    step: 3,
   },
   complete: {
     icon: Package,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-100',
-    label: 'Order Delivered',
-    description: 'Order completed successfully',
-    step: 4
-  }
+    color: "text-purple-500",
+    bgColor: "bg-purple-100",
+    label: "Order Delivered",
+    description: "Order completed successfully",
+    step: 4,
+  },
+  canceled: {
+    icon: AlertCircle,
+    color: "text-red-500",
+    bgColor: "bg-red-100",
+    label: "Order Canceled",
+    description:
+      "This order has been canceled. No further actions can be taken.",
+    step: 0,
+  },
 };
 
 const OrderSuccess = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  
-  const orderId = searchParams?.get('orderId');
+
+  const orderId = searchParams?.get("orderId");
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,48 +110,56 @@ const OrderSuccess = () => {
   // Use useRef for interval to avoid stale closure issues
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchOrderStatus = useCallback(async (showRefreshIndicator = false) => {
-    if (!orderId) return;
+  const fetchOrderStatus = useCallback(
+    async (showRefreshIndicator = false) => {
+      if (!orderId) return;
 
-    try {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      
-      setError(null);
-
-      // Using your existing API endpoint
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      
-      const data = await response.json();
-
-      if (response.ok && data.order) {
-        const previousStatus = orderData?.status;
-        setOrderData(data.order);
-        
-        // Show toast notification if status changed during refresh
-        if (showRefreshIndicator && previousStatus && data.order.status !== previousStatus) {
-          const newStatusConfig = statusConfig[data.order.status as OrderStatus];
-          toast.success(`Order status updated: ${newStatusConfig.label}`);
+      try {
+        if (showRefreshIndicator) {
+          setIsRefreshing(true);
+        } else {
+          setLoading(true);
         }
-      } else {
-        setError(data.error || 'Order not found');
+
+        setError(null);
+
+        // Using your existing API endpoint
+        const response = await fetch(`/api/orders/${orderId}`, {
+          method: "GET",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.order) {
+          const previousStatus = orderData?.status;
+          setOrderData(data.order);
+
+          // Show toast notification if status changed during refresh
+          if (
+            showRefreshIndicator &&
+            previousStatus &&
+            data.order.status !== previousStatus
+          ) {
+            const newStatusConfig =
+              statusConfig[data.order.status as OrderStatus];
+            toast.success(`Order status updated: ${newStatusConfig.label}`);
+          }
+        } else {
+          setError(data.error || "Order not found");
+        }
+      } catch (err) {
+        console.error("Failed to fetch order status:", err);
+        setError("Failed to fetch order status. Please try again.");
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch order status:', err);
-      setError('Failed to fetch order status. Please try again.');
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [orderId, orderData?.status]);
+    },
+    [orderId, orderData?.status]
+  );
 
   const startAutoRefresh = useCallback(() => {
     // Clear existing interval
@@ -139,7 +169,7 @@ const OrderSuccess = () => {
     }
 
     // Only auto-refresh if order is not complete
-    if (orderData && orderData.status !== 'complete') {
+    if (orderData && orderData.status !== "complete") {
       refreshIntervalRef.current = setInterval(() => {
         fetchOrderStatus(true);
       }, 30000); // Refresh every 30 seconds
@@ -153,10 +183,10 @@ const OrderSuccess = () => {
   // Initial fetch when component mounts or orderId changes
   useEffect(() => {
     if (!orderId) {
-      router.push('/');
+      router.push("/");
       return;
     }
-    
+
     // Use the new clearCartForOrder action that prevents duplicate toasts
     dispatch(clearCartForOrder(orderId));
     fetchOrderStatus();
@@ -207,7 +237,7 @@ const OrderSuccess = () => {
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <H className="text-xl mb-4 text-red-600">Order Not Found</H>
           <P className="text-gray-600 mb-6">{error}</P>
-          
+
           <div className="space-y-3">
             <button
               onClick={() => fetchOrderStatus()}
@@ -232,15 +262,52 @@ const OrderSuccess = () => {
     return null;
   }
 
+  if (orderData.status === "canceled") {
+    return (
+      <div className="min-h-screen flex items-center justify-center lg:pb-[3em] lg:pt-[5em] px-5 pt-[4em] pb-4">
+        <motion.div
+          className="max-w-lg w-full bg-white rounded-lg shadow-lg p-8 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+            className={`w-16 h-16 ${statusConfig.canceled.bgColor} rounded-full flex items-center justify-center mx-auto mb-6`}
+          >
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </motion.div>
+          <H className="text-2xl mb-2 text-red-600">Order Canceled</H>
+          <P className="text-gray-600 mb-6">
+            This order has been canceled. No further actions can be taken.
+          </P>
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <P className="text-sm text-gray-600 mb-2">Order ID</P>
+            <P className="font-mono font-bold text-lg">{orderData.orderId}</P>
+          </div>
+          <Link
+            href="/"
+            className="w-full border border-gray-300 text-gray-600 py-3 px-6 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <Package className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </motion.div>
+      </div>
+    );
+  }
+
   const currentStatus = statusConfig[orderData.status];
   const StatusIcon = currentStatus.icon;
 
   // Create progress steps
   const steps = [
-    { key: 'payment_pending', ...statusConfig.payment_pending },
-    { key: 'payment_confirmed', ...statusConfig.payment_confirmed },
-    { key: 'shipped', ...statusConfig.shipped },
-    { key: 'complete', ...statusConfig.complete }
+    { key: "payment_pending", ...statusConfig.payment_pending },
+    { key: "payment_confirmed", ...statusConfig.payment_confirmed },
+    { key: "shipped", ...statusConfig.shipped },
+    { key: "complete", ...statusConfig.complete },
   ];
 
   return (
@@ -267,19 +334,15 @@ const OrderSuccess = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <H className="text-2xl mb-2 text-[#68191E]">
-            {currentStatus.label}
-          </H>
-          
-          <P className="text-gray-600 mb-6">
-            {currentStatus.description}
-          </P>
+          <H className="text-2xl mb-2 text-[#68191E]">{currentStatus.label}</H>
+
+          <P className="text-gray-600 mb-6">{currentStatus.description}</P>
 
           {/* Order Details */}
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <P className="text-sm text-gray-600 mb-2">Order ID</P>
             <P className="font-mono font-bold text-lg">{orderData.orderId}</P>
-            
+
             <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <P className="text-gray-600">Customer</P>
@@ -287,16 +350,19 @@ const OrderSuccess = () => {
               </div>
               <div>
                 <P className="text-gray-600">Total</P>
-                <P className="font-medium">₦{orderData.total.toLocaleString()}</P>
+                <P className="font-medium">
+                  ₦{orderData.total.toLocaleString()}
+                </P>
               </div>
             </div>
-            
+
             <div className="mt-4">
               <P className="text-gray-600">Items ({orderData.items.length})</P>
               <div className="text-sm text-left mt-2 space-y-1">
                 {orderData.items.slice(0, 3).map((item, index) => (
                   <P key={index} className="font-medium">
-                    {item.quantity}x {item.title} {item.size && `(${item.size})`}
+                    {item.quantity}x {item.title}{" "}
+                    {item.size && `(${item.size})`}
                   </P>
                 ))}
                 {orderData.items.length > 3 && (
@@ -311,23 +377,27 @@ const OrderSuccess = () => {
           {/* Progress Steps */}
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
-              <P className="text-sm font-medium text-gray-700">Order Progress</P>
+              <P className="text-sm font-medium text-gray-700">
+                Order Progress
+              </P>
               <button
                 onClick={manualRefresh}
                 disabled={isRefreshing}
                 className="flex items-center gap-1 text-xs text-[#68191E] hover:text-[#5a1519] transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Updating...' : 'Refresh'}
+                <RefreshCw
+                  className={`w-3 h-3 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+                {isRefreshing ? "Updating..." : "Refresh"}
               </button>
             </div>
-            
+
             <div className="space-y-3">
               {steps.map((step, index) => {
                 const isCompleted = currentStatus.step > step.step;
                 const isCurrent = currentStatus.step === step.step;
                 const StepIcon = step.icon;
-                
+
                 return (
                   <motion.div
                     key={step.key}
@@ -336,33 +406,45 @@ const OrderSuccess = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 + index * 0.1 }}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isCompleted 
-                        ? 'bg-green-100 border-2 border-green-500' 
-                        : isCurrent 
-                        ? step.bgColor + ' border-2 border-current ' + step.color
-                        : 'bg-gray-100'
-                    }`}>
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        isCompleted
+                          ? "bg-green-100 border-2 border-green-500"
+                          : isCurrent
+                            ? step.bgColor +
+                              " border-2 border-current " +
+                              step.color
+                            : "bg-gray-100"
+                      }`}
+                    >
                       {isCompleted ? (
                         <CheckCircle className="w-4 h-4 text-green-500" />
                       ) : (
-                        <StepIcon className={`w-4 h-4 ${
-                          isCurrent ? step.color : 'text-gray-400'
-                        }`} />
+                        <StepIcon
+                          className={`w-4 h-4 ${
+                            isCurrent ? step.color : "text-gray-400"
+                          }`}
+                        />
                       )}
                     </div>
-                    
+
                     <div className="flex-1 text-left">
-                      <P className={`text-sm font-medium ${
-                        isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'
-                      }`}>
+                      <P
+                        className={`text-sm font-medium ${
+                          isCompleted || isCurrent
+                            ? "text-gray-900"
+                            : "text-gray-400"
+                        }`}
+                      >
                         {step.label}
                       </P>
                       {isCurrent && (
-                        <P className="text-xs text-gray-500">{step.description}</P>
+                        <P className="text-xs text-gray-500">
+                          {step.description}
+                        </P>
                       )}
                     </div>
-                    
+
                     {isCompleted && (
                       <div className="text-green-500">
                         <CheckCircle className="w-4 h-4" />
@@ -375,33 +457,41 @@ const OrderSuccess = () => {
           </div>
 
           {/* Estimated Delivery (for shipped orders) */}
-          {orderData.status === 'shipped' && (
+          {orderData.status === "shipped" && (
             <motion.div
               className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1 }}
             >
-              <P className="text-sm font-medium text-blue-800 mb-1">Estimated Delivery</P>
-              <P className="text-sm text-blue-600">3-5 business days from ship date</P>
+              <P className="text-sm font-medium text-blue-800 mb-1">
+                Estimated Delivery
+              </P>
+              <P className="text-sm text-blue-600">
+                3-5 business days from ship date
+              </P>
             </motion.div>
           )}
 
           {/* Order Complete Celebration */}
-          {orderData.status === 'complete' && (
+          {orderData.status === "complete" && (
             <motion.div
               className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 mb-6"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1 }}
             >
-              <P className="text-sm font-medium text-purple-800 mb-1">🎉 Order Delivered!</P>
-              <P className="text-sm text-purple-600">Thank you for shopping with Himspired</P>
+              <P className="text-sm font-medium text-purple-800 mb-1">
+                🎉 Order Delivered!
+              </P>
+              <P className="text-sm text-purple-600">
+                Thank you for shopping with Himspired
+              </P>
             </motion.div>
           )}
 
           {/* Auto-refresh indicator */}
-          {orderData.status !== 'complete' && (
+          {orderData.status !== "complete" && (
             <motion.div
               className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-6"
               initial={{ opacity: 0 }}

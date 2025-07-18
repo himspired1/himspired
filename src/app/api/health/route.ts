@@ -1,13 +1,6 @@
 import { NextResponse } from "next/server";
 import logger from "@/lib/logger";
 
-/**
- * Handles HTTP GET requests for the health check endpoint.
- *
- * Returns a JSON response indicating the application's health status, including status, timestamp, uptime, and environment. If an error occurs, responds with an "unhealthy" status and HTTP 500.
- *
- * @returns A JSON response with health status information or an error message.
- */
 export async function GET() {
   try {
     logger.info("Health check requested");
