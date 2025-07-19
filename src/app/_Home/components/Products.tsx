@@ -120,7 +120,7 @@ const Products = () => {
       if (!isHovering) {
         autoplayRef.current = setTimeout(() => {
           // Check if we're at the last slide
-          const isLastSlide = current === SECTIONS.length - 1;
+          const isLastSlide = current === clothesByCategory.length - 1;
 
           if (isLastSlide) {
             // Go back to the first slide
@@ -155,7 +155,7 @@ const Products = () => {
 
   // Check if we're at the first or last slide
   const isFirstSlide = current === 0;
-  const isLastSlide = current === SECTIONS.length - 1;
+  const isLastSlide = current === clothesByCategory.length - 1;
   if (loading && clothesByCategory.length === 0) {
     return (<div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10" >
       {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} delay={i * 0.1} />)}
@@ -164,14 +164,14 @@ const Products = () => {
   }
   return (
     <div
-      className="relative pt-8 md:pt-16 xl:pt-24 pb-24 mt-[5em] lg:mt-0"
+      className="relative max-w-5xl mx-auto pt-8 md:pt-16 xl:pt-24 pb-24 mt-[5em] lg:mt-0"
       ref={containerRef}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {" "}
       {/* Section indicator - with enhanced animation */}
-      <div className="px-4 md:px-8 lg:px-16 mb-6 md:mb-8 h-12 overflow-hidden font-moon">
+      <div className=" mb-6 md:mb-8 h-12 overflow-hidden font-moon">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${clothesByCategory[current]?.category}`}

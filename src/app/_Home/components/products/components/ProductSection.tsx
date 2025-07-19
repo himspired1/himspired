@@ -206,15 +206,17 @@ const ProductItem = ({
         </p>
       )}
 
-      <AnimatePresence>
-        {showSizes && (
-          <motion.div
-            className="flex gap-4 flex-wrap justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.4 }}
-          >
+<div className="min-h-[60px] flex items-center justify-center">
+        <AnimatePresence mode="wait">
+          {showSizes && (
+            <motion.div
+              className="flex gap-4 flex-wrap justify-center"
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
             {product.size?.map((sizeOption) => {
               const sizeCartQuantity = sizeQuantities[sizeOption] || 0;
               
@@ -246,6 +248,7 @@ const ProductItem = ({
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </motion.div>
   )
 }
