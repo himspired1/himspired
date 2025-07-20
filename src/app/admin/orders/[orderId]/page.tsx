@@ -19,7 +19,6 @@ import { Order } from "@/models/order";
 import Image from "next/image";
 import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 import { toast } from "sonner";
-import { ReservationAPI } from "@/lib/session";
 
 // Product Image Component for Order Details
 interface OrderItem {
@@ -105,6 +104,11 @@ const OrderDetails = () => {
   );
   const [sendingEmail, setSendingEmail] = useState(false);
   const [paymentIssueSent, setPaymentIssueSent] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelAction, setCancelAction] = useState<"simple" | "with-release">(
+    "simple"
+  );
+  const [cancelingOrder, setCancelingOrder] = useState(false);
 
   useEffect(() => {
     const getOrderId = async () => {
@@ -232,8 +236,80 @@ const OrderDetails = () => {
     }
   };
 
-  const handleCancelOrder = async () => {
-    await updateOrderStatus("canceled");
+  const handleCancelOrder = () => {
+    setCancelAction("simple");
+    setCancelModalOpen(true);
+  };
+
+  const handleCancelAndReleaseStock = () => {
+    setCancelAction("with-release");
+    setCancelModalOpen(true);
+  };
+
+  const executeCancelOrder = async () => {
+    if (!order) return;
+
+    setCancelingOrder(true);
+    try {
+      let response;
+      if (cancelAction === "simple") {
+        response = await fetch(`/api/orders/${order.orderId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "canceled" }),
+        });
+      } else {
+        // Cancel and release stock
+        response = await fetch(`/api/orders/${order.orderId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "canceled" }),
+        });
+
+        if (response.ok) {
+          const releasePromises = order.items.map(async (item) => {
+            const originalProductId = item.productId;
+
+            const releaseResponse = await fetch(
+              `/api/products/release/${originalProductId}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sessionId: "admin",
+                  quantity: item.quantity,
+                }),
+              }
+            );
+
+            if (!releaseResponse.ok) {
+              throw new Error(`Failed to release product ${originalProductId}`);
+            }
+
+            return releaseResponse.json();
+          });
+
+          await Promise.all(releasePromises);
+        }
+      }
+
+      if (response?.ok) {
+        toast.success(
+          cancelAction === "simple"
+            ? "Order canceled successfully"
+            : "Order canceled and products released back to stock"
+        );
+        setCancelModalOpen(false);
+        fetchOrder();
+      } else {
+        toast.error("Failed to cancel order");
+      }
+    } catch (error) {
+      console.error("Failed to cancel order:", error);
+      toast.error("Failed to cancel order");
+    } finally {
+      setCancelingOrder(false);
+    }
   };
   const handleResolveIssue = async () => {
     await updateOrderStatus("payment_confirmed");
@@ -247,11 +323,32 @@ const OrderDetails = () => {
       const releasePromises = order.items.map(async (item) => {
         // Extract the original product ID from the item
         const originalProductId = item.productId;
-        return ReservationAPI.releaseProduct(originalProductId);
+
+        // Release the reservation for this product
+        const response = await fetch(
+          `/api/products/release/${originalProductId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: "admin", // Use admin session for admin operations
+              quantity: item.quantity,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to release product ${originalProductId}`);
+        }
+
+        return response.json();
       });
 
       await Promise.all(releasePromises);
       toast.success("All products put back to stock successfully");
+
+      // Optionally refresh the order to show updated status
+      fetchOrder();
     } catch (error) {
       console.error("Failed to put products back to stock:", error);
       toast.error("Failed to put some products back to stock");
@@ -544,10 +641,33 @@ const OrderDetails = () => {
                   Cancel Order
                 </button>
                 <button
+                  onClick={handleCancelAndReleaseStock}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Cancel & Release Stock
+                </button>
+                <button
                   onClick={handleResolveIssue}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                   Issue Resolved
+                </button>
+              </>
+            )}
+            {/* Add cancel button for payment_pending orders */}
+            {order.status === "payment_pending" && (
+              <>
+                <button
+                  onClick={handleCancelOrder}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Cancel Order
+                </button>
+                <button
+                  onClick={handleCancelAndReleaseStock}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Cancel & Release Stock
                 </button>
               </>
             )}
@@ -631,6 +751,48 @@ const OrderDetails = () => {
                 disabled={sendingEmail || !emailText.trim()}
               >
                 {sendingEmail ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Order Confirmation Modal */}
+      {cancelModalOpen && order && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <P className="font-semibold">Confirm Cancelation</P>
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <P className="text-gray-700 mb-4">
+              Are you sure you want to cancel order {order.orderId}?
+            </P>
+            {cancelAction === "with-release" && (
+              <P className="text-sm text-orange-600 mb-4">
+                This will also release all reserved items back to stock for
+                other customers to purchase.
+              </P>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                disabled={cancelingOrder}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeCancelOrder}
+                className="px-4 py-2 rounded bg-[#68191E] text-white hover:bg-[#5a1519] disabled:opacity-50"
+                disabled={cancelingOrder}
+              >
+                {cancelingOrder ? "Cancelling..." : "Proceed to Cancel"}
               </button>
             </div>
           </div>

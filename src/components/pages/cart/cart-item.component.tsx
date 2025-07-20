@@ -32,6 +32,10 @@ interface CartIncrementorProps {
   no_of_item: number;
 }
 
+interface WindowWithFetchStock extends Window {
+  [key: `fetchStock_${string}`]: (() => Promise<void>) | undefined;
+}
+
 const CartItem: FC<CartItemProps> = ({
   title,
   category,
@@ -62,11 +66,12 @@ const CartItem: FC<CartItemProps> = ({
 
   const handleRemove = () => {
     dispatch(
-      removeItemAndReleaseReservation(id, undefined, {
+      removeItemAndReleaseReservation({
+        id,
         onReservationReleased: (productId) => {
-          // Try to trigger a stock update for the removed product if a ref/callback is available
-          if (window && (window as any)[`fetchStock_${productId}`]) {
-            (window as any)[`fetchStock_${productId}`]();
+          const win = window as unknown as WindowWithFetchStock;
+          if (win && win[`fetchStock_${productId}`]) {
+            win[`fetchStock_${productId}`]!();
           }
         },
       })
@@ -207,10 +212,12 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
     }
 
     dispatch(
-      incrementQuantityAndUpdateReservation(id, undefined, {
+      incrementQuantityAndUpdateReservation({
+        id,
         onReservationReleased: (productId) => {
-          if (window && (window as any)[`fetchStock_${productId}`]) {
-            (window as any)[`fetchStock_${productId}`]();
+          const win = window as unknown as WindowWithFetchStock;
+          if (win && win[`fetchStock_${productId}`]) {
+            win[`fetchStock_${productId}`]!();
           }
         },
       })
@@ -219,10 +226,12 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
 
   const handleDecrement = () => {
     dispatch(
-      decrementQuantityAndReleaseReservation(id, undefined, {
+      decrementQuantityAndReleaseReservation({
+        id,
         onReservationReleased: (productId) => {
-          if (window && (window as any)[`fetchStock_${productId}`]) {
-            (window as any)[`fetchStock_${productId}`]();
+          const win = window as unknown as WindowWithFetchStock;
+          if (win && win[`fetchStock_${productId}`]) {
+            win[`fetchStock_${productId}`]!();
           }
         },
       })

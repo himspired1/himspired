@@ -42,7 +42,8 @@ const ProductCard = ({
 
   // Real-time stock display
   const [currentStock, setCurrentStock] = useState(stock || 0);
-  const [stockMessage, setStockMessage] = useState("");
+  const [stockMessage, setStockMessage] = useState<string>("");
+  const [lastKnownStock, setLastKnownStock] = useState(stock || 0);
 
   // Get cart quantity for products without sizes
   const cartQuantity = useAppSelector((state) =>
@@ -107,19 +108,39 @@ const ProductCard = ({
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
     try {
-      const sessionId = SessionManager.getSessionId();
-      const response = await fetch(
-        `/api/products/stock/${_id}?sessionId=${sessionId}`
-      );
+      const response = await fetch(`/api/products/stock/${_id}`);
       if (response.ok) {
         const data = await response.json();
-        setCurrentStock(data.stock);
-        setStockMessage(data.stockMessage);
+        const newStock = data.stock || 0;
+
+        // Check if stock changed significantly (admin intervention)
+        if (Math.abs(newStock - lastKnownStock) > 1) {
+          console.warn(
+            `Significant stock change detected for ${title}: ${lastKnownStock} -> ${newStock}`
+          );
+          toast.info(`Stock updated for ${title}`);
+        }
+
+        setCurrentStock(newStock);
+        setLastKnownStock(newStock);
+
+        // Update availability based on new stock
+        if (newStock <= 0) {
+          setIsAvailable(false);
+          setAvailabilityMessage("Out of stock");
+          setStockMessage("Out of stock");
+        } else if (newStock <= 3) {
+          setIsAvailable(true);
+          setStockMessage(`Only ${newStock} left`);
+        } else {
+          setIsAvailable(true);
+          setStockMessage("In stock");
+        }
       }
     } catch (error) {
       console.error("Error fetching real-time stock:", error);
     }
-  }, [_id]);
+  }, [_id, title, lastKnownStock]);
 
   // Update stock display based on availability and real-time data
   useEffect(() => {
@@ -142,6 +163,11 @@ const ProductCard = ({
   useEffect(() => {
     if (isAvailable) {
       fetchRealTimeStock();
+
+      // Also fetch after a short delay to catch any recent changes
+      const immediateRefresh = setTimeout(fetchRealTimeStock, 2000);
+
+      return () => clearTimeout(immediateRefresh);
     }
   }, [isAvailable, _id, fetchRealTimeStock]);
 
@@ -150,9 +176,41 @@ const ProductCard = ({
     if (isAvailable) {
       const interval = setInterval(() => {
         fetchRealTimeStock();
-      }, 30000); // Poll every 30 seconds (optimized for concurrent users)
+      }, 15000); // Poll every 15 seconds for better responsiveness
 
-      return () => clearInterval(interval);
+      // Listen for cart changes from other tabs
+      const handleStorageChange = (event: StorageEvent) => {
+        if (event.key === "cartSync" || event.key === "stockUpdate") {
+          // Refetch stock when cart changes or stock updates
+          fetchRealTimeStock();
+        }
+      };
+
+      // Listen for visibility changes to refresh stock when tab becomes active
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          fetchRealTimeStock();
+        }
+      };
+
+      // Listen for window focus to refresh stock when user switches back to tab
+      const handleWindowFocus = () => {
+        fetchRealTimeStock();
+      };
+
+      window.addEventListener("storage", handleStorageChange);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("focus", handleWindowFocus);
+
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("storage", handleStorageChange);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange
+        );
+        window.removeEventListener("focus", handleWindowFocus);
+      };
     }
   }, [isAvailable, fetchRealTimeStock]);
 
@@ -160,7 +218,12 @@ const ProductCard = ({
   useEffect(() => {
     SessionManager.refreshSessionIfNeeded();
     checkAvailability();
-  }, [_id, checkAvailability]);
+
+    // Also fetch stock immediately when component mounts
+    if (isAvailable) {
+      fetchRealTimeStock();
+    }
+  }, [_id, checkAvailability, isAvailable, fetchRealTimeStock]);
 
   const handleAddToCart = async (selectedSize?: string) => {
     // Check if product is available (this includes out of stock check)
@@ -170,6 +233,12 @@ const ProductCard = ({
     }
 
     setIsReserving(true);
+    let reservationResult: {
+      success: boolean;
+      reservationId?: string;
+      error?: string;
+    } | null = null;
+
     try {
       const sessionId = SessionManager.getSessionId();
 
@@ -192,19 +261,19 @@ const ProductCard = ({
 
       clearTimeout(timeoutId);
 
-      const reservationResult = await response.json();
+      reservationResult = await response.json();
 
-      if (!reservationResult.success) {
+      if (!reservationResult?.success) {
         // Check if it's a reservation conflict
         if (
-          reservationResult.error &&
+          reservationResult?.error &&
           reservationResult.error.includes("already reserved")
         ) {
           toast.error(
             "This product is currently being purchased by another user"
           );
         } else if (
-          reservationResult.error &&
+          reservationResult?.error &&
           (reservationResult.error.includes("timeout") ||
             reservationResult.error.includes("connection"))
         ) {
@@ -212,7 +281,7 @@ const ProductCard = ({
             "This product is currently being purchased by another user"
           );
         } else {
-          toast.error(reservationResult.error || "Failed to reserve product");
+          toast.error(reservationResult?.error || "Failed to reserve product");
         }
         return;
       }
@@ -222,6 +291,9 @@ const ProductCard = ({
       // Update availability after successful reservation
       await checkAvailability();
       await fetchRealTimeStock();
+
+      // Broadcast stock update to other tabs
+      localStorage.setItem("stockUpdate", Date.now().toString());
     } catch (error) {
       console.error("Reservation error:", error);
 
@@ -251,6 +323,7 @@ const ProductCard = ({
       price: price,
       size: selectedSize || size?.[0] || "",
       stock: stock || 0, // Include stock information
+      reservationId: reservationResult?.reservationId, // Include reservation ID
     };
 
     dispatch(addItem(data));
