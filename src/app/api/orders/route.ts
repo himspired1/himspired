@@ -5,9 +5,10 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { validateFile } from "@/lib/file-upload";
 import { OrderStatus } from "@/models/order";
 
-// In-memory rate limiting per IP
-const orderAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_ORDERS = 3;
+// In-memory rate limiting per session or IP
+const orderAttempts = new Map(); // key: sessionId or IP, value: { count, firstAttempt }
+const MAX_ORDERS_PER_SESSION = 3;
+const MAX_ORDERS_PER_IP = 100;
 const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 
 function getClientIp(req: NextRequest) {
@@ -19,33 +20,57 @@ function getClientIp(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Rate limiting logic
+  const formData = await req.formData();
+  const sessionId = formData.get("sessionId") as string;
   const ip = getClientIp(req);
   const now = Date.now();
-  let entry = orderAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
+
+  // Per-session rate limiting
+  if (sessionId) {
+    let entry = orderAttempts.get(sessionId);
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    entry.count++;
+    orderAttempts.set(sessionId, entry);
+    if (entry.count > MAX_ORDERS_PER_SESSION) {
+      return NextResponse.json(
+        {
+          error:
+            "Too many orders submitted from this session. Please try again later.",
+        },
+        { status: 429 }
+      );
+    }
   }
-  entry.count++;
-  orderAttempts.set(ip, entry);
-  if (entry.count > MAX_ORDERS) {
+
+  // Per-IP rate limiting (much higher limit)
+  let ipEntry = orderAttempts.get(ip);
+  if (!ipEntry || now - ipEntry.firstAttempt > WINDOW_MS) {
+    ipEntry = { count: 0, firstAttempt: now };
+  }
+  ipEntry.count++;
+  orderAttempts.set(ip, ipEntry);
+  if (ipEntry.count > MAX_ORDERS_PER_IP) {
     return NextResponse.json(
-      { error: "Too many orders submitted. Please try again later." },
+      {
+        error:
+          "Too many orders submitted from this network. Please try again later.",
+      },
       { status: 429 }
     );
   }
 
   try {
-    const formData = await req.formData();
     const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
     const address = formData.get("address") as string;
     const message = formData.get("message") as string;
     const items = JSON.parse(formData.get("items") as string);
     const total = parseFloat(formData.get("total") as string);
+    const email = (formData.get("email") as string)?.toLowerCase();
 
-    if (!name || !email || !items || !total) {
+    if (!name || !phone || !items || !total) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }

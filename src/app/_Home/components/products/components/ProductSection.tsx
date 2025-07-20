@@ -1,17 +1,21 @@
-"use client"
-import { Plus, Check } from "lucide-react"
-import { AnimatePresence, motion } from "framer-motion"
-import { SanityImageComponent } from "@/components/sanity/image"
-import { useRouter } from "next/navigation"
-import { MouseEvent, useEffect, useRef, useState, useMemo } from "react"
-import { useAppDispatch, useAppSelector } from "@/redux/hooks"
-import { addItem, CartItem, selectCartItemQuantity } from "@/redux/slices/cartSlice"
-import React from "react"
-import type { Variants } from "framer-motion"
+"use client";
+import { Plus, Check } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { SanityImageComponent } from "@/components/sanity/image";
+import { useRouter } from "next/navigation";
+import { MouseEvent, useEffect, useRef, useState, useMemo } from "react";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import {
+  addItem,
+  CartItem,
+  selectCartItemQuantity,
+} from "@/redux/slices/cartSlice";
+import React from "react";
+import type { Variants } from "framer-motion";
 
 interface ProductSectionProps {
-  itemsToShow?: number
-  products: Product[]
+  itemsToShow?: number;
+  products: Product[];
 }
 
 const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
@@ -23,7 +27,7 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
         staggerChildren: 0.1,
       },
     },
-  }
+  };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -34,21 +38,21 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
         duration: 0.5,
       },
     },
-  }
+  };
 
   // Create grid items based on itemsToShow
-  const gridItems = []
+  const gridItems = [];
   for (let i = 0; i < itemsToShow; i++) {
     if (i < products.length) {
-      const product = products[i]
+      const product = products[i];
       gridItems.push(
-        <ProductItem 
-          key={product._id} 
-          product={product} 
+        <ProductItem
+          key={product._id}
+          product={product}
           itemsToShow={itemsToShow}
           variants={itemVariants}
         />
-      )
+      );
     }
   }
 
@@ -62,15 +66,15 @@ const ProductSection = ({ itemsToShow = 4, products }: ProductSectionProps) => {
     >
       {gridItems}
     </motion.div>
-  )
-}
+  );
+};
 
-const ProductItem = ({ 
-  product, 
-  itemsToShow, 
-  variants 
-}: { 
-  product: Product; 
+const ProductItem = ({
+  product,
+  itemsToShow,
+  variants,
+}: {
+  product: Product;
   itemsToShow: number;
   variants: Variants | undefined;
 }) => {
@@ -86,20 +90,25 @@ const ProductItem = ({
   };
 
   // Get cart quantity for products without sizes (moved outside of callback)
-  const cartQuantity = useAppSelector(state => 
+  const cartQuantity = useAppSelector((state) =>
     selectCartItemQuantity(state, product._id, product.size?.[0] || "")
   );
 
   // Get all cart items to avoid multiple selector calls
-  const cartItems = useAppSelector(state => state.persistedReducer.cart.items);
+  const cartItems = useAppSelector(
+    (state) => state.persistedReducer.cart.items
+  );
 
   // ✅ FIXED: Memoize the sizeQuantities to prevent new object creation on every render
   const sizeQuantities = useMemo(() => {
     const quantities: Record<string, number> = {};
     if (product.size) {
-      product.size.forEach(sizeOption => {
+      product.size.forEach((sizeOption) => {
         const quantity = cartItems
-          .filter(item => item.originalProductId === product._id && item.size === sizeOption)
+          .filter(
+            (item) =>
+              item.originalProductId === product._id && item.size === sizeOption
+          )
           .reduce((total, item) => total + item.quantity, 0);
         quantities[sizeOption] = quantity;
       });
@@ -109,17 +118,21 @@ const ProductItem = ({
 
   const handleAddToCart = (selectedSize?: string) => {
     // Fixed: Updated to match new CartItem interface
-    const data: Omit<CartItem, "quantity" | "originalPrice" | "originalProductId"> = {
+    const data: Omit<
+      CartItem,
+      "quantity" | "originalPrice" | "originalProductId"
+    > = {
       _id: product._id,
       title: product.title,
       category: product.category,
       mainImage: product.mainImage,
       price: product.price,
-      size: selectedSize || product.size?.[0] || ""
+      size: selectedSize || product.size?.[0] || "",
+      stock: product.stock || 0, // Include stock information
     };
 
     dispatch(addItem(data));
-    
+
     // Show feedback animation
     setAddedToCart(selectedSize || "default");
     setTimeout(() => setAddedToCart(null), 1500);
@@ -165,20 +178,22 @@ const ProductItem = ({
         />
         <div className="absolute inset-0 bg-black/0 transition-all duration-300 rounded-lg"></div>
       </motion.div>
-      
+
       <div className="flex flex-col gap-y-2.5">
         <p className="text-gray-850/50 text-xs">{product.category}</p>
         <h3 className="text-gray-850 text-sm md:text-base whitespace-nowrap overflow-hidden text-ellipsis w-40">
           {product.title}
         </h3>
-        <p className="text-gray-850 text-xs md:text-base">NGN {product.price.toLocaleString()}</p>
+        <p className="text-gray-850 text-xs md:text-base">
+          NGN {product.price.toLocaleString()}
+        </p>
       </div>
 
       {!showSizes && (
         <motion.button
           className={`mt-1.5 p-3 md:p-4 w-fit rounded-full transition-all duration-300 ${
-            addedToCart === "default" 
-              ? "bg-green-100 border-2 border-green-500" 
+            addedToCart === "default"
+              ? "bg-green-100 border-2 border-green-500"
               : "bg-white-200 hover:bg-gray-200"
           }`}
           whileHover={{ scale: 1.1 }}
@@ -192,11 +207,7 @@ const ProductItem = ({
             }
           }}
         >
-          {addedToCart === "default" ? (
-            <Check color="#22c55e" />
-          ) : (
-            <Plus />
-          )}
+          {addedToCart === "default" ? <Check color="#22c55e" /> : <Plus />}
         </motion.button>
       )}
 
@@ -217,7 +228,7 @@ const ProductItem = ({
           >
             {product.size?.map((sizeOption) => {
               const sizeCartQuantity = sizeQuantities[sizeOption] || 0;
-              
+
               return (
                 <motion.div
                   key={sizeOption}
@@ -247,7 +258,7 @@ const ProductItem = ({
         )}
       </AnimatePresence>
     </motion.div>
-  )
-}
+  );
+};
 
-export default React.memo(ProductSection)
+export default React.memo(ProductSection);

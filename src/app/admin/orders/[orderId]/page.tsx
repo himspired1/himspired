@@ -19,6 +19,7 @@ import { Order } from "@/models/order";
 import Image from "next/image";
 import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 import { toast } from "sonner";
+import { ReservationAPI } from "@/lib/session";
 
 // Product Image Component for Order Details
 interface OrderItem {
@@ -236,6 +237,25 @@ const OrderDetails = () => {
   };
   const handleResolveIssue = async () => {
     await updateOrderStatus("payment_confirmed");
+  };
+
+  const handlePutBackToStock = async () => {
+    if (!order) return;
+
+    try {
+      // Release reservations for all items in the order
+      const releasePromises = order.items.map(async (item) => {
+        // Extract the original product ID from the item
+        const originalProductId = item.productId;
+        return ReservationAPI.releaseProduct(originalProductId);
+      });
+
+      await Promise.all(releasePromises);
+      toast.success("All products put back to stock successfully");
+    } catch (error) {
+      console.error("Failed to put products back to stock:", error);
+      toast.error("Failed to put some products back to stock");
+    }
   };
 
   if (loading) {
@@ -532,9 +552,17 @@ const OrderDetails = () => {
               </>
             )}
             {order.status === "canceled" && (
-              <span className="px-4 py-2 bg-gray-400 text-white rounded-lg">
-                Order Canceled
-              </span>
+              <>
+                <span className="px-4 py-2 bg-gray-400 text-white rounded-lg">
+                  Order Canceled
+                </span>
+                <button
+                  onClick={handlePutBackToStock}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Put Back to Stock
+                </button>
+              </>
             )}
             {order.status === "payment_confirmed" && (
               <button
