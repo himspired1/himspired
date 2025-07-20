@@ -12,6 +12,7 @@ import {
   selectCartItems,
   selectCartTotal,
   clearCart,
+  validateCartReservations,
 } from "@/redux/slices/cartSlice";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -50,6 +51,30 @@ const CheckoutPage = () => {
       router.push("/cart");
     }
   }, [cartItems.length, router]);
+
+  // Check for items without reservations and validate quantities
+  useEffect(() => {
+    const itemsWithoutReservations = cartItems.filter(
+      (item) => !item.reservationId
+    );
+
+    if (itemsWithoutReservations.length > 0) {
+      console.error(
+        "Checkout attempted with items without reservations:",
+        itemsWithoutReservations
+      );
+      toast.error(
+        "Some items in your cart don't have valid reservations. Please refresh and try again."
+      );
+      router.push("/cart");
+      return;
+    }
+
+    // Validate cart quantities against reservations
+    if (cartItems.some((item) => item.reservationId)) {
+      dispatch(validateCartReservations());
+    }
+  }, [cartItems, router, dispatch]);
 
   // Don't render if cart is empty
   if (cartItems.length === 0) {

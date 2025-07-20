@@ -13,6 +13,7 @@ import {
 import React from "react";
 import type { Variants } from "framer-motion";
 import { SessionManager } from "@/lib/session";
+import { toast } from "sonner";
 
 interface ProductSectionProps {
   itemsToShow?: number;
@@ -84,9 +85,49 @@ const ProductItem = ({
   const [currentStock, setCurrentStock] = useState(product.stock || 0);
   const [stockMessage, setStockMessage] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
+  const [lastKnownStock, setLastKnownStock] = useState(product.stock || 0);
+  const [isReserving, setIsReserving] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const fetchStockRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
+  // Get cart quantities for this product
+  const cartQuantity = useAppSelector((state) =>
+    selectCartItemQuantity(state, product._id, product.size?.[0] || "")
+  );
+
+  // Get size-specific quantities
+  const sizeQuantities = useAppSelector((state) => {
+    const items = state.persistedReducer.cart.items.filter(
+      (item) => item._id === product._id
+    );
+    const quantities: Record<string, number> = {};
+    items.forEach((item: CartItem) => {
+      if (item.size) {
+        quantities[item.size] =
+          (quantities[item.size] || 0) + (item.quantity || 1);
+      }
+    });
+    return quantities;
+  });
+
+  // Check product availability
+  const checkAvailability = useMemo(() => {
+    return async () => {
+      try {
+        const sessionId = SessionManager.getSessionId();
+        const res = await fetch(
+          `/api/products/availability/${product._id}?sessionId=${sessionId}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setIsAvailable(data.isAvailable);
+      } catch (error) {
+        console.error("Error checking availability:", error);
+      }
+    };
+  }, [product._id]);
 
   // Real-time polling for stock and reservation status
   useEffect(() => {
@@ -101,89 +142,195 @@ const ProductItem = ({
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted) {
-          setCurrentStock(data.stock);
-          setStockMessage(data.stockMessage);
-          setIsAvailable(data.stock > 0);
+          const newStock = data.stock || 0;
+
+          // Check if stock changed significantly (admin intervention)
+          if (Math.abs(newStock - lastKnownStock) > 1) {
+            console.warn(
+              `Significant stock change detected for ${product.title}: ${lastKnownStock} -> ${newStock}`
+            );
+            // You could add a toast here if needed
+          }
+
+          setCurrentStock(newStock);
+          setLastKnownStock(newStock);
+
+          // Update stock message like product-card component
+          if (newStock <= 0) {
+            setStockMessage("Out of Stock");
+            setIsAvailable(false);
+          } else if (newStock === 1) {
+            setStockMessage("Only 1 left!");
+            setIsAvailable(true);
+          } else if (newStock <= 3) {
+            setStockMessage(`Only ${newStock} left!`);
+            setIsAvailable(true);
+          } else {
+            setStockMessage(`${newStock} in stock`);
+            setIsAvailable(true);
+          }
         }
       } catch {
         // Ignore errors for polling
       }
     };
+
+    // Initial fetch
     fetchStock();
-    const interval = setInterval(fetchStock, 30000); // 30s polling
+
+    // Also fetch after a short delay to catch any recent changes
+    const immediateRefresh = setTimeout(fetchStock, 2000);
+
+    // Poll every 15 seconds for better responsiveness
+    const interval = setInterval(fetchStock, 15000);
+
+    // Listen for cart changes from other tabs
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === "cartSync" || event.key === "stockUpdate") {
+        // Refetch stock when cart changes or stock updates
+        fetchStock();
+      }
+    };
+
+    // Listen for visibility changes to refresh stock when tab becomes active
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchStock();
+      }
+    };
+
+    // Listen for window focus to refresh stock when user switches back to tab
+    const handleWindowFocus = () => {
+      fetchStock();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
+
     // Store fetchStock in a ref for instant update after reservation
     fetchStockRef.current = fetchStock;
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      clearTimeout(immediateRefresh);
+      window.removeEventListener("storage", handleStorageChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
       fetchStockRef.current = undefined;
     };
-  }, [product._id]);
-  // Ref to hold fetchStock for instant update
-  const fetchStockRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  }, [product._id, lastKnownStock, product.title]);
+
+  // Initialize session and check availability
+  useEffect(() => {
+    SessionManager.refreshSessionIfNeeded();
+    checkAvailability();
+
+    // Also fetch stock immediately when component mounts
+    if (isAvailable && fetchStockRef.current) {
+      fetchStockRef.current();
+    }
+  }, [product._id, checkAvailability, isAvailable]);
 
   const handleClick = () => {
     router.push(`/shop/${product._id}/${product.slug?.current}`);
   };
 
   // Get cart quantity for products without sizes (moved outside of callback)
-  const cartQuantity = useAppSelector((state) =>
-    selectCartItemQuantity(state, product._id, product.size?.[0] || "")
-  );
-
-  // Get all cart items to avoid multiple selector calls
-  const cartItems = useAppSelector(
-    (state) => state.persistedReducer.cart.items
-  );
-
-  // ✅ FIXED: Memoize the sizeQuantities to prevent new object creation on every render
-  const sizeQuantities = useMemo(() => {
-    const quantities: Record<string, number> = {};
-    if (product.size) {
-      product.size.forEach((sizeOption) => {
-        const quantity = cartItems
-          .filter(
-            (item) =>
-              item.originalProductId === product._id && item.size === sizeOption
-          )
-          .reduce((total, item) => total + item.quantity, 0);
-        quantities[sizeOption] = quantity;
-      });
-    }
-    return quantities;
-  }, [cartItems, product._id, product.size]);
 
   const handleAddToCart = async (
     selectedSize?: string,
     e?: React.MouseEvent
   ) => {
     if (e) e.stopPropagation();
+
+    // Check if product is available
+    if (!isAvailable) {
+      toast.error(stockMessage || "Product is not available");
+      return;
+    }
+
+    setIsReserving(true);
     SessionManager.refreshSessionIfNeeded();
     const sessionId = SessionManager.getSessionId();
+
+    let reservationResult: {
+      success: boolean;
+      reservationId?: string;
+      error?: string;
+    } | null = null;
+
     // Reservation logic
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      const reservationData = {
+        sessionId,
+        quantity: 1,
+        size: selectedSize || product.size?.[0] || "",
+      };
+
       const response = await fetch(`/api/products/reserve/${product._id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          quantity: 1,
-          size: selectedSize || product.size?.[0] || "",
-        }),
+        body: JSON.stringify(reservationData),
+        signal: controller.signal,
       });
-      const reservationResult = await response.json();
-      if (!reservationResult.success) {
-        alert(reservationResult.error || "Failed to reserve product");
+
+      clearTimeout(timeoutId);
+      reservationResult = await response.json();
+
+      if (!reservationResult?.success) {
+        // Check if it's a reservation conflict
+        if (
+          reservationResult?.error &&
+          reservationResult.error.includes("already reserved")
+        ) {
+          toast.error(
+            "This product is currently being purchased by another user"
+          );
+        } else if (
+          reservationResult?.error &&
+          (reservationResult.error.includes("timeout") ||
+            reservationResult.error.includes("connection"))
+        ) {
+          toast.error(
+            "This product is currently being purchased by another user"
+          );
+        } else {
+          toast.error(reservationResult?.error || "Failed to reserve product");
+        }
         return;
       }
+
+      toast.success("Product reserved and added to cart");
+
       // Instantly update stock/reservation status after reservation
       if (fetchStockRef.current) {
         await fetchStockRef.current();
       }
-    } catch {
-      alert("Failed to reserve product");
+
+      // Broadcast stock update to other tabs
+      localStorage.setItem("stockUpdate", Date.now().toString());
+    } catch (error) {
+      console.error("Reservation error:", error);
+
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          toast.error("Reservation timed out. Please try again.");
+        } else {
+          toast.error("Failed to reserve product");
+        }
+      } else {
+        toast.error("Failed to reserve product");
+      }
       return;
+    } finally {
+      setIsReserving(false);
     }
+
     // Fixed: Updated to match new CartItem interface
     const data: Omit<
       CartItem,
@@ -196,8 +343,11 @@ const ProductItem = ({
       price: product.price,
       size: selectedSize || product.size?.[0] || "",
       stock: product.stock || 0, // Include stock information
+      reservationId: reservationResult?.reservationId, // Include reservation ID
     };
+
     dispatch(addItem(data));
+
     // Show feedback animation
     setAddedToCart(selectedSize || "default");
     setTimeout(() => setAddedToCart(null), 1500);
@@ -266,14 +416,14 @@ const ProductItem = ({
           className={`mt-1.5 p-3 md:p-4 w-fit rounded-full transition-all duration-300 ${
             addedToCart === "default"
               ? "bg-green-100 border-2 border-green-500"
-              : !isAvailable
+              : !isAvailable || isReserving
                 ? "bg-gray-300 cursor-not-allowed"
                 : "bg-white-200 hover:bg-gray-200"
           }`}
-          whileHover={isAvailable ? { scale: 1.1 } : undefined}
-          whileTap={isAvailable ? { scale: 0.95 } : undefined}
+          whileHover={isAvailable && !isReserving ? { scale: 1.1 } : undefined}
+          whileTap={isAvailable && !isReserving ? { scale: 0.95 } : undefined}
           onClick={(e) => {
-            if (!isAvailable) return;
+            if (!isAvailable || isReserving) return;
             if (!product.size?.length) {
               handleAddToCart(undefined, e);
             } else {
@@ -281,7 +431,7 @@ const ProductItem = ({
               setShowSizes(true);
             }
           }}
-          disabled={!isAvailable}
+          disabled={!isAvailable || isReserving}
         >
           {addedToCart === "default" ? <Check color="#22c55e" /> : <Plus />}
         </motion.button>
@@ -309,6 +459,7 @@ const ProductItem = ({
                 <motion.div
                   key={sizeOption}
                   onClick={(e) => {
+                    if (isReserving) return;
                     e.stopPropagation();
                     handleAddToCart(sizeOption, e);
                     setShowSizes(false);
@@ -316,10 +467,12 @@ const ProductItem = ({
                   className={`px-4 py-2 font-medium rounded-full flex flex-col items-center justify-center text-sm font-activo uppercase cursor-pointer transition-all duration-300 ${
                     addedToCart === sizeOption
                       ? "bg-green-100 border-2 border-green-500 text-green-700"
-                      : "bg-[#F4F4F4] hover:bg-[#DADADA] text-[#1E1E1E]"
+                      : isReserving
+                        ? "bg-gray-300 cursor-not-allowed text-gray-500"
+                        : "bg-[#F4F4F4] hover:bg-[#DADADA] text-[#1E1E1E]"
                   }`}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={!isReserving ? { scale: 1.1 } : undefined}
+                  whileTap={!isReserving ? { scale: 0.95 } : undefined}
                 >
                   <span>{sizeOption}</span>
                   {sizeCartQuantity > 0 && (

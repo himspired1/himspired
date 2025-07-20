@@ -6,18 +6,23 @@ import { toast } from "sonner";
 export const removeItemAndReleaseReservation = createAsyncThunk(
   "cart/removeItemAndReleaseReservation",
   async (
-    itemId: string | number,
-    { getState, dispatch },
-    extra: { onReservationReleased?: (productId: string) => void } = {}
+    {
+      id,
+      onReservationReleased,
+    }: {
+      id: string | number;
+      onReservationReleased?: (productId: string) => void;
+    },
+    { getState, dispatch }
   ) => {
     const state = getState() as RootState;
     const itemToRemove = state.persistedReducer.cart.items.find(
-      (item) => item._id === itemId
+      (item) => item._id === id
     );
 
     if (itemToRemove) {
       // First remove from cart
-      dispatch(removeItemWithReservationRelease(itemId));
+      dispatch(removeItemWithReservationRelease(id));
 
       // Then release the reservation
       try {
@@ -37,11 +42,8 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
           }
         );
 
-        if (response.ok) {
-          // Optionally trigger a stock update after reservation release
-          if (extra.onReservationReleased) {
-            extra.onReservationReleased(itemToRemove.originalProductId);
-          }
+        if (response.ok && onReservationReleased) {
+          onReservationReleased(itemToRemove.originalProductId);
         }
       } catch (error) {
         console.error("Error releasing reservation:", error);
@@ -54,26 +56,32 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
 export const decrementQuantityAndReleaseReservation = createAsyncThunk(
   "cart/decrementQuantityAndReleaseReservation",
   async (
-    itemId: string | number,
-    { getState, dispatch },
-    extra: { onReservationReleased?: (productId: string) => void } = {}
+    {
+      id,
+      onReservationReleased,
+    }: {
+      id: string | number;
+      onReservationReleased?: (productId: string) => void;
+    },
+    { getState, dispatch }
   ) => {
     const state = getState() as RootState;
     const item = state.persistedReducer.cart.items.find(
-      (item) => item._id === itemId
+      (item) => item._id === id
     );
 
     if (item) {
       if (item.quantity > 1) {
         // Just decrement quantity
-        dispatch(decrementQuantity(itemId));
+        dispatch(decrementQuantity(id));
+        if (onReservationReleased) {
+          onReservationReleased(item.originalProductId);
+        }
       } else {
         // Remove item and release reservation
-        dispatch(removeItemAndReleaseReservation(itemId, undefined, extra));
-      }
-      // Optionally trigger a stock update after reservation release
-      if (extra.onReservationReleased) {
-        extra.onReservationReleased(item.originalProductId);
+        dispatch(
+          removeItemAndReleaseReservation({ id, onReservationReleased })
+        );
       }
     }
   }
@@ -83,13 +91,18 @@ export const decrementQuantityAndReleaseReservation = createAsyncThunk(
 export const incrementQuantityAndUpdateReservation = createAsyncThunk(
   "cart/incrementQuantityAndUpdateReservation",
   async (
-    itemId: string | number,
-    { getState, dispatch },
-    extra: { onReservationReleased?: (productId: string) => void } = {}
+    {
+      id,
+      onReservationReleased,
+    }: {
+      id: string | number;
+      onReservationReleased?: (productId: string) => void;
+    },
+    { getState, dispatch }
   ) => {
     const state = getState() as RootState;
     const item = state.persistedReducer.cart.items.find(
-      (item) => item._id === itemId
+      (item) => item._id === id
     );
 
     if (item) {
@@ -100,7 +113,7 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
       }
 
       // First increment the quantity in cart
-      dispatch(incrementQuantity(itemId));
+      dispatch(incrementQuantity(id));
 
       // Then update the reservation with the new quantity
       try {
@@ -121,18 +134,85 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
           }
         );
 
-        if (response.ok) {
-          // Optionally trigger a stock update after reservation update
-          if (extra.onReservationReleased) {
-            extra.onReservationReleased(item.originalProductId);
-          }
-        } else {
-          console.error(`Failed to update reservation for ${item.title}`);
+        if (response.ok && onReservationReleased) {
+          onReservationReleased(item.originalProductId);
         }
       } catch (error) {
         console.error("Error updating reservation:", error);
       }
     }
+  }
+);
+
+// Thunk action to validate cart items against their reservations
+export const validateCartReservations = createAsyncThunk(
+  "cart/validateCartReservations",
+  async (_, { getState, dispatch }) => {
+    const state = getState() as RootState;
+    const cartItems = state.persistedReducer.cart.items;
+
+    const validationPromises = cartItems
+      .filter((item) => item.reservationId)
+      .map(async (item) => {
+        try {
+          const response = await fetch(
+            `/api/products/debug/${item.originalProductId}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            const reservation = data.reservations?.find(
+              (r: { id: string; quantity: number }) =>
+                r.id === item.reservationId
+            );
+
+            // Check if stock has changed significantly (admin intervention)
+            const currentStock = data.stock || 0;
+            if (Math.abs(currentStock - item.stock) > 1) {
+              console.warn(
+                `Stock changed for ${item.title}: stored=${item.stock}, current=${currentStock}`
+              );
+              // Update the stored stock value
+              dispatch(updateItemStock({ id: item._id, stock: currentStock }));
+            }
+
+            if (reservation && reservation.quantity !== item.quantity) {
+              console.warn(
+                `Quantity mismatch for ${item.title}: cart=${item.quantity}, reservation=${reservation.quantity}`
+              );
+              // Update cart quantity to match reservation
+              dispatch(
+                updateItemQuantity({
+                  id: item._id,
+                  quantity: reservation.quantity,
+                })
+              );
+              return {
+                itemId: item._id,
+                correctedQuantity: reservation.quantity,
+              };
+            }
+          }
+        } catch (error) {
+          console.error(
+            `Failed to validate reservation for ${item.title}:`,
+            error
+          );
+        }
+        return null;
+      });
+
+    const results = await Promise.all(validationPromises);
+    const corrections = results.filter((result) => result !== null);
+
+    if (corrections.length > 0) {
+      console.log(
+        "Cart quantities corrected to match reservations:",
+        corrections
+      );
+      toast.info("Cart quantities updated to match reservations");
+    }
+
+    return corrections;
   }
 );
 
@@ -144,6 +224,7 @@ export interface CartItem extends ProductBase {
   originalPrice: number; // Store the original unit price
   originalProductId: string; // Store the original product ID for easier lookup
   stock: number; // Store the stock at the time of adding to cart
+  reservationId?: string; // Track the reservation ID for this item
 }
 
 export interface CartState {
@@ -210,6 +291,7 @@ const cartSlice = createSlice({
         });
         toast.success(`${productDetails.title} added to cart`);
       }
+      debouncedCartSync();
     },
 
     removeItem: (state, action: PayloadAction<string | number>) => {
@@ -220,6 +302,7 @@ const cartSlice = createSlice({
       if (itemToRemove) {
         toast.success(`${itemToRemove.title} removed from cart`);
       }
+      debouncedCartSync();
     },
 
     removeItemWithReservationRelease: (
@@ -233,6 +316,7 @@ const cartSlice = createSlice({
       if (itemToRemove) {
         toast.success(`${itemToRemove.title} removed from cart`);
       }
+      debouncedCartSync();
     },
 
     updateItemQuantity: (
@@ -249,6 +333,19 @@ const cartSlice = createSlice({
         state.items = state.items.filter((item) => item._id !== id);
         toast.success(`${item.title} removed from cart`);
       }
+      debouncedCartSync();
+    },
+
+    updateItemStock: (
+      state,
+      action: PayloadAction<{ id: string | number; stock: number }>
+    ) => {
+      const { id, stock } = action.payload;
+      const item = state.items.find((item) => item._id === id);
+      if (item) {
+        item.stock = stock;
+      }
+      debouncedCartSync();
     },
 
     incrementQuantity: (state, action: PayloadAction<string | number>) => {
@@ -261,9 +358,19 @@ const cartSlice = createSlice({
           );
           return;
         }
+
+        // Check if this item has a reservation and warn about quantity mismatch
+        if (item.reservationId && item.quantity >= 1) {
+          console.warn(
+            "Incrementing quantity beyond reservation - this may cause issues"
+          );
+          // In a real app, you might want to check against the actual reservation quantity
+        }
+
         item.quantity += 1;
         item.price = item.originalPrice * item.quantity;
       }
+      debouncedCartSync();
     },
 
     decrementQuantity: (state, action: PayloadAction<string | number>) => {
@@ -280,12 +387,14 @@ const cartSlice = createSlice({
           toast.success(`${item.title} removed from cart`);
         }
       }
+      debouncedCartSync();
     },
 
     // Clear cart with toast (for order completion)
     clearCart: (state) => {
       state.items = [];
       toast.success("Cart cleared");
+      debouncedCartSync();
     },
 
     // Clear cart for specific order (prevents duplicate toasts)
@@ -298,12 +407,14 @@ const cartSlice = createSlice({
         state.lastClearedOrderId = orderId;
         toast.success("Cart cleared");
       }
+      debouncedCartSync();
     },
 
     // Clear cart silently (for order tracking, etc.)
     clearCartSilent: (state) => {
       state.items = [];
       // No toast shown
+      debouncedCartSync();
     },
 
     // Helper action to clean up any potential duplicates (can be called if needed)
@@ -331,6 +442,7 @@ const cartSlice = createSlice({
 
       state.items = cleanedItems;
       toast.success("Cart cleaned up");
+      debouncedCartSync();
     },
   },
 });
@@ -340,6 +452,7 @@ export const {
   removeItem,
   removeItemWithReservationRelease,
   updateItemQuantity,
+  updateItemStock,
   incrementQuantity,
   decrementQuantity,
   clearCart,
@@ -439,4 +552,21 @@ export const selectCartDuplicates = (
   });
 
   return duplicates;
+};
+
+// Debounced cart sync to prevent rapid simultaneous updates
+let syncTimeout: NodeJS.Timeout | null = null;
+const SYNC_DEBOUNCE_MS = 500; // 500ms debounce
+
+const debouncedCartSync = () => {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+  }
+  syncTimeout = setTimeout(() => {
+    const timestamp = Date.now().toString();
+    localStorage.setItem("cartSync", timestamp);
+    localStorage.setItem("lastLocalCartChange", timestamp);
+    // Also trigger stock updates when cart changes
+    localStorage.setItem("stockUpdate", timestamp);
+  }, SYNC_DEBOUNCE_MS);
 };

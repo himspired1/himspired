@@ -61,6 +61,12 @@ const AdminOrders = () => {
     null
   );
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [cancelAction, setCancelAction] = useState<"simple" | "with-release">(
+    "simple"
+  );
+  const [cancelingOrder, setCancelingOrder] = useState(false);
 
   const filterOrdersByStatus = useCallback(
     (orderList: Order[], status: string) => {
@@ -473,6 +479,60 @@ const AdminOrders = () => {
                               <Mail className="w-4 h-4" />
                             </button>
                           )}
+                          {/* Cancel order button for orders with payment issues */}
+                          {[
+                            "payment_pending",
+                            "payment_not_confirmed",
+                          ].includes(order.status) && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setOrderToCancel(order);
+                                  setCancelAction("simple");
+                                  setCancelModalOpen(true);
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700"
+                                title="Cancel Order"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOrderToCancel(order);
+                                  setCancelAction("with-release");
+                                  setCancelModalOpen(true);
+                                }}
+                                className="p-1 text-orange-500 hover:text-orange-700"
+                                title="Cancel Order & Release Stock"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M20 12H4M12 4l8 8-8 8"
+                                  />
+                                </svg>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -591,6 +651,125 @@ const AdminOrders = () => {
                 disabled={sendingEmail || !emailText.trim()}
               >
                 {sendingEmail ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Order Modal */}
+      {cancelModalOpen && orderToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <P className="font-semibold">Confirm Cancelation</P>
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <P className="text-gray-700 mb-4">
+              Are you sure you want to cancel order {orderToCancel.orderId}?
+            </P>
+            {cancelAction === "with-release" && (
+              <P className="text-sm text-orange-600 mb-4">
+                This will also release all reserved items back to stock for
+                other customers to purchase.
+              </P>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setCancelingOrder(true);
+                  try {
+                    let response;
+                    if (cancelAction === "simple") {
+                      response = await fetch(
+                        `/api/orders/${orderToCancel.orderId}`,
+                        {
+                          method: "PUT",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "canceled",
+                          }),
+                        }
+                      );
+                    } else {
+                      // Cancel and release stock
+                      response = await fetch(
+                        `/api/orders/${orderToCancel.orderId}`,
+                        {
+                          method: "PUT",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "canceled",
+                          }),
+                        }
+                      );
+
+                      if (response.ok) {
+                        const releasePromises = orderToCancel.items.map(
+                          async (item: {
+                            productId: string;
+                            quantity: number;
+                          }) => {
+                            const releaseResponse = await fetch(
+                              `/api/products/release/${item.productId}`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  sessionId: "admin",
+                                  quantity: item.quantity,
+                                }),
+                              }
+                            );
+                            return releaseResponse.ok;
+                          }
+                        );
+                        await Promise.all(releasePromises);
+                      }
+                    }
+
+                    if (response.ok) {
+                      toast.success(
+                        cancelAction === "simple"
+                          ? "Order canceled successfully"
+                          : "Order canceled and products released back to stock"
+                      );
+                      setCancelModalOpen(false);
+                      fetchOrders(
+                        pagination.page,
+                        filter !== "all" ? filter : undefined
+                      );
+                    } else {
+                      toast.error("Failed to cancel order");
+                    }
+                  } catch (error) {
+                    console.error("Failed to cancel order:", error);
+                    toast.error("Failed to cancel order");
+                  } finally {
+                    setCancelingOrder(false);
+                  }
+                }}
+                className="px-4 py-2 rounded bg-[#68191E] text-white hover:bg-[#5a1519] disabled:opacity-50"
+                disabled={cancelingOrder}
+              >
+                {cancelingOrder ? "Cancelling..." : "Proceed to Cancel"}
               </button>
             </div>
           </div>
