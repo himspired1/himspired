@@ -6,7 +6,7 @@ interface WrapperProps {
 }
 
 const Wrapper: React.FC<WrapperProps> = ({ children, className = "" }) => {
-  return <div className={`flex justify-between px-4 md:px-10 lg:px-16 xl:px-30 ${className}`}>{children}</div>;
+  return <div className={`flex justify-between  px-6 md:px-10 lg:px-0 max-w-5xl mx-auto ${className}`}>{children}</div>;
 };
 
 export default Wrapper;

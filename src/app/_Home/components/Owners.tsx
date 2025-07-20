@@ -12,8 +12,9 @@ const Owners = () => {
           <span className="text-gray-250">Revolution?</span>
         </h1>
         <p className="md:mt-24 max-w-xl ">
-          Discover the story, vision, and passion that drive <span className="text-red-800 font-bold">Himspired</span> to
-          redefine fashion for a new era.
+          Discover the story, vision, and passion that drive{" "}
+          <span className="text-red-800 font-bold">Himspired</span> to redefine
+          fashion for a new era.
         </p>
       </Wrapper>
       <ImageStack />
