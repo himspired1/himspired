@@ -1,17 +1,24 @@
 "use client";
 import { ChevronLeft, Frown, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useClothingItem } from "@/sanity/queries";
 import { SanityImageComponent } from "@/components/sanity/image";
 import ProductDetailsSkeleton from "@/components/common/skeleton/product-details-skeleton.component";
 import { addItem } from "@/redux/slices/cartSlice";
 import { useAppDispatch } from "@/redux/hooks";
+import { toast } from "sonner";
+import { SessionManager } from "@/lib/session";
 
 const ProductDetails = () => {
   const [showSizes, setShowSizes] = useState(false);
   const [productId, setProductId] = useState<string>("");
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [availabilityMessage, setAvailabilityMessage] = useState("Available");
+  const [isReserving, setIsReserving] = useState(false);
+  const [currentStock, setCurrentStock] = useState(0);
+  const [stockMessage, setStockMessage] = useState("");
   const router = useRouter();
   const params = useParams();
   const dispatch = useAppDispatch();
@@ -20,21 +27,118 @@ const ProductDetails = () => {
   useEffect(() => {
     const getProductId = async () => {
       // Handle the [...slug] dynamic route
-      const slugArray = Array.isArray(params?.slug) ? params.slug : [params?.slug];
+      const slugArray = Array.isArray(params?.slug)
+        ? params.slug
+        : [params?.slug];
       const id = slugArray[0]; // First segment is the product ID
-      
-      if (typeof id === 'string') {
+
+      if (typeof id === "string") {
         setProductId(id);
       }
     };
-    
+
     getProductId();
   }, [params]);
 
-  const { item, loading, error } = useClothingItem(
-    productId,
-    "id"
-  );
+  const { item, loading, error } = useClothingItem(productId, "id");
+
+  // Fetch real-time stock from Sanity
+  const fetchRealTimeStock = useCallback(async () => {
+    try {
+      const sessionId = SessionManager.getSessionId();
+      const response = await fetch(
+        `/api/products/stock/${productId}?sessionId=${sessionId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentStock(data.stock);
+        setStockMessage(data.stockMessage);
+      }
+    } catch (error) {
+      console.error("Error fetching real-time stock:", error);
+    }
+  }, [productId]);
+
+  // Check product availability
+  const checkAvailability = useCallback(async () => {
+    if (!productId) return;
+
+    try {
+      const sessionId = SessionManager.getSessionId();
+      const response = await fetch(
+        `/api/products/availability/${productId}?sessionId=${sessionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsAvailable(data.available);
+        setAvailabilityMessage(data.message);
+
+        // Log if product is permanently out of stock
+        if (data.permanentlyOutOfStock) {
+          console.log(`🚨 Product permanently out of stock: ${item?.title}`);
+        }
+      } else {
+        console.error("Error checking availability:", response.statusText);
+        setIsAvailable(true); // Default to available if check fails
+        setAvailabilityMessage("Available");
+      }
+    } catch (error) {
+      console.error("Error checking availability:", error);
+      setIsAvailable(true); // Default to available if check fails
+      setAvailabilityMessage("Available");
+    }
+  }, [productId, item?.title]);
+
+  // Update stock display based on item data
+  useEffect(() => {
+    if (item?.stock !== undefined) {
+      setCurrentStock(item.stock);
+
+      if (item.stock <= 0) {
+        setStockMessage("Out of Stock");
+      } else if (item.stock === 1) {
+        setStockMessage("Only 1 left!");
+      } else if (item.stock <= 3) {
+        setStockMessage(`Only ${item.stock} left!`);
+      } else {
+        setStockMessage(`${item.stock} in stock`);
+      }
+    }
+  }, [item?.stock]);
+
+  // Initialize session and check availability
+  useEffect(() => {
+    if (productId) {
+      SessionManager.refreshSessionIfNeeded();
+      checkAvailability();
+      fetchRealTimeStock();
+    }
+  }, [productId, checkAvailability, fetchRealTimeStock]);
+
+  // Fetch real-time stock when availability changes
+  useEffect(() => {
+    if (isAvailable && productId) {
+      fetchRealTimeStock();
+    }
+  }, [isAvailable, productId, fetchRealTimeStock]);
+
+  // Poll for stock updates every 30 seconds to catch cart changes (reduced from 5 seconds for better performance)
+  useEffect(() => {
+    if (isAvailable && productId) {
+      const interval = setInterval(() => {
+        fetchRealTimeStock();
+      }, 30000); // Poll every 30 seconds (optimized for concurrent users)
+
+      return () => clearInterval(interval);
+    }
+  }, [isAvailable, productId, fetchRealTimeStock]);
 
   if (!productId) {
     return <ProductDetailsSkeleton />;
@@ -123,6 +227,21 @@ const ProductDetails = () => {
             ngn {item?.price}
           </p>
 
+          {/* Stock Status */}
+          {stockMessage && (
+            <div
+              className={`flex items-center justify-center gap-2 text-sm mt-2 ${
+                currentStock <= 0
+                  ? "text-red-600"
+                  : currentStock <= 3
+                    ? "text-orange-600"
+                    : "text-green-600"
+              }`}
+            >
+              <span className="font-medium">{stockMessage}</span>
+            </div>
+          )}
+
           <div className=" w-full  md:w-full lg:w-[770px] mx-auto mt-2">
             <p className="font-activo text-[#1E1E1ECC] text-[13px] font-normal text-center uppercase">
               {item?.description}
@@ -132,12 +251,26 @@ const ProductDetails = () => {
           <div className="w-full flex items-center justify-center mt-[26px] gap-4">
             {item?.size && (
               <motion.div
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowSizes((prev) => !prev)}
-                className=" w-12 cursor-pointer h-12 rounded-full  flex items-center justify-center bg-[#F4F4F4]"
+                whileHover={{ scale: isAvailable ? 1.1 : 1 }}
+                whileTap={{ scale: isAvailable ? 0.95 : 1 }}
+                onClick={() => {
+                  if (!isAvailable) {
+                    toast.error(availabilityMessage);
+                    return;
+                  }
+                  if (isReserving) {
+                    toast.info("Reserving product...");
+                    return;
+                  }
+                  setShowSizes((prev) => !prev);
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  isAvailable
+                    ? "cursor-pointer bg-[#F4F4F4]"
+                    : "cursor-not-allowed bg-gray-300"
+                }`}
               >
-                <Plus size={14} color="#1E1E1E" />
+                <Plus size={14} color={isAvailable ? "#1E1E1E" : "#999"} />
               </motion.div>
             )}
 
@@ -152,14 +285,95 @@ const ProductDetails = () => {
                 >
                   {item?.size?.map((size) => (
                     <motion.div
-                      onClick={() => {
-                        const cartData = {
-                          quantity: 1,
-                          ...item,
-                          size: size,
-                        };
-                        dispatch(addItem(cartData));
-                        setShowSizes((prev) => !prev);
+                      onClick={async () => {
+                        // Check if product is available (this includes out of stock check)
+                        if (!isAvailable) {
+                          toast.error(availabilityMessage);
+                          return;
+                        }
+
+                        setIsReserving(true);
+                        try {
+                          const sessionId = SessionManager.getSessionId();
+
+                          // Reserve product via API
+                          const controller = new AbortController();
+                          const timeoutId = setTimeout(
+                            () => controller.abort(),
+                            5000
+                          ); // 5 second timeout
+
+                          const response = await fetch(
+                            `/api/products/reserve/${item._id}`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              body: JSON.stringify({
+                                sessionId,
+                                quantity: 1,
+                                size: size,
+                              }),
+                              signal: controller.signal,
+                            }
+                          );
+
+                          clearTimeout(timeoutId);
+
+                          const reservationResult = await response.json();
+
+                          if (!reservationResult.success) {
+                            // Check if it's a reservation conflict
+                            if (
+                              reservationResult.error &&
+                              reservationResult.error.includes(
+                                "already reserved"
+                              )
+                            ) {
+                              toast.error(
+                                "This product is currently being purchased by another user"
+                              );
+                            } else if (
+                              reservationResult.error &&
+                              (reservationResult.error.includes("timeout") ||
+                                reservationResult.error.includes("connection"))
+                            ) {
+                              toast.error(
+                                "This product is currently being purchased by another user"
+                              );
+                            } else {
+                              toast.error(
+                                reservationResult.error ||
+                                  "Failed to reserve product"
+                              );
+                            }
+                            return;
+                          }
+
+                          toast.success("Product reserved and added to cart");
+
+                          // Update availability after successful reservation
+                          await checkAvailability();
+
+                          const cartData = {
+                            _id: item._id,
+                            title: item.title,
+                            category: item.category,
+                            mainImage: item.mainImage,
+                            price: item.price,
+                            size: size,
+                            stock: item.stock || 0, // Include stock information
+                          };
+                          dispatch(addItem(cartData));
+                          setShowSizes((prev) => !prev);
+                        } catch (error) {
+                          console.error("Reservation error:", error);
+                          toast.error("Failed to reserve product");
+                          return;
+                        } finally {
+                          setIsReserving(false);
+                        }
                       }}
                       key={size}
                       className="px-4 py-2 font-medium bg-[#F4F4F4] rounded-full flex items-center justify-center text-sm font-activo uppercase text-[#1E1E1E] cursor-pointer hover:bg-[#DADADA] transition"
