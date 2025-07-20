@@ -5,7 +5,11 @@ import { toast } from "sonner";
 // Thunk action to remove item and release reservation
 export const removeItemAndReleaseReservation = createAsyncThunk(
   "cart/removeItemAndReleaseReservation",
-  async (itemId: string | number, { getState, dispatch }) => {
+  async (
+    itemId: string | number,
+    { getState, dispatch },
+    extra: { onReservationReleased?: (productId: string) => void } = {}
+  ) => {
     const state = getState() as RootState;
     const itemToRemove = state.persistedReducer.cart.items.find(
       (item) => item._id === itemId
@@ -19,11 +23,6 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
       try {
         const sessionId =
           localStorage.getItem("himspired_session_id") || "unknown";
-        console.log(
-          `Attempting to release reservation for product: ${itemToRemove.originalProductId}`
-        );
-        console.log(`Session ID: ${sessionId}`);
-
         const response = await fetch(
           `/api/products/release/${itemToRemove.originalProductId}`,
           {
@@ -38,16 +37,11 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
           }
         );
 
-        const responseText = await response.text();
-        console.log(`Release API response status: ${response.status}`);
-        console.log(`Release API response: ${responseText}`);
-
         if (response.ok) {
-          console.log(`Reservation released for ${itemToRemove.title}`);
-        } else {
-          console.error(
-            `Failed to release reservation for ${itemToRemove.title}. Status: ${response.status}, Response: ${responseText}`
-          );
+          // Optionally trigger a stock update after reservation release
+          if (extra.onReservationReleased) {
+            extra.onReservationReleased(itemToRemove.originalProductId);
+          }
         }
       } catch (error) {
         console.error("Error releasing reservation:", error);
@@ -59,7 +53,11 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
 // Thunk action to decrement quantity and release reservation if needed
 export const decrementQuantityAndReleaseReservation = createAsyncThunk(
   "cart/decrementQuantityAndReleaseReservation",
-  async (itemId: string | number, { getState, dispatch }) => {
+  async (
+    itemId: string | number,
+    { getState, dispatch },
+    extra: { onReservationReleased?: (productId: string) => void } = {}
+  ) => {
     const state = getState() as RootState;
     const item = state.persistedReducer.cart.items.find(
       (item) => item._id === itemId
@@ -71,7 +69,11 @@ export const decrementQuantityAndReleaseReservation = createAsyncThunk(
         dispatch(decrementQuantity(itemId));
       } else {
         // Remove item and release reservation
-        dispatch(removeItemAndReleaseReservation(itemId));
+        dispatch(removeItemAndReleaseReservation(itemId, undefined, extra));
+      }
+      // Optionally trigger a stock update after reservation release
+      if (extra.onReservationReleased) {
+        extra.onReservationReleased(item.originalProductId);
       }
     }
   }
@@ -80,7 +82,11 @@ export const decrementQuantityAndReleaseReservation = createAsyncThunk(
 // Thunk action to increment quantity and update reservation
 export const incrementQuantityAndUpdateReservation = createAsyncThunk(
   "cart/incrementQuantityAndUpdateReservation",
-  async (itemId: string | number, { getState, dispatch }) => {
+  async (
+    itemId: string | number,
+    { getState, dispatch },
+    extra: { onReservationReleased?: (productId: string) => void } = {}
+  ) => {
     const state = getState() as RootState;
     const item = state.persistedReducer.cart.items.find(
       (item) => item._id === itemId
@@ -116,9 +122,10 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
         );
 
         if (response.ok) {
-          console.log(
-            `Reservation updated for ${item.title}, new quantity: ${item.quantity + 1}`
-          );
+          // Optionally trigger a stock update after reservation update
+          if (extra.onReservationReleased) {
+            extra.onReservationReleased(item.originalProductId);
+          }
         } else {
           console.error(`Failed to update reservation for ${item.title}`);
         }

@@ -221,6 +221,7 @@ const ProductCard = ({
 
       // Update availability after successful reservation
       await checkAvailability();
+      await fetchRealTimeStock();
     } catch (error) {
       console.error("Reservation error:", error);
 
