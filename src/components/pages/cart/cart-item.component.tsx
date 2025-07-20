@@ -61,7 +61,16 @@ const CartItem: FC<CartItemProps> = ({
   };
 
   const handleRemove = () => {
-    dispatch(removeItemAndReleaseReservation(id));
+    dispatch(
+      removeItemAndReleaseReservation(id, undefined, {
+        onReservationReleased: (productId) => {
+          // Try to trigger a stock update for the removed product if a ref/callback is available
+          if (window && (window as any)[`fetchStock_${productId}`]) {
+            (window as any)[`fetchStock_${productId}`]();
+          }
+        },
+      })
+    );
   };
 
   return (
@@ -197,11 +206,27 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
       return;
     }
 
-    dispatch(incrementQuantityAndUpdateReservation(id));
+    dispatch(
+      incrementQuantityAndUpdateReservation(id, undefined, {
+        onReservationReleased: (productId) => {
+          if (window && (window as any)[`fetchStock_${productId}`]) {
+            (window as any)[`fetchStock_${productId}`]();
+          }
+        },
+      })
+    );
   };
 
   const handleDecrement = () => {
-    dispatch(decrementQuantityAndReleaseReservation(id));
+    dispatch(
+      decrementQuantityAndReleaseReservation(id, undefined, {
+        onReservationReleased: (productId) => {
+          if (window && (window as any)[`fetchStock_${productId}`]) {
+            (window as any)[`fetchStock_${productId}`]();
+          }
+        },
+      })
+    );
   };
 
   return (

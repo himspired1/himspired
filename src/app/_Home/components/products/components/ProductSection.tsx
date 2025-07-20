@@ -3,7 +3,7 @@ import { Plus, Check } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SanityImageComponent } from "@/components/sanity/image";
 import { useRouter } from "next/navigation";
-import { MouseEvent, useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
   addItem,
@@ -12,6 +12,7 @@ import {
 } from "@/redux/slices/cartSlice";
 import React from "react";
 import type { Variants } from "framer-motion";
+import { SessionManager } from "@/lib/session";
 
 interface ProductSectionProps {
   itemsToShow?: number;
@@ -80,12 +81,48 @@ const ProductItem = ({
 }) => {
   const [showSizes, setShowSizes] = useState(false);
   const [addedToCart, setAddedToCart] = useState<string | null>(null);
+  const [currentStock, setCurrentStock] = useState(product.stock || 0);
+  const [stockMessage, setStockMessage] = useState("");
+  const [isAvailable, setIsAvailable] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const handleClick = (e: MouseEvent) => {
-    e.stopPropagation();
+  // Real-time polling for stock and reservation status
+  useEffect(() => {
+    SessionManager.refreshSessionIfNeeded();
+    let isMounted = true;
+    const sessionId = SessionManager.getSessionId();
+    const fetchStock = async () => {
+      try {
+        const res = await fetch(
+          `/api/products/stock/${product._id}?sessionId=${sessionId}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted) {
+          setCurrentStock(data.stock);
+          setStockMessage(data.stockMessage);
+          setIsAvailable(data.stock > 0);
+        }
+      } catch {
+        // Ignore errors for polling
+      }
+    };
+    fetchStock();
+    const interval = setInterval(fetchStock, 30000); // 30s polling
+    // Store fetchStock in a ref for instant update after reservation
+    fetchStockRef.current = fetchStock;
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      fetchStockRef.current = undefined;
+    };
+  }, [product._id]);
+  // Ref to hold fetchStock for instant update
+  const fetchStockRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
+  const handleClick = () => {
     router.push(`/shop/${product._id}/${product.slug?.current}`);
   };
 
@@ -116,7 +153,37 @@ const ProductItem = ({
     return quantities;
   }, [cartItems, product._id, product.size]);
 
-  const handleAddToCart = (selectedSize?: string) => {
+  const handleAddToCart = async (
+    selectedSize?: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    SessionManager.refreshSessionIfNeeded();
+    const sessionId = SessionManager.getSessionId();
+    // Reservation logic
+    try {
+      const response = await fetch(`/api/products/reserve/${product._id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          quantity: 1,
+          size: selectedSize || product.size?.[0] || "",
+        }),
+      });
+      const reservationResult = await response.json();
+      if (!reservationResult.success) {
+        alert(reservationResult.error || "Failed to reserve product");
+        return;
+      }
+      // Instantly update stock/reservation status after reservation
+      if (fetchStockRef.current) {
+        await fetchStockRef.current();
+      }
+    } catch {
+      alert("Failed to reserve product");
+      return;
+    }
     // Fixed: Updated to match new CartItem interface
     const data: Omit<
       CartItem,
@@ -130,9 +197,7 @@ const ProductItem = ({
       size: selectedSize || product.size?.[0] || "",
       stock: product.stock || 0, // Include stock information
     };
-
     dispatch(addItem(data));
-
     // Show feedback animation
     setAddedToCart(selectedSize || "default");
     setTimeout(() => setAddedToCart(null), 1500);
@@ -187,6 +252,13 @@ const ProductItem = ({
         <p className="text-gray-850 text-xs md:text-base">
           NGN {product.price.toLocaleString()}
         </p>
+        {stockMessage && (
+          <span
+            className={`text-xs font-medium ${currentStock <= 0 ? "text-red-600" : currentStock <= 3 ? "text-orange-600" : "text-green-600"}`}
+          >
+            {stockMessage}
+          </span>
+        )}
       </div>
 
       {!showSizes && (
@@ -194,18 +266,22 @@ const ProductItem = ({
           className={`mt-1.5 p-3 md:p-4 w-fit rounded-full transition-all duration-300 ${
             addedToCart === "default"
               ? "bg-green-100 border-2 border-green-500"
-              : "bg-white-200 hover:bg-gray-200"
+              : !isAvailable
+                ? "bg-gray-300 cursor-not-allowed"
+                : "bg-white-200 hover:bg-gray-200"
           }`}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={isAvailable ? { scale: 1.1 } : undefined}
+          whileTap={isAvailable ? { scale: 0.95 } : undefined}
           onClick={(e) => {
-            e.stopPropagation();
+            if (!isAvailable) return;
             if (!product.size?.length) {
-              handleAddToCart();
+              handleAddToCart(undefined, e);
             } else {
+              e.stopPropagation();
               setShowSizes(true);
             }
           }}
+          disabled={!isAvailable}
         >
           {addedToCart === "default" ? <Check color="#22c55e" /> : <Plus />}
         </motion.button>
@@ -234,7 +310,7 @@ const ProductItem = ({
                   key={sizeOption}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleAddToCart(sizeOption);
+                    handleAddToCart(sizeOption, e);
                     setShowSizes(false);
                   }}
                   className={`px-4 py-2 font-medium rounded-full flex flex-col items-center justify-center text-sm font-activo uppercase cursor-pointer transition-all duration-300 ${
