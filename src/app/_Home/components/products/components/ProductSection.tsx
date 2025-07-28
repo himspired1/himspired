@@ -100,7 +100,7 @@ const ProductItem = ({
   // Get size-specific quantities
   const sizeQuantities = useAppSelector((state) => {
     const items = state.persistedReducer.cart.items.filter(
-      (item) => item._id === product._id
+      (item) => item.originalProductId === product._id
     );
     const quantities: Record<string, number> = {};
     items.forEach((item: CartItem) => {
@@ -143,31 +143,36 @@ const ProductItem = ({
         const data = await res.json();
         if (isMounted) {
           const newStock = data.stock || 0;
+          const availableStock = data.availableStock || 0;
+          const reservedByCurrentUser = data.reservedByCurrentUser || 0;
+          const reservedByOthers = data.reservedByOthers || 0;
 
           // Check if stock changed significantly (admin intervention)
           if (Math.abs(newStock - lastKnownStock) > 1) {
             console.warn(
               `Significant stock change detected for ${product.title}: ${lastKnownStock} -> ${newStock}`
             );
-            // You could add a toast here if needed
+            toast.info(`Stock updated for ${product.title}`);
           }
 
           setCurrentStock(newStock);
           setLastKnownStock(newStock);
 
-          // Update stock message like product-card component
-          if (newStock <= 0) {
-            setStockMessage("Out of Stock");
+          // Use the enhanced stock message from API
+          setStockMessage(data.stockMessage || "");
+
+          // Update availability based on available stock
+          if (availableStock <= 0) {
             setIsAvailable(false);
-          } else if (newStock === 1) {
-            setStockMessage("Only 1 left!");
-            setIsAvailable(true);
-          } else if (newStock <= 3) {
-            setStockMessage(`Only ${newStock} left!`);
-            setIsAvailable(true);
           } else {
-            setStockMessage(`${newStock} in stock`);
             setIsAvailable(true);
+          }
+
+          // Log reservation info for debugging
+          if (reservedByCurrentUser > 0 || reservedByOthers > 0) {
+            console.log(
+              `${product.title}: You reserved ${reservedByCurrentUser}, Others reserved ${reservedByOthers}, Available: ${availableStock}`
+            );
           }
         }
       } catch {
@@ -181,8 +186,8 @@ const ProductItem = ({
     // Also fetch after a short delay to catch any recent changes
     const immediateRefresh = setTimeout(fetchStock, 2000);
 
-    // Poll every 15 seconds for better responsiveness
-    const interval = setInterval(fetchStock, 15000);
+    // Poll every 5 seconds for faster responsiveness
+    const interval = setInterval(fetchStock, 5000);
 
     // Listen for cart changes from other tabs
     const handleStorageChange = (event: StorageEvent) => {
@@ -237,8 +242,6 @@ const ProductItem = ({
     router.push(`/shop/${product._id}/${product.slug?.current}`);
   };
 
-  // Get cart quantity for products without sizes (moved outside of callback)
-
   const handleAddToCart = async (
     selectedSize?: string,
     e?: React.MouseEvent
@@ -255,6 +258,13 @@ const ProductItem = ({
     SessionManager.refreshSessionIfNeeded();
     const sessionId = SessionManager.getSessionId();
 
+    // Get current cart quantity for this specific product and size
+    const currentSize = selectedSize || product.size?.[0] || "";
+    const currentCartQuantity = sizeQuantities[currentSize] || 0;
+
+    // Calculate new total quantity (current + 1)
+    const newTotalQuantity = currentCartQuantity + 1;
+
     let reservationResult: {
       success: boolean;
       reservationId?: string;
@@ -268,8 +278,9 @@ const ProductItem = ({
 
       const reservationData = {
         sessionId,
-        quantity: 1,
+        quantity: newTotalQuantity, // Reserve the new total quantity
         size: selectedSize || product.size?.[0] || "",
+        isUpdate: currentCartQuantity > 0, // Mark as update if item already in cart
       };
 
       const response = await fetch(`/api/products/reserve/${product._id}`, {

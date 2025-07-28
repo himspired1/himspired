@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
+import clientPromise from "@/lib/mongodb";
 
 type Reservation = {
   sessionId: string;
@@ -26,7 +27,7 @@ const stockCache = new Map<
   string,
   { data: StockResponse; timestamp: number }
 >();
-const CACHE_TTL = 30000; // 30 seconds
+const CACHE_TTL = 1000; // 1 second for immediate updates
 
 function getCachedStock(
   productId: string,
@@ -88,17 +89,49 @@ export async function GET(
       (r: Reservation) => r.reservedUntil && new Date(r.reservedUntil) > now
     );
 
+    // Check for pending orders that contain this product
+    let pendingOrderReservedQuantity = 0;
+    try {
+      const mongoClient = await clientPromise;
+      const db = mongoClient.db("himspired");
+      const ordersCollection = db.collection("orders");
+
+      // Find pending orders that contain this product
+      const pendingOrders = await ordersCollection
+        .find({
+          status: "payment_pending",
+          "items.productId": productId,
+        })
+        .toArray();
+
+      // Calculate total quantity reserved by pending orders
+      pendingOrderReservedQuantity = pendingOrders.reduce((total, order) => {
+        const orderItem = order.items.find(
+          (item: { productId: string; quantity: number }) =>
+            item.productId === productId
+        );
+        return total + (orderItem ? orderItem.quantity : 0);
+      }, 0);
+    } catch (error) {
+      console.error("Failed to check pending orders:", error);
+    }
+
     // Calculate reserved quantity and available stock
-    const reservedQuantity = reservations.reduce(
+    const reservationQuantity = reservations.reduce(
       (sum, r) => sum + (r.quantity || 0),
       0
     );
-    const availableStock = Math.max(0, (product.stock || 0) - reservedQuantity);
+    const totalReservedQuantity =
+      reservationQuantity + pendingOrderReservedQuantity;
+    const availableStock = Math.max(
+      0,
+      (product.stock || 0) - totalReservedQuantity
+    );
     const userReservation = reservations.find((r) => r.sessionId === sessionId);
     const reservedByCurrentUser = userReservation
       ? userReservation.quantity
       : 0;
-    const reservedByOthers = reservedQuantity - reservedByCurrentUser;
+    const reservedByOthers = totalReservedQuantity - reservedByCurrentUser;
 
     // Generate stock message
     let stockMessage = "";
@@ -107,7 +140,12 @@ export async function GET(
     } else if (reservedByCurrentUser > 0) {
       stockMessage = `You reserved ${reservedByCurrentUser} item${reservedByCurrentUser > 1 ? "s" : ""}`;
     } else if (availableStock === 0) {
-      stockMessage = "Item currently reserved by another customer";
+      // When all items are reserved by others, show appropriate message
+      if (reservedByOthers >= (product.stock || 0)) {
+        stockMessage = "Item reserved by other users";
+      } else {
+        stockMessage = "Item currently reserved by another customer";
+      }
     } else if (availableStock === 1) {
       stockMessage = "Only 1 left!";
     } else if (availableStock <= 3) {
@@ -120,13 +158,18 @@ export async function GET(
       stockMessage += `, ${reservedByOthers} currently reserved by others`;
     }
 
+    // Add information about pending orders if any
+    if (pendingOrderReservedQuantity > 0) {
+      stockMessage += ` (${pendingOrderReservedQuantity} in pending orders)`;
+    }
+
     const response: StockResponse = {
       success: true,
       productId: product._id,
       title: product.title,
       stock: product.stock || 0,
       availableStock: availableStock,
-      reservedQuantity: reservedQuantity,
+      reservedQuantity: totalReservedQuantity,
       reservedByCurrentUser,
       reservedByOthers,
       isOutOfStock: availableStock <= 0,

@@ -78,9 +78,15 @@ export async function GET(
 
     // If all items are reserved by others
     if (availableStock === 0) {
+      // When all items are reserved by others, show appropriate message
+      let message = "Item currently reserved by another customer";
+      if (reservedByOthers >= product.stock) {
+        message = "Item reserved by other users";
+      }
+      
       return NextResponse.json({
         available: false,
-        message: "Item currently reserved by another customer",
+        message: message,
         stock: product.stock,
         availableStock: 0,
         reservedQuantity: reservedQuantity,

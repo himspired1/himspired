@@ -136,6 +136,40 @@ const CheckoutPage = () => {
         formData.append("file", data.file, data.file.name);
       }
 
+      // Extend reservations to 24 hours for checkout
+      const sessionId =
+        localStorage.getItem("himspired_session_id") || "unknown";
+      const extendReservationsPromises = cartItems.map(async (item) => {
+        try {
+          const response = await fetch(
+            `/api/products/checkout-reserve/${item.originalProductId}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                sessionId,
+                quantity: item.quantity,
+                isUpdate: true, // This is an update to existing reservation
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            console.error(`Failed to extend reservation for ${item.title}`);
+          }
+        } catch (error) {
+          console.error(
+            `Error extending reservation for ${item.title}:`,
+            error
+          );
+        }
+      });
+
+      // Wait for all reservation extensions to complete
+      await Promise.all(extendReservationsPromises);
+
       // Submit to API
       const response = await fetch("/api/orders", {
         method: "POST",
