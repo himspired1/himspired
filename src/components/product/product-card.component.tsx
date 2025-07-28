@@ -108,10 +108,17 @@ const ProductCard = ({
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
     try {
-      const response = await fetch(`/api/products/stock/${_id}`);
+      const sessionId =
+        localStorage.getItem("himspired_session_id") || "unknown";
+      const response = await fetch(
+        `/api/products/stock/${_id}?sessionId=${sessionId}`
+      );
       if (response.ok) {
         const data = await response.json();
         const newStock = data.stock || 0;
+        const availableStock = data.availableStock || 0;
+        const reservedByCurrentUser = data.reservedByCurrentUser || 0;
+        const reservedByOthers = data.reservedByOthers || 0;
 
         // Check if stock changed significantly (admin intervention)
         if (Math.abs(newStock - lastKnownStock) > 1) {
@@ -124,17 +131,23 @@ const ProductCard = ({
         setCurrentStock(newStock);
         setLastKnownStock(newStock);
 
-        // Update availability based on new stock
-        if (newStock <= 0) {
+        // Use the enhanced stock message from API
+        setStockMessage(data.stockMessage || "");
+
+        // Update availability based on available stock
+        if (availableStock <= 0) {
           setIsAvailable(false);
           setAvailabilityMessage("Out of stock");
-          setStockMessage("Out of stock");
-        } else if (newStock <= 3) {
-          setIsAvailable(true);
-          setStockMessage(`Only ${newStock} left`);
         } else {
           setIsAvailable(true);
-          setStockMessage("In stock");
+          setAvailabilityMessage("Available");
+        }
+
+        // Log reservation info for debugging
+        if (reservedByCurrentUser > 0 || reservedByOthers > 0) {
+          console.log(
+            `${title}: You reserved ${reservedByCurrentUser}, Others reserved ${reservedByOthers}, Available: ${availableStock}`
+          );
         }
       }
     } catch (error) {
@@ -146,16 +159,7 @@ const ProductCard = ({
   useEffect(() => {
     if (stock !== undefined) {
       setCurrentStock(stock);
-
-      if (stock <= 0) {
-        setStockMessage("Out of Stock");
-      } else if (stock === 1) {
-        setStockMessage("Only 1 left!");
-      } else if (stock <= 3) {
-        setStockMessage(`Only ${stock} left!`);
-      } else {
-        setStockMessage(`${stock} in stock`);
-      }
+      // Don't set fallback stock message here - rely on API data for accurate reservation status
     }
   }, [stock, isAvailable, availabilityMessage]);
 
@@ -176,7 +180,7 @@ const ProductCard = ({
     if (isAvailable) {
       const interval = setInterval(() => {
         fetchRealTimeStock();
-      }, 15000); // Poll every 15 seconds for better responsiveness
+      }, 5000); // Poll every 5 seconds for faster responsiveness
 
       // Listen for cart changes from other tabs
       const handleStorageChange = (event: StorageEvent) => {
@@ -242,6 +246,13 @@ const ProductCard = ({
     try {
       const sessionId = SessionManager.getSessionId();
 
+      // Get current cart quantity for this specific product and size
+      const currentSize = selectedSize || size?.[0] || "";
+      const currentCartQuantity = sizeQuantities[currentSize] || 0;
+
+      // Calculate new total quantity (current + 1)
+      const newTotalQuantity = currentCartQuantity + 1;
+
       // Reserve product via API
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
@@ -253,8 +264,9 @@ const ProductCard = ({
         },
         body: JSON.stringify({
           sessionId,
-          quantity: 1,
+          quantity: newTotalQuantity, // Reserve the new total quantity
           size: selectedSize || size?.[0] || "",
+          isUpdate: currentCartQuantity > 0, // Mark as update if item already in cart
         }),
         signal: controller.signal,
       });

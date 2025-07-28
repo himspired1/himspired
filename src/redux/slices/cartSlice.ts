@@ -72,10 +72,40 @@ export const decrementQuantityAndReleaseReservation = createAsyncThunk(
 
     if (item) {
       if (item.quantity > 1) {
-        // Just decrement quantity
+        // Decrement quantity in cart first
         dispatch(decrementQuantity(id));
-        if (onReservationReleased) {
-          onReservationReleased(item.originalProductId);
+
+        // Then update the reservation with the new quantity
+        try {
+          const sessionId =
+            localStorage.getItem("himspired_session_id") || "unknown";
+          const response = await fetch(
+            `/api/products/reserve/${item.originalProductId}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                sessionId,
+                quantity: item.quantity - 1, // New total quantity
+                isUpdate: true, // This is an update, not a new reservation
+              }),
+            }
+          );
+
+          if (response.ok) {
+            toast.success("Quantity updated successfully");
+            if (onReservationReleased) {
+              onReservationReleased(item.originalProductId);
+            }
+          } else {
+            const errorData = await response.json();
+            toast.error(errorData.error || "Failed to update reservation");
+          }
+        } catch (error) {
+          console.error("Error updating reservation:", error);
+          toast.error("Failed to update reservation");
         }
       } else {
         // Remove item and release reservation
@@ -106,39 +136,69 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
     );
 
     if (item) {
-      // Check if we can increase quantity without exceeding stock
-      if (item.quantity >= item.stock) {
-        toast.error(`Cannot add more. Only ${item.stock} available in stock.`);
-        return;
-      }
-
-      // First increment the quantity in cart
-      dispatch(incrementQuantity(id));
-
-      // Then update the reservation with the new quantity
+      // Check current stock availability before incrementing
       try {
         const sessionId =
           localStorage.getItem("himspired_session_id") || "unknown";
-        const response = await fetch(
-          `/api/products/reserve/${item.originalProductId}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              sessionId,
-              quantity: item.quantity + 1, // New total quantity
-              isUpdate: true, // This is an update, not a new reservation
-            }),
-          }
+        const stockResponse = await fetch(
+          `/api/products/stock/${item.originalProductId}?sessionId=${sessionId}`
         );
 
-        if (response.ok && onReservationReleased) {
-          onReservationReleased(item.originalProductId);
+        if (stockResponse.ok) {
+          const stockData = await stockResponse.json();
+          const availableStock = stockData.availableStock || 0;
+          const reservedByCurrentUser = stockData.reservedByCurrentUser || 0;
+
+          // Check if we can increase quantity
+          if (availableStock <= 0) {
+            toast.error("No more items available in stock.");
+            return;
+          }
+
+          // Check if we're already at max reservation
+          if (reservedByCurrentUser >= item.stock) {
+            toast.error(
+              `Cannot add more. Only ${item.stock} available in stock.`
+            );
+            return;
+          }
+
+          // First increment the quantity in cart
+          dispatch(incrementQuantity(id));
+
+          // Then update the reservation with the new quantity
+          const response = await fetch(
+            `/api/products/reserve/${item.originalProductId}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                sessionId,
+                quantity: item.quantity + 1, // New total quantity
+                isUpdate: true, // This is an update, not a new reservation
+              }),
+            }
+          );
+
+          if (response.ok) {
+            toast.success("Quantity updated successfully");
+            if (onReservationReleased) {
+              onReservationReleased(item.originalProductId);
+            }
+          } else {
+            const errorData = await response.json();
+            toast.error(errorData.error || "Failed to update reservation");
+            // Revert the cart increment if reservation failed
+            dispatch(decrementQuantity(id));
+          }
         }
       } catch (error) {
         console.error("Error updating reservation:", error);
+        toast.error("Failed to update reservation");
+        // Revert the cart increment if there was an error
+        dispatch(decrementQuantity(id));
       }
     }
   }
@@ -247,6 +307,11 @@ const cartSlice = createSlice({
         Omit<CartItem, "quantity" | "originalPrice" | "originalProductId">
       >
     ) => {
+      // Prevent adding items without a reservationId
+      if (!action.payload.reservationId) {
+        toast.error("Reservation failed. Please try again.");
+        return;
+      }
       const { size, ...productDetails } = action.payload;
 
       // Check if item with same product ID and size already exists
@@ -288,6 +353,7 @@ const cartSlice = createSlice({
           price: productDetails.price, // Total price for this item
           originalPrice: productDetails.price, // Store original unit price
           stock: availableStock, // Store the stock at the time of adding
+          reservationId: productDetails.reservationId, // Include reservation ID
         });
         toast.success(`${productDetails.title} added to cart`);
       }

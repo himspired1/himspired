@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build issues
+export const dynamic = "force-dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { P, H } from "@/components/common/typography";
@@ -105,9 +108,6 @@ const OrderDetails = () => {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [paymentIssueSent, setPaymentIssueSent] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [cancelAction, setCancelAction] = useState<"simple" | "with-release">(
-    "simple"
-  );
   const [cancelingOrder, setCancelingOrder] = useState(false);
 
   useEffect(() => {
@@ -236,13 +236,7 @@ const OrderDetails = () => {
     }
   };
 
-  const handleCancelOrder = () => {
-    setCancelAction("simple");
-    setCancelModalOpen(true);
-  };
-
   const handleCancelAndReleaseStock = () => {
-    setCancelAction("with-release");
     setCancelModalOpen(true);
   };
 
@@ -251,54 +245,40 @@ const OrderDetails = () => {
 
     setCancelingOrder(true);
     try {
-      let response;
-      if (cancelAction === "simple") {
-        response = await fetch(`/api/orders/${order.orderId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "canceled" }),
-        });
-      } else {
-        // Cancel and release stock
-        response = await fetch(`/api/orders/${order.orderId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "canceled" }),
-        });
+      // Cancel order and release stock
+      const response = await fetch(`/api/orders/${order.orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "canceled" }),
+      });
 
-        if (response.ok) {
-          const releasePromises = order.items.map(async (item) => {
-            const originalProductId = item.productId;
+      if (response.ok) {
+        // Release all items back to stock
+        const releasePromises = order.items.map(async (item) => {
+          const originalProductId = item.productId;
 
-            const releaseResponse = await fetch(
-              `/api/products/release/${originalProductId}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  sessionId: "admin",
-                  quantity: item.quantity,
-                }),
-              }
-            );
-
-            if (!releaseResponse.ok) {
-              throw new Error(`Failed to release product ${originalProductId}`);
+          const releaseResponse = await fetch(
+            `/api/products/release/${originalProductId}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sessionId: "admin",
+                quantity: item.quantity,
+              }),
             }
+          );
 
-            return releaseResponse.json();
-          });
+          if (!releaseResponse.ok) {
+            throw new Error(`Failed to release product ${originalProductId}`);
+          }
 
-          await Promise.all(releasePromises);
-        }
-      }
+          return releaseResponse.json();
+        });
 
-      if (response?.ok) {
-        toast.success(
-          cancelAction === "simple"
-            ? "Order canceled successfully"
-            : "Order canceled and products released back to stock"
-        );
+        await Promise.all(releasePromises);
+
+        toast.success("Order canceled and products released back to stock");
         setCancelModalOpen(false);
         fetchOrder();
       } else {
@@ -635,12 +615,6 @@ const OrderDetails = () => {
             {order.status === "payment_not_confirmed" && (
               <>
                 <button
-                  onClick={handleCancelOrder}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Cancel Order
-                </button>
-                <button
                   onClick={handleCancelAndReleaseStock}
                   className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                 >
@@ -657,12 +631,6 @@ const OrderDetails = () => {
             {/* Add cancel button for payment_pending orders */}
             {order.status === "payment_pending" && (
               <>
-                <button
-                  onClick={handleCancelOrder}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Cancel Order
-                </button>
                 <button
                   onClick={handleCancelAndReleaseStock}
                   className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -773,12 +741,10 @@ const OrderDetails = () => {
             <P className="text-gray-700 mb-4">
               Are you sure you want to cancel order {order.orderId}?
             </P>
-            {cancelAction === "with-release" && (
-              <P className="text-sm text-orange-600 mb-4">
-                This will also release all reserved items back to stock for
-                other customers to purchase.
-              </P>
-            )}
+            <P className="text-sm text-orange-600 mb-4">
+              This will also release all reserved items back to stock for other
+              customers to purchase.
+            </P>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setCancelModalOpen(false)}

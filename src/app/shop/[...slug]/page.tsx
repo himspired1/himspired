@@ -6,8 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useClothingItem } from "@/sanity/queries";
 import { SanityImageComponent } from "@/components/sanity/image";
 import ProductDetailsSkeleton from "@/components/common/skeleton/product-details-skeleton.component";
-import { addItem } from "@/redux/slices/cartSlice";
-import { useAppDispatch } from "@/redux/hooks";
+import { addItem, selectCartItemQuantity } from "@/redux/slices/cartSlice";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { toast } from "sonner";
 import { SessionManager } from "@/lib/session";
 
@@ -22,6 +22,21 @@ const ProductDetails = () => {
   const router = useRouter();
   const params = useParams();
   const dispatch = useAppDispatch();
+
+  // Get cart quantities for this product
+  const cartQuantities = useAppSelector((state) => {
+    const quantities: Record<string, number> = {};
+    if (item?.size) {
+      item.size.forEach((sizeOption) => {
+        quantities[sizeOption] = selectCartItemQuantity(
+          state,
+          item._id,
+          sizeOption
+        );
+      });
+    }
+    return quantities;
+  });
 
   // Handle async params in Next.js 15+
   useEffect(() => {
@@ -100,16 +115,7 @@ const ProductDetails = () => {
   useEffect(() => {
     if (item?.stock !== undefined) {
       setCurrentStock(item.stock);
-
-      if (item.stock <= 0) {
-        setStockMessage("Out of Stock");
-      } else if (item.stock === 1) {
-        setStockMessage("Only 1 left!");
-      } else if (item.stock <= 3) {
-        setStockMessage(`Only ${item.stock} left!`);
-      } else {
-        setStockMessage(`${item.stock} in stock`);
-      }
+      // Don't set fallback stock message here - rely on API data for accurate reservation status
     }
   }, [item?.stock]);
 
@@ -296,6 +302,10 @@ const ProductDetails = () => {
                         try {
                           const sessionId = SessionManager.getSessionId();
 
+                          // Get current cart quantity for this specific size
+                          const currentCartQuantity = cartQuantities[size] || 0;
+                          const newTotalQuantity = currentCartQuantity + 1;
+
                           // Reserve product via API
                           const controller = new AbortController();
                           const timeoutId = setTimeout(
@@ -312,8 +322,9 @@ const ProductDetails = () => {
                               },
                               body: JSON.stringify({
                                 sessionId,
-                                quantity: 1,
+                                quantity: newTotalQuantity, // Reserve the new total quantity
                                 size: size,
+                                isUpdate: currentCartQuantity > 0, // Mark as update if item already in cart
                               }),
                               signal: controller.signal,
                             }

@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build issues
+export const dynamic = "force-dynamic";
 import { useRouter } from "next/navigation";
 import { P, H } from "@/components/common/typography";
 import {
@@ -12,6 +15,7 @@ import {
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/models/order";
 import Image from "next/image";
@@ -67,6 +71,7 @@ const AdminOrders = () => {
     "simple"
   );
   const [cancelingOrder, setCancelingOrder] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const filterOrdersByStatus = useCallback(
     (orderList: Order[], status: string) => {
@@ -163,6 +168,19 @@ const AdminOrders = () => {
 
   const handlePageChange = (newPage: number) => {
     setPagination((prev) => ({ ...prev, page: newPage }));
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchOrders(pagination.page, filter !== "all" ? filter : undefined);
+      toast.success("Orders refreshed successfully!");
+    } catch (error) {
+      console.error("Failed to refresh orders:", error);
+      toast.error("Failed to refresh orders");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const sendEmail = async (orderId: string) => {
@@ -284,8 +302,25 @@ const AdminOrders = () => {
       <div className=" p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
-            <H className="text-3xl mb-2 text-[#68191E]">Orders</H>
-            <P className="text-gray-600">Manage customer orders and receipts</P>
+            <div className="flex items-center justify-between">
+              <div>
+                <H className="text-3xl mb-2 text-[#68191E]">Orders</H>
+                <P className="text-gray-600">
+                  Manage customer orders and receipts
+                </P>
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-[#68191E] text-white rounded-lg hover:bg-[#5a1519] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Refresh Orders"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
+                />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Stats Cards */}

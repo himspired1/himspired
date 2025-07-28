@@ -22,6 +22,11 @@ export class OrderService {
 
       try {
         const result = await collection.insertOne(order);
+
+        // Note: Reservations are kept active after order creation
+        // They will only be released when admin confirms payment or cancels order
+        // This gives admin 24 hours to review the payment
+
         return { ...order, _id: result.insertedId.toString() };
       } catch (error) {
         console.error("Failed to create order:", error);

@@ -15,12 +15,7 @@ export async function POST(
 ) {
   try {
     const { productId } = await context.params;
-    const {
-      sessionId,
-      quantity = 1,
-      isUpdate = false,
-      isCheckout = false,
-    } = await req.json();
+    const { sessionId, quantity = 1, isUpdate = false } = await req.json();
 
     if (!productId || !sessionId) {
       return NextResponse.json(
@@ -31,7 +26,7 @@ export async function POST(
 
     // Use rate limiting and retry logic for Sanity operations
     const result = await sanityRateLimiter.executeWithRateLimit(
-      "reserve-product",
+      "checkout-reserve-product",
       async () => {
         // Fetch product and reservations
         const product = await client.fetch(
@@ -120,15 +115,9 @@ export async function POST(
           throw new Error(errorMessage);
         }
 
-        // Set reservation timeline based on user action
+        // Set reservation to 24 hours for checkout
         const reservedUntil = new Date();
-        if (isCheckout) {
-          // If user has checked out, extend reservation to 24 hours
-          reservedUntil.setHours(reservedUntil.getHours() + 24);
-        } else {
-          // If user just added to cart, set reservation to 30 minutes
-          reservedUntil.setMinutes(reservedUntil.getMinutes() + 30);
-        }
+        reservedUntil.setHours(reservedUntil.getHours() + 24);
 
         // Update or add the user's reservation
         let newReservations: Reservation[];
@@ -156,7 +145,7 @@ export async function POST(
 
         return {
           success: true,
-          message: "Product reserved successfully",
+          message: "Product reserved for checkout successfully",
           productId,
           sessionId,
           quantity,
@@ -172,7 +161,7 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Reservation error:", error);
+    console.error("Checkout reservation error:", error);
 
     // Handle specific error types
     if (error instanceof Error) {
@@ -200,7 +189,7 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { error: "Failed to reserve product" },
+      { error: "Failed to reserve product for checkout" },
       { status: 500 }
     );
   }

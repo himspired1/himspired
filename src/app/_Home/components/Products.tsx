@@ -11,7 +11,6 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/constants/colors";
-import ProductSection from "./products/components/ProductSection";
 import {
   thriftsProducts,
   luxuryProducts,
@@ -21,7 +20,7 @@ import {
 import { useClothesByCategory } from "@/sanity/queries";
 import React from "react";
 import ProductCardSkeleton from "@/components/common/skeleton/product-card-skeleton.component";
-
+import ProductCard from "@/components/product/product-card.component";
 
 // Define our sections with their components and data
 const SECTIONS = [
@@ -50,7 +49,6 @@ const SECTIONS = [
 const Products = () => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
-  const [itemsToShow, setItemsToShow] = useState(4);
   const [isHovering, setIsHovering] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoplayRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,24 +57,9 @@ const Products = () => {
   // const { clothes, loading, error, refetch } = useClothes();
   const { clothesByCategory, loading } = useClothesByCategory(8);
 
-
-
-
   // Calculate items to show based on screen width
   useEffect(() => {
-    const updateItemsToShow = () => {
-      const width = window.innerWidth;
-      if (width >= 1280) setItemsToShow(4); // XL and 2XL
-      else if (width >= 768) setItemsToShow(3); // MD
-      else setItemsToShow(2); // SM
-    };
-
-    // Initial update
-    updateItemsToShow();
-
-    // Update on resize
-    window.addEventListener("resize", updateItemsToShow);
-    return () => window.removeEventListener("resize", updateItemsToShow);
+    // Removed itemsToShow logic; not needed with ProductCard
   }, []);
 
   // Update current index when carousel changes
@@ -157,10 +140,13 @@ const Products = () => {
   const isFirstSlide = current === 0;
   const isLastSlide = current === SECTIONS.length - 1;
   if (loading && clothesByCategory.length === 0) {
-    return (<div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10" >
-      {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} delay={i * 0.1} />)}
-    </div>
-    )
+    return (
+      <div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <ProductCardSkeleton key={i} delay={i * 0.1} />
+        ))}
+      </div>
+    );
   }
   return (
     <div
@@ -187,10 +173,11 @@ const Products = () => {
             }}
             className="text-2xl md:text-3xl lg:text-4xl text-left font-bold"
           >
-            <span className="text-black font-moon">
-              {current + 1} /{" "}
-            </span>
-            <span className=" capitalize" style={{ color: colors.primary_color }}>
+            <span className="text-black font-moon">{current + 1} / </span>
+            <span
+              className=" capitalize"
+              style={{ color: colors.primary_color }}
+            >
               {clothesByCategory[current]?.category}
             </span>
           </motion.div>
@@ -217,11 +204,15 @@ const Products = () => {
                   transition={{ duration: 0.5 }}
                 >
                   <div className="w-full max-w-7xl">
-                    <ProductSection
-                      itemsToShow={itemsToShow}
-                      products={section?.products}
-                      key={`${section.id}-${itemsToShow}`}
-                    />
+                    <div className="w-full flex flex-wrap gap-4 md:gap-6 lg:gap-8 justify-center">
+                      {section?.products?.map((item, index) => (
+                        <ProductCard
+                          {...item}
+                          delay={index * 0.1}
+                          key={item?._id}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </motion.div>
               </CarouselItem>
