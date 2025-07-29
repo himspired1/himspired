@@ -16,6 +16,9 @@ import { useAppDispatch } from "@/redux/hooks";
 import { clearCartForOrder } from "@/redux/slices/cartSlice"; // Import the new action
 import Link from "next/link";
 import { toast } from "sonner";
+import { OrderStatusChecker } from "@/lib/order-status-checker";
+
+import { PaymentCleanup } from "@/lib/payment-cleanup";
 
 // Order status type from your existing models
 type OrderStatus =
@@ -190,6 +193,18 @@ const OrderSuccess = () => {
     // Use the new clearCartForOrder action that prevents duplicate toasts
     dispatch(clearCartForOrder(orderId));
     fetchOrderStatus();
+
+    // Clear session once when user lands on order success page
+    // This removes any lingering reservation data from checkout
+    PaymentCleanup.clearSessionOnly();
+
+    // Start monitoring order for payment confirmation
+    OrderStatusChecker.startMonitoring(orderId);
+
+    // Cleanup monitoring when component unmounts
+    return () => {
+      OrderStatusChecker.stopMonitoring(orderId);
+    };
   }, [orderId, router, dispatch, fetchOrderStatus]);
 
   // Start auto-refresh when orderData changes

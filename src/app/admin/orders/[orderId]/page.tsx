@@ -18,23 +18,13 @@ import {
   ExternalLink,
   Download,
 } from "lucide-react";
-import { Order } from "@/models/order";
+import { Order, OrderItem as SharedOrderItem } from "@/models/order";
 import Image from "next/image";
 import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 import { toast } from "sonner";
 
 // Product Image Component for Order Details
-interface OrderItem {
-  title: string;
-  mainImage?: {
-    asset?: {
-      _ref?: string;
-      _id?: string;
-      url?: string;
-    };
-    alt?: string;
-  };
-}
+type OrderItem = SharedOrderItem;
 
 const ProductImage = ({
   item,
@@ -63,11 +53,9 @@ const ProductImage = ({
   };
 
   // Check multiple possible image paths
-  const imageRef = item.mainImage?.asset?._ref || item.mainImage?.asset?._id;
-  const imageUrl = item.mainImage?.asset?.url;
+  const imageRef = item.mainImage?.asset?._ref;
   const sanityUrl = imageRef ? getSanityImageUrl(imageRef) : null;
-
-  const finalImageUrl = imageUrl || sanityUrl;
+  const finalImageUrl = sanityUrl;
 
   if (!finalImageUrl || imageError) {
     return (
@@ -241,7 +229,7 @@ const OrderDetails = () => {
   };
 
   // Reusable function to release stock reservations for order items
-  const releaseStockReservations = async (items: any[]) => {
+  const releaseStockReservations = async (items: OrderItem[]) => {
     const releasePromises = items.map(async (item) => {
       const originalProductId = item.productId;
 

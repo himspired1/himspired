@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -50,16 +50,24 @@ const ProductCard = ({
     selectCartItemQuantity(state, _id, size?.[0] || "")
   );
 
-  // Get cart quantities for all sizes
-  const sizeQuantities = useAppSelector((state) => {
+  // Get all cart items for this product to calculate size quantities
+  const cartItems = useAppSelector((state) =>
+    state.persistedReducer.cart.items.filter(
+      (item) => item.originalProductId === _id
+    )
+  );
+
+  // Memoized size quantities to prevent unnecessary rerenders
+  const sizeQuantities = useMemo(() => {
     const quantities: Record<string, number> = {};
     if (size) {
       size.forEach((sizeOption) => {
-        quantities[sizeOption] = selectCartItemQuantity(state, _id, sizeOption);
+        const item = cartItems.find((item) => item.size === sizeOption);
+        quantities[sizeOption] = item ? item.quantity : 0;
       });
     }
     return quantities;
-  });
+  }, [cartItems, size]);
 
   // Check product availability from server
   const checkAvailability = useCallback(async () => {

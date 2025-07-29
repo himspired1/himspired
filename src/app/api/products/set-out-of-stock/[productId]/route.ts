@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { client, writeClient } from "@/sanity/client";
+import { writeClient } from "@/sanity/client";
 import { AdminAuth } from "@/lib/admin-auth";
 import { sanityRateLimiter } from "@/lib/sanity-retry";
 
 /**
  * Set Product Out of Stock Endpoint
- * 
+ *
  * This endpoint allows admin users to manually set a product's stock to 0.
- * 
+ *
  * Security Features:
  * - Admin authentication required
  * - Rate limiting to prevent abuse
  * - Atomic transactions to prevent race conditions
  * - Comprehensive error handling
- * 
+ *
  * Usage: POST /api/products/set-out-of-stock/[productId]
  */
 
@@ -51,8 +51,11 @@ export async function POST(
         const transaction = writeClient.transaction();
 
         try {
-          // Fetch product within the transaction
-          const product = await transaction.getDocument(productId);
+          // Fetch product before the transaction
+          const product = await writeClient.fetch(
+            `*[_type == "clothingItem" && _id == $productId][0]`,
+            { productId }
+          );
 
           if (!product) {
             throw new Error("Product not found");

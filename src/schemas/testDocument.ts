@@ -1,34 +1,48 @@
-export default {
+const testDocumentSchema = {
   name: "testDocument",
-  title: "Test Document",
   type: "document",
+  title: "Test Document",
   fields: [
     {
       name: "title",
-      title: "Title",
       type: "string",
-      validation: (Rule: any) => Rule.required(),
+      title: "Title",
     },
     {
       name: "createdAt",
-      title: "Created At",
       type: "datetime",
-      validation: (Rule: any) => Rule.required(),
+      title: "Created At",
+    },
+    {
+      name: "data",
+      type: "object",
+      title: "Data",
+      fields: [
+        {
+          name: "value",
+          type: "string",
+          title: "Value",
+        },
+        {
+          name: "meta",
+          type: "object",
+          title: "Meta",
+          fields: [
+            {
+              name: "info",
+              type: "string",
+              title: "Info",
+            },
+            {
+              name: "extra",
+              type: "string",
+              title: "Extra",
+            },
+          ],
+        },
+      ],
     },
   ],
-  preview: {
-    select: {
-      title: "title",
-      createdAt: "createdAt",
-    },
-    prepare(selection: any) {
-      const { title, createdAt } = selection;
-      return {
-        title: title || "Untitled Test Document",
-        subtitle: createdAt
-          ? new Date(createdAt).toLocaleDateString()
-          : "No date",
-      };
-    },
-  },
 };
+
+export default testDocumentSchema;

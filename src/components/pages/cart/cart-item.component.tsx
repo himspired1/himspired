@@ -15,7 +15,6 @@ import {
 } from "@/redux/slices/cartSlice";
 import { ChevronLeft } from "lucide-react";
 import { useAppSelector } from "@/redux/hooks";
-import { toast } from "sonner";
 import { useStockUpdates } from "@/hooks/useStockUpdates";
 
 interface CartItemProps {
