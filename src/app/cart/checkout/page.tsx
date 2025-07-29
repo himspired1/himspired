@@ -157,7 +157,7 @@ const CheckoutPage = () => {
 
       // Add cart data - transform cart items to order items
       const orderItems = cartItems.map((item) => ({
-        productId: item._id,
+        productId: item.originalProductId, // Use originalProductId instead of _id
         title: item.title,
         price: item.price / item.quantity, // Get unit price
         quantity: item.quantity,

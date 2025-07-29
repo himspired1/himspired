@@ -14,6 +14,7 @@ import React from "react";
 import type { Variants } from "framer-motion";
 import { SessionManager } from "@/lib/session";
 import { toast } from "sonner";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 interface ProductSectionProps {
   itemsToShow?: number;
@@ -195,7 +196,10 @@ const ProductItem = ({
 
     // Listen for cart changes from other tabs
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === "cartSync" || event.key === "stockUpdate") {
+      if (
+        event.key === CACHE_KEYS.CART_SYNC ||
+        event.key === CACHE_KEYS.STOCK_UPDATE
+      ) {
         // Refetch stock when cart changes or stock updates
         fetchStock();
       }
@@ -328,7 +332,7 @@ const ProductItem = ({
       }
 
       // Broadcast stock update to other tabs
-      localStorage.setItem("stockUpdate", Date.now().toString());
+      localStorage.setItem(CACHE_KEYS.STOCK_UPDATE, Date.now().toString());
     } catch (error) {
       console.error("Reservation error:", error);
 

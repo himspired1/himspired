@@ -1,66 +1,82 @@
-import { PaymentCleanup } from "./payment-cleanup";
-
 /**
  * Order Status Checker
  *
  * Monitors order status and triggers cleanup when payment is confirmed
  */
+interface OrderItem {
+  productId: string;
+  title?: string;
+  quantity?: number;
+}
+
+interface Order {
+  _id: string;
+  status: string;
+  items?: OrderItem[];
+}
+
 export class OrderStatusChecker {
   private static checkInterval: NodeJS.Timeout | null = null;
   private static orderIds: Set<string> = new Set();
 
   /**
-   * Start monitoring an order for payment confirmation
-   * @param orderId - The order ID to monitor
+   * Start monitoring an order for status changes
+   * This will periodically check the order status and trigger cleanup if needed
    */
   static startMonitoring(orderId: string): void {
-    this.orderIds.add(orderId);
+    if (this.orderIds.has(orderId)) {
+      console.log(`Order ${orderId} is already being monitored`);
+      return;
+    }
 
-    // Start polling if not already started
+    this.orderIds.add(orderId);
+    console.log(`Started monitoring order ${orderId}`);
+
+    // Start the monitoring interval if it's not already running
     if (!this.checkInterval) {
       this.checkInterval = setInterval(() => {
         this.checkAllOrders();
       }, 30000); // Check every 30 seconds
+      console.log("Order status monitoring started");
     }
-
-    console.log(`🔍 Started monitoring order: ${orderId}`);
   }
 
   /**
    * Stop monitoring an order
-   * @param orderId - The order ID to stop monitoring
    */
   static stopMonitoring(orderId: string): void {
-    this.orderIds.delete(orderId);
+    if (this.orderIds.delete(orderId)) {
+      console.log(`Stopped monitoring order ${orderId}`);
+    }
 
-    // Stop polling if no orders are being monitored
+    // Stop the interval if no orders are being monitored
     if (this.orderIds.size === 0 && this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
-      console.log("🛑 Stopped order monitoring");
+      console.log("Order status monitoring stopped");
     }
   }
 
   /**
-   * Check all monitored orders for payment confirmation
+   * Check all monitored orders for status changes
    */
   private static async checkAllOrders(): Promise<void> {
     for (const orderId of this.orderIds) {
       try {
         const response = await fetch(`/api/orders/${orderId}`);
+        if (!response.ok) {
+          console.log(`Order ${orderId} not found, removing from monitoring`);
+          this.orderIds.delete(orderId);
+          continue;
+        }
 
-        if (response.ok) {
-          const order = await response.json();
+        const order: Order = await response.json();
 
-          if (order.status === "payment_confirmed") {
-            console.log(`✅ Payment confirmed for order: ${orderId}`);
-
-            // Trigger cleanup only when payment is confirmed
-            await PaymentCleanup.handlePaymentConfirmation();
-
-            // Stop monitoring this order
-            this.stopMonitoring(orderId);
-          }
+        // Check if order is in a final state (completed, cancelled, etc.)
+        if (order.status === "completed" || order.status === "cancelled") {
+          console.log(`Order ${orderId} is in final state, triggering cleanup`);
+          await this.triggerCleanup();
+          this.orderIds.delete(orderId);
         }
       } catch (error) {
         console.error(`Error checking order ${orderId}:`, error);
@@ -69,11 +85,78 @@ export class OrderStatusChecker {
   }
 
   /**
-   * Manually trigger cleanup (for testing or immediate use)
+   * Trigger cleanup for all monitored orders
    */
   static async triggerCleanup(): Promise<void> {
-    console.log("🔧 Manually triggering cleanup...");
-    await PaymentCleanup.handlePaymentConfirmation();
+    try {
+      console.log("🔧 Triggering cleanup for all monitored orders...");
+
+      const cleanupPromises = Array.from(this.orderIds).map(async (orderId) => {
+        try {
+          const response = await fetch(`/api/orders/${orderId}`);
+          if (!response.ok) {
+            return null;
+          }
+
+          const order: Order = await response.json();
+          if (!order || !order.items) {
+            return null;
+          }
+
+          // Extract product IDs from order items
+          const productIds = order.items.map(
+            (item: OrderItem) => item.productId
+          );
+
+          // Call the new server-side API route
+          const cleanupResponse = await fetch("/api/admin/force-cleanup", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              productIds: productIds,
+              clearAll: true,
+            }),
+          });
+
+          if (cleanupResponse.ok) {
+            const result = await cleanupResponse.json();
+            console.log(`✅ Cleanup completed for order ${orderId}:`, result);
+            return {
+              success: true,
+              orderId: orderId,
+              result: result,
+            };
+          } else {
+            const errorText = await cleanupResponse.text();
+            console.error(`❌ Cleanup failed for order ${orderId}:`, errorText);
+            return {
+              success: false,
+              orderId: orderId,
+              error: errorText,
+            };
+          }
+        } catch (error) {
+          console.error(`❌ Error during cleanup for order ${orderId}:`, error);
+          return {
+            success: false,
+            orderId: orderId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      });
+
+      const results = await Promise.all(cleanupPromises);
+      const successful = results.filter((r) => r && r.success).length;
+      const failed = results.filter((r) => r && !r.success).length;
+
+      console.log(
+        `🔧 Cleanup summary: ${successful} successful, ${failed} failed`
+      );
+    } catch (error) {
+      console.error("❌ Error during cleanup trigger:", error);
+    }
   }
 
   /**
@@ -82,23 +165,17 @@ export class OrderStatusChecker {
    */
   static async forceCleanupProduct(productId: string): Promise<void> {
     try {
-      // Extract base product ID from order product ID (remove size and timestamp metadata)
-      const baseProductId = productId.split(":::")[0];
-
-
-      const response = await fetch(
-        `/api/products/force-cleanup/${baseProductId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.STOCK_MODIFICATION_TOKEN || "admin-stock-token"}`,
-          },
-          body: JSON.stringify({
-            clearAll: true, // Clear all reservations
-          }),
-        }
-      );
+      // Call the new server-side API route
+      const response = await fetch("/api/admin/force-cleanup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productIds: [productId],
+          clearAll: true,
+        }),
+      });
 
       if (response.ok) {
         const result = await response.json();
@@ -123,71 +200,34 @@ export class OrderStatusChecker {
         `🔧 Force cleaning up reservations for ${orderItems.length} products...`
       );
 
-      const cleanupPromises = orderItems.map(async (item) => {
-        try {
-          // Extract base product ID from order product ID (remove size and timestamp metadata)
-          const baseProductId = item.productId.split(":::")[0];
-          
-          const response = await fetch(`/api/products/force-cleanup/${baseProductId}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${process.env.STOCK_MODIFICATION_TOKEN || "admin-stock-token"}`,
-            },
-            body: JSON.stringify({
-              clearAll: true, // Clear all reservations
-            }),
-          });
+      // Extract product IDs from order items
+      const productIds = orderItems.map((item) => item.productId);
 
-          if (response.ok) {
-            const result = await response.json();
-            console.log(
-              `✅ Force cleanup completed for ${item.title}:`,
-              result
-            );
-            return {
-              success: true,
-              productId: item.productId,
-              title: item.title,
-            };
-          } else {
-            console.error(
-              `❌ Force cleanup failed for ${item.title}:`,
-              await response.text()
-            );
-            return {
-              success: false,
-              productId: item.productId,
-              title: item.title,
-            };
-          }
-        } catch (error) {
-          console.error(
-            `❌ Error during force cleanup for ${item.title}:`,
-            error
-          );
-          return {
-            success: false,
-            productId: item.productId,
-            title: item.title,
-          };
-        }
+      // Call the new server-side API route
+      const response = await fetch("/api/admin/force-cleanup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productIds: productIds,
+          clearAll: true,
+        }),
       });
 
-      const results = await Promise.all(cleanupPromises);
-      const successful = results.filter((r) => r.success).length;
-      const failed = results.filter((r) => !r.success).length;
-
-      console.log(
-        `✅ Force cleanup summary: ${successful} successful, ${failed} failed`
-      );
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Force cleanup completed:`, result);
+      } else {
+        console.error(`❌ Force cleanup failed:`, await response.text());
+      }
     } catch (error) {
-      console.error(`❌ Error during force cleanup order:`, error);
+      console.error(`❌ Error during force cleanup:`, error);
     }
   }
 
   /**
-   * Get current monitoring status
+   * Get the current monitoring status
    */
   static getMonitoringStatus(): {
     isMonitoring: boolean;

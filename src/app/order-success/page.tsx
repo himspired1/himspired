@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { OrderStatusChecker } from "@/lib/order-status-checker";
 
 import { PaymentCleanup } from "@/lib/payment-cleanup";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 // Order status type from your existing models
 type OrderStatus =
@@ -138,17 +139,77 @@ const OrderSuccess = () => {
 
         if (response.ok && data.order) {
           const previousStatus = orderData?.status;
+          const newStatus = data.order.status;
           setOrderData(data.order);
 
           // Show toast notification if status changed during refresh
           if (
             showRefreshIndicator &&
             previousStatus &&
-            data.order.status !== previousStatus
+            newStatus !== previousStatus
           ) {
-            const newStatusConfig =
-              statusConfig[data.order.status as OrderStatus];
+            const newStatusConfig = statusConfig[newStatus as OrderStatus];
             toast.success(`Order status updated: ${newStatusConfig.label}`);
+          }
+
+          // Trigger stock refresh when payment is confirmed
+          if (
+            newStatus === "payment_confirmed" &&
+            previousStatus !== "payment_confirmed"
+          ) {
+            console.log("🎉 Payment confirmed! Triggering stock refresh...");
+
+            // Trigger stock update for all products in the order
+            if (data.order.items && data.order.items.length > 0) {
+              const stockUpdatePromises = data.order.items.map(
+                async (item: {
+                  productId: string;
+                  title: string;
+                  price: number;
+                  quantity: number;
+                  size?: string;
+                  category: string;
+                }) => {
+                  try {
+                    // Trigger stock update for each product
+                    const stockResponse = await fetch(
+                      `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/trigger-stock-update/${item.productId}`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${process.env.STOCK_MODIFICATION_TOKEN || "admin-stock-token"}`,
+                        },
+                      }
+                    );
+
+                    if (stockResponse.ok) {
+                      console.log(
+                        `✅ Stock update triggered for product ${item.productId}`
+                      );
+                    } else {
+                      console.warn(
+                        `⚠️ Failed to trigger stock update for product ${item.productId}`
+                      );
+                    }
+                  } catch (error) {
+                    console.error(
+                      `Error triggering stock update for product ${item.productId}:`,
+                      error
+                    );
+                  }
+                }
+              );
+
+              await Promise.all(stockUpdatePromises);
+
+              // Also trigger localStorage update to notify other tabs
+              const timestamp = Date.now().toString();
+              localStorage.setItem(CACHE_KEYS.STOCK_UPDATE, timestamp);
+              console.log(
+                `✅ Stock update localStorage triggered: ${timestamp}`
+              );
+            }
           }
         } else {
           setError(data.error || "Order not found");

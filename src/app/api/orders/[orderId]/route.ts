@@ -4,6 +4,7 @@ import { orderService } from "@/lib/order";
 import { client, writeClient } from "@/sanity/client";
 import { isValidOrderStatus } from "@/models/order";
 import { CheckoutAuth } from "@/lib/checkout-auth";
+import { decrementStockForOrder } from "@/lib/stock-update-utils";
 
 /**
  * Order Status Update Endpoint
@@ -60,7 +61,7 @@ export async function PUT(
             // Use read-only client for fetching product data
             const product = await client.fetch(
               `*[_type == "clothingItem" && _id == $productId][0]{
-                _id, title, stock, reservations
+                _id, _rev, title, stock, reservations
               }`,
               { productId: item.productId }
             );
@@ -72,16 +73,16 @@ export async function PUT(
             ) {
               // For payment confirmation, clear ONLY the reservation for the paying user (order.sessionId)
               const sessionIdToRemove = order.sessionId;
-              console.log(
-                "DEBUG: All reservation sessionIds before:",
-                product.reservations.map(
-                  (r: { sessionId?: string }) => r.sessionId
-                )
-              );
-              console.log(
-                "DEBUG: Order sessionId to remove:",
-                sessionIdToRemove
-              );
+              // console.log(
+              //   "DEBUG: All reservation sessionIds before:",
+              //   product.reservations.map(
+              //     (r: { sessionId?: string }) => r.sessionId
+              //   )
+              // );
+              // console.log(
+              //   "DEBUG: Order sessionId to remove:",
+              //   sessionIdToRemove
+              // );
               if (!sessionIdToRemove) {
                 console.warn(
                   "No sessionId found on order, skipping targeted reservation removal."
@@ -93,26 +94,26 @@ export async function PUT(
                       r.sessionId !== sessionIdToRemove
                   )
                 : product.reservations;
-              console.log(
-                "DEBUG: All reservation sessionIds after:",
-                updatedReservations.map(
-                  (r: { sessionId?: string }) => r.sessionId
-                )
-              );
-              console.log(
-                `Clearing reservation for sessionId ${sessionIdToRemove} for product ${item.productId} after payment confirmation`
-              );
+              // console.log(
+              //   "DEBUG: All reservation sessionIds after:",
+              //   updatedReservations.map(
+              //     (r: { sessionId?: string }) => r.sessionId
+              //   )
+              // );
+              // console.log(
+              //   `Clearing reservation for sessionId ${sessionIdToRemove} for product ${item.productId} after payment confirmation`
+              // );
 
               await writeClient
                 .patch(item.productId)
+                .ifRevisionId(product._rev)
                 .set({
                   reservations: updatedReservations,
-                  _updatedAt: new Date().toISOString(),
                 })
                 .commit();
 
               console.log(
-                `✅ Cleared reservation for sessionId ${sessionIdToRemove} for product ${item.productId}`
+                `✅ Cleared reservation for product ${item.productId}`
               );
             }
 
@@ -121,116 +122,18 @@ export async function PUT(
               console.log(
                 `🔄 Starting stock decrement for product ${item.productId}`
               );
-              // Extract base product ID from order product ID (remove size and timestamp metadata)
-              const baseProductId = item.productId.split(":::")[0];
-              try {
-                console.log(`📦 Base product ID: ${baseProductId}`);
 
-                // Get current stock first
-                console.log(
-                  `🔍 Getting current stock for product ${baseProductId}`
-                );
-                const stockCheckResponse = await fetch(
-                  `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/stock/${baseProductId}?sessionId=order-${orderId}`,
-                  {
-                    method: "GET",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                  }
-                );
+              const stockResult = await decrementStockForOrder({
+                productId: item.productId,
+                quantity: item.quantity,
+                orderId: orderId,
+              });
 
-                console.log(
-                  `📊 Stock check response status: ${stockCheckResponse.status}`
-                );
-                if (stockCheckResponse.ok) {
-                  const stockData = await stockCheckResponse.json();
-                  const currentStock = stockData.stock || 0;
-                  const newStock = Math.max(0, currentStock - item.quantity);
-                  console.log(
-                    `📈 Stock calculation: ${currentStock} - ${item.quantity} = ${newStock}`
-                  );
-
-                  // Update stock using the simple update API
-                  const stockToken =
-                    process.env.STOCK_MODIFICATION_TOKEN || "admin-stock-token";
-                  console.log("🪪 Using stock token:", stockToken);
-                  console.log(
-                    `💾 Updating stock to ${newStock} for product ${baseProductId}`
-                  );
-                  const stockResponse = await fetch(
-                    `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/update-stock/${baseProductId}`,
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${stockToken}`,
-                      },
-                      body: JSON.stringify({
-                        newStock: newStock,
-                      }),
-                    }
-                  );
-
-                  console.log(
-                    `📊 Stock update response status: ${stockResponse.status}`
-                  );
-                  let stockResult;
-                  try {
-                    stockResult = await stockResponse.json();
-                  } catch {
-                    stockResult = {
-                      error: "Failed to parse stock update response",
-                      raw: await stockResponse.text(),
-                    };
-                  }
-                  console.log("🪵 Stock update response:", stockResult);
-                  if (stockResponse.ok) {
-                    console.log(
-                      `✅ Stock updated for product ${baseProductId}: ${currentStock} -> ${newStock}`
-                    );
-
-                    // Broadcast stock update to all connected clients
-                    // This will trigger real-time updates in the UI
-                    console.log(
-                      `📢 Broadcasting stock update for product ${baseProductId}`
-                    );
-
-                    // Trigger stock update notification
-                    try {
-                      await fetch(
-                        `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/trigger-stock-update/${baseProductId}`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            Authorization:
-                              process.env.STOCK_MODIFICATION_TOKEN ||
-                              "admin-stock-token",
-                          },
-                        }
-                      );
-                    } catch (triggerError) {
-                      console.error(
-                        `Error triggering stock update for product ${baseProductId}:`,
-                        triggerError
-                      );
-                    }
-                  } else {
-                    const errorText = await stockResponse.text();
-                    console.error(
-                      `❌ Failed to update stock for product ${baseProductId}: ${errorText}`
-                    );
-                  }
-                } else {
-                  console.error(
-                    `Failed to get current stock for product ${baseProductId}`
-                  );
-                }
-              } catch (stockError) {
+              if (stockResult.success) {
+                console.log(`✅ Stock updated for product ${item.productId}`);
+              } else {
                 console.error(
-                  `Error updating stock for product ${baseProductId}:`,
-                  stockError
+                  `❌ Failed to update stock for product ${item.productId}: ${stockResult.error}`
                 );
               }
             }
@@ -303,8 +206,8 @@ export async function PUT(
               order && order.items
                 ? order.items.map(async (item) => {
                     try {
-                      // Extract base product ID from order product ID (remove size and timestamp metadata)
-                      const baseProductId = item.productId.split(":::")[0];
+                      // Use the productId directly - it's already the correct Sanity product ID
+                      const baseProductId = item.productId;
 
                       const response = await fetch(
                         `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/force-cleanup/${baseProductId}`,
