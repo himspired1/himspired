@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
 import clientPromise from "@/lib/mongodb";
 
+/**
+ * Product Stock Endpoint
+ *
+ * This endpoint calculates accurate stock availability by considering:
+ * - Current stock from Sanity
+ * - Active reservations from Sanity
+ * - Pending orders from MongoDB
+ *
+ * CRITICAL: MongoDB query failures are rethrown to prevent overselling
+ * due to incorrect stock calculations. This ensures data integrity.
+ */
+
 type Reservation = {
   sessionId: string;
   quantity: number;
@@ -90,6 +102,8 @@ export async function GET(
     );
 
     // Check for pending orders that contain this product
+    // CRITICAL: This query is essential for accurate stock calculation
+    // If this fails, we must not continue with incorrect stock data
     let pendingOrderReservedQuantity = 0;
     try {
       const mongoClient = await clientPromise;
@@ -114,6 +128,11 @@ export async function GET(
       }, 0);
     } catch (error) {
       console.error("Failed to check pending orders:", error);
+      // Rethrow the error to prevent continuing with incorrect stock calculations
+      // This ensures the failure is propagated and handled upstream
+      throw new Error(
+        `MongoDB query failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
 
     // Calculate reserved quantity and available stock
@@ -123,10 +142,13 @@ export async function GET(
     );
     const totalReservedQuantity =
       reservationQuantity + pendingOrderReservedQuantity;
-    const availableStock = Math.max(
-      0,
-      (product.stock || 0) - totalReservedQuantity
-    );
+
+    // Validate that we have valid data before calculating stock
+    if (typeof product.stock !== "number" || product.stock < 0) {
+      throw new Error("Invalid stock data received from database");
+    }
+
+    const availableStock = Math.max(0, product.stock - totalReservedQuantity);
     const userReservation = reservations.find((r) => r.sessionId === sessionId);
     const reservedByCurrentUser = userReservation
       ? userReservation.quantity
@@ -183,8 +205,33 @@ export async function GET(
     return NextResponse.json(response);
   } catch (error) {
     console.error("Stock fetch error:", error);
+
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes("MongoDB query failed")) {
+        return NextResponse.json(
+          {
+            error: "Database connection error",
+            message:
+              "Unable to verify stock availability due to database issues. Please try again.",
+          },
+          { status: 503 }
+        );
+      }
+      if (error.message.includes("Product not found")) {
+        return NextResponse.json(
+          { error: "Product not found" },
+          { status: 404 }
+        );
+      }
+    }
+
     return NextResponse.json(
-      { error: "Failed to fetch stock information" },
+      {
+        error: "Failed to fetch stock information",
+        message:
+          "An unexpected error occurred while calculating stock availability.",
+      },
       { status: 500 }
     );
   }

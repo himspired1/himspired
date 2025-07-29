@@ -1,14 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client, writeClient } from "@/sanity/client";
 import { sanityRateLimiter } from "@/lib/sanity-retry";
+import { StockAuth } from "@/lib/stock-auth";
 
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ productId: string }> }
 ) {
   try {
+    // Authorization check - verify the request is authorized to modify stock
+    const isAuthorized = await StockAuth.isAuthorized(req);
+    StockAuth.logAuthAttempt(req, isAuthorized, "decrement-stock");
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          message:
+            "Authorization header required for stock modification. Please provide a valid authorization token.",
+        },
+        { status: 401 }
+      );
+    }
+
     const { productId } = await context.params;
     const { quantity = 1 } = await req.json();
+
+    // Validate quantity parameter
+    if (
+      typeof quantity !== "number" ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+      return NextResponse.json(
+        {
+          error: "Invalid quantity",
+          message: "Quantity must be a positive integer greater than zero.",
+        },
+        { status: 400 }
+      );
+    }
 
     if (!productId) {
       return NextResponse.json(
@@ -21,45 +52,60 @@ export async function POST(
     const result = await sanityRateLimiter.executeWithRateLimit(
       "decrement-stock",
       async () => {
-        // Get current product stock
-        const product = await client.fetch(
-          `*[_type == "clothingItem" && _id == $productId][0]{
-            _id,
-            title,
-            stock
-          }`,
-          { productId }
-        );
+        // Start a transaction to ensure atomicity
+        const transaction = writeClient.transaction();
 
-        if (!product) {
-          throw new Error("Product not found");
-        }
+        try {
+          // Fetch product within the transaction
+          const product = await transaction.getDocument(productId);
 
-        // Calculate new stock
-        const newStock = Math.max(0, product.stock - quantity);
+          if (!product) {
+            throw new Error("Product not found");
+          }
 
-        // Update stock in Sanity
-        console.log(`Attempting to decrement stock for product: ${productId}`);
-        console.log(
-          `Sanity token available: ${!!process.env.SANITY_API_TOKEN}`
-        );
+          // Validate that it's a clothing item
+          if (product._type !== "clothingItem") {
+            throw new Error("Invalid product type");
+          }
 
-        await writeClient.patch(productId).set({ stock: newStock }).commit();
-        console.log(`✅ Stock updated: ${product.stock} -> ${newStock}`);
+          // Calculate new stock
+          const currentStock = product.stock || 0;
+          const newStock = Math.max(0, currentStock - quantity);
 
-        // Log if product is now permanently out of stock
-        if (newStock === 0) {
+          // Log the operation
           console.log(
-            `🚨 PRODUCT PERMANENTLY OUT OF STOCK: ${product.title} (${productId}) - Manual restock required in Sanity`
+            `Attempting to decrement stock for product: ${productId}`
           );
-        }
 
-        return {
-          success: true,
-          message: "Stock updated successfully",
-          previousStock: product.stock,
-          newStock: newStock,
-        };
+          // Patch the product within the same transaction
+          transaction.patch(productId, (patch) =>
+            patch.set({ stock: newStock })
+          );
+
+          // Commit the transaction atomically
+          await transaction.commit();
+
+          console.log(`✅ Stock updated: ${currentStock} -> ${newStock}`);
+
+          // Log if product is now permanently out of stock
+          if (newStock === 0) {
+            console.log(
+              `🚨 PRODUCT PERMANENTLY OUT OF STOCK: ${product.title} (${productId}) - Manual restock required in Sanity`
+            );
+          }
+
+          return {
+            success: true,
+            message: "Stock updated successfully",
+            previousStock: currentStock,
+            newStock: newStock,
+            productTitle: product.title,
+          };
+        } catch (error) {
+          // If any error occurs, the transaction will be automatically rolled back
+          console.error("Transaction failed:", error);
+          throw error;
+        }
       }
     );
 

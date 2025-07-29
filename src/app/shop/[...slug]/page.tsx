@@ -348,15 +348,36 @@ const ProductDetails = () => {
                             } else if (
                               reservationResult.error &&
                               (reservationResult.error.includes("timeout") ||
-                                reservationResult.error.includes("connection"))
+                                reservationResult.error.includes(
+                                  "connection"
+                                ) ||
+                                reservationResult.error.includes("network") ||
+                                reservationResult.error.includes(
+                                  "unavailable"
+                                ) ||
+                                reservationResult.error.includes(
+                                  "Service temporarily unavailable"
+                                ))
                             ) {
                               toast.error(
-                                "This product is currently being purchased by another user"
+                                "Network connection issue. Please check your internet and try again."
+                              );
+                            } else if (
+                              reservationResult.error &&
+                              (reservationResult.error.includes(
+                                "out of stock"
+                              ) ||
+                                reservationResult.error.includes(
+                                  "not available"
+                                ))
+                            ) {
+                              toast.error(
+                                "This product is currently out of stock"
                               );
                             } else {
                               toast.error(
                                 reservationResult.error ||
-                                  "Failed to reserve product"
+                                  "Failed to reserve product. Please try again."
                               );
                             }
                             return;
@@ -380,7 +401,27 @@ const ProductDetails = () => {
                           setShowSizes((prev) => !prev);
                         } catch (error) {
                           console.error("Reservation error:", error);
-                          toast.error("Failed to reserve product");
+
+                          // Provide more specific error messages based on error type
+                          if (error instanceof Error) {
+                            if (error.name === "AbortError") {
+                              toast.error(
+                                "Request timed out. Please try again."
+                              );
+                            } else if (error.message.includes("fetch")) {
+                              toast.error(
+                                "Network connection issue. Please check your internet and try again."
+                              );
+                            } else {
+                              toast.error(
+                                "Failed to reserve product. Please try again."
+                              );
+                            }
+                          } else {
+                            toast.error(
+                              "Failed to reserve product. Please try again."
+                            );
+                          }
                           return;
                         } finally {
                           setIsReserving(false);

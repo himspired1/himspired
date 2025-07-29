@@ -17,6 +17,10 @@ import {
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CheckoutSessionManager } from "@/lib/checkout-session";
+
+// Note: Cart items are typed through Redux slice
+// originalProductId is optional to handle legacy items without this field
 
 const schema = yup.object({
   name: yup.string().required("Name is required"),
@@ -76,6 +80,26 @@ const CheckoutPage = () => {
     }
   }, [cartItems, router, dispatch]);
 
+  // Cleanup checkout session when component unmounts or user navigates away
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clean up checkout session when user leaves the page
+      CheckoutSessionManager.endCheckoutSession().catch((error) => {
+        console.error("Failed to cleanup checkout session:", error);
+      });
+    };
+
+    // Add event listener for page unload
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // Cleanup function for component unmount
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // Note: We don't automatically end the session on unmount
+      // as the user might want to return to checkout
+    };
+  }, []);
+
   // Don't render if cart is empty
   if (cartItems.length === 0) {
     return (
@@ -84,6 +108,26 @@ const CheckoutPage = () => {
       </div>
     );
   }
+
+  // Helper function to determine if a reservation failure is critical
+  const isCriticalFailure = (status?: number, error?: string): boolean => {
+    // 401: Unauthorized - session expired or invalid
+    // 404: Not Found - product doesn't exist
+    // 409: Conflict - product out of stock
+    if (status === 401 || status === 404) return true;
+
+    // Check error message for critical keywords
+    if (
+      error &&
+      (error.includes("out of stock") ||
+        error.includes("not available") ||
+        error.includes("unauthorized") ||
+        error.includes("session expired"))
+    )
+      return true;
+
+    return false;
+  };
 
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
@@ -136,10 +180,73 @@ const CheckoutPage = () => {
         formData.append("file", data.file, data.file.name);
       }
 
+      // Start checkout session before extending reservations
+      const checkoutSessionStarted =
+        await CheckoutSessionManager.startCheckoutSession(
+          CheckoutSessionManager.formatCartItemsForCheckout(cartItems)
+        );
+
+      if (!checkoutSessionStarted) {
+        toast.error("Failed to start checkout session. Please try again.");
+        setUploadProgress(0);
+        setSubmitting(false);
+        return;
+      }
+
       // Extend reservations to 24 hours for checkout
       const sessionId =
         localStorage.getItem("himspired_session_id") || "unknown";
-      const extendReservationsPromises = cartItems.map(async (item) => {
+
+      // Track failed reservation extensions
+      const failedReservations: Array<{
+        productId: string;
+        title: string;
+        error: string;
+        status?: number;
+      }> = [];
+
+      // Filter out items without originalProductId and log them
+      const validCartItems = cartItems.filter((item) => {
+        if (!item.originalProductId) {
+          console.warn(
+            `Skipping item without originalProductId: ${item.title} (ID: ${item._id})`
+          );
+          failedReservations.push({
+            productId: item._id || "unknown",
+            title: item.title,
+            error: "Missing product ID - item may be corrupted",
+            status: 400,
+          });
+          return false;
+        }
+
+        // Additional validation for other required fields
+        if (!item._id || !item.title) {
+          console.warn(
+            `Skipping item with missing required fields: ${item.title || "Unknown"} (ID: ${item._id || "Unknown"})`
+          );
+          failedReservations.push({
+            productId: item._id || "unknown",
+            title: item.title || "Unknown Item",
+            error: "Item data is incomplete",
+            status: 400,
+          });
+          return false;
+        }
+
+        return true;
+      });
+
+      if (validCartItems.length === 0) {
+        toast.error(
+          "All items in your cart are missing product information. Please refresh and try again."
+        );
+        setUploadProgress(0);
+        setSubmitting(false);
+        return;
+      }
+
+      const extendReservationsPromises = validCartItems.map(async (item) => {
         try {
           const response = await fetch(
             `/api/products/checkout-reserve/${item.originalProductId}`,
@@ -157,9 +264,31 @@ const CheckoutPage = () => {
           );
 
           if (!response.ok) {
-            console.error(`Failed to extend reservation for ${item.title}`);
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.message || `HTTP ${response.status}`;
+
+            failedReservations.push({
+              productId: item.originalProductId,
+              title: item.title,
+              error: errorMessage,
+              status: response.status,
+            });
+
+            console.error(
+              `Failed to extend reservation for ${item.title}:`,
+              errorMessage
+            );
           }
         } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Network error";
+
+          failedReservations.push({
+            productId: item.originalProductId,
+            title: item.title,
+            error: errorMessage,
+          });
+
           console.error(
             `Error extending reservation for ${item.title}:`,
             error
@@ -169,6 +298,60 @@ const CheckoutPage = () => {
 
       // Wait for all reservation extensions to complete
       await Promise.all(extendReservationsPromises);
+
+      // Check if there were any failed reservations
+      if (failedReservations.length > 0) {
+        console.error("Reservation extension failures:", failedReservations);
+
+        // Determine if we should abort the checkout process
+        const criticalFailures = failedReservations.filter((failure) =>
+          isCriticalFailure(failure.status, failure.error)
+        );
+
+        if (criticalFailures.length > 0) {
+          // Critical failures - abort checkout
+          const failureMessage =
+            criticalFailures.length === 1
+              ? `Failed to reserve "${criticalFailures[0].title}" for checkout. Please refresh and try again.`
+              : `Failed to reserve ${criticalFailures.length} items for checkout. Please refresh and try again.`;
+
+          toast.error(failureMessage);
+          setUploadProgress(0);
+          setSubmitting(false);
+
+          // Log critical failures for debugging
+          console.error("Critical reservation failures - checkout aborted:", {
+            totalFailures: failedReservations.length,
+            criticalFailures: criticalFailures.length,
+            failures: failedReservations.map((f) => ({
+              product: f.title,
+              error: f.error,
+              status: f.status,
+              isCritical: isCriticalFailure(f.status, f.error),
+            })),
+          });
+          return;
+        } else {
+          // Non-critical failures - warn user but continue
+          const warningMessage =
+            failedReservations.length === 1
+              ? `Warning: "${failedReservations[0].title}" may not be available. Proceeding with checkout...`
+              : `Warning: ${failedReservations.length} items may not be available. Proceeding with checkout...`;
+
+          toast.warning(warningMessage);
+
+          // Log detailed failure information for debugging
+          console.warn("Non-critical reservation failures:", {
+            totalFailures: failedReservations.length,
+            failures: failedReservations.map((f) => ({
+              product: f.title,
+              error: f.error,
+              status: f.status,
+              isCritical: isCriticalFailure(f.status, f.error),
+            })),
+          });
+        }
+      }
 
       // Submit to API
       const response = await fetch("/api/orders", {
@@ -187,12 +370,16 @@ const CheckoutPage = () => {
 
         // Keep reservations active until payment confirmation or cancellation
         // Reservations will be cleared when:
-        // 1. Payment is confirmed (in order update API)
-        // 2. Order is cancelled (in admin)
+        // 1. Payment is confirmed (in order update API) - stock decremented
+        // 2. Order is cancelled (in admin) - reservations released
         // 3. Reservation expires (automatic cleanup)
         console.log(
           "Order created successfully - reservations remain active until payment confirmation"
         );
+
+        // Note: Checkout session and reservations remain active until payment confirmation
+        // This ensures items are reserved during the payment process
+        // The session will be cleaned up when payment is confirmed or order is cancelled
 
         // Clear cart
         dispatch(clearCart());
@@ -207,6 +394,10 @@ const CheckoutPage = () => {
     } catch (error) {
       console.error("Order submission failed:", error);
       setUploadProgress(0);
+
+      // Note: Checkout session remains active on failure to allow retry
+      // The session will be cleaned up when payment is confirmed or order is cancelled
+      // This prevents losing reservations if the user wants to retry the checkout
 
       if (error instanceof Error) {
         toast.error(error.message);
