@@ -13,6 +13,8 @@ import {
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { toast } from "sonner";
 import { SessionManager } from "@/lib/session";
+import { useProductReservation } from "@/hooks/useProductReservation";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 interface ProductProps extends Product {
   className?: string;
@@ -36,7 +38,6 @@ const ProductCard = ({
   const [showSizes, setShowSizes] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [availabilityMessage, setAvailabilityMessage] = useState("Available");
-  const [isReserving, setIsReserving] = useState(false);
   const [addedToCart, setAddedToCart] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -71,53 +72,53 @@ const ProductCard = ({
 
   // Check product availability from server
   const checkAvailability = useCallback(async () => {
+    const sessionId = SessionManager.getSessionId();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     try {
-      const sessionId = SessionManager.getSessionId();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
       const response = await fetch(
         `/api/products/availability/${_id}?sessionId=${sessionId}`,
         { signal: controller.signal }
       );
-
-      clearTimeout(timeoutId);
       const availability = await response.json();
-
       if (availability.error) {
         console.error("Availability check error:", availability.error);
-        // If it's a timeout or connection error, assume product might be reserved
-        if (
-          availability.error.includes("timeout") ||
-          availability.error.includes("connection")
-        ) {
-          setIsAvailable(false);
-          setAvailabilityMessage("Product may be reserved by another user");
-        } else {
-          setIsAvailable(true); // Default to available for other errors
-          setAvailabilityMessage("Available");
-        }
+        setIsAvailable(true); // Default to available for other errors
+        setAvailabilityMessage("Available");
       } else {
         setIsAvailable(availability.available);
         setAvailabilityMessage(availability.message);
-
         // Log if product is permanently out of stock
         if (availability.permanentlyOutOfStock) {
           console.log(`🚨 Product permanently out of stock: ${title}`);
         }
       }
-    } catch (error) {
-      console.error("Error checking availability:", error);
-      setIsAvailable(true); // Default to available if check fails
-      setAvailabilityMessage("Available");
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "name" in error &&
+        error.name === "AbortError"
+      ) {
+        // Timeout occurred
+        setIsAvailable(false);
+        setAvailabilityMessage(
+          "Product may be reserved by another user (timeout)"
+        );
+      } else {
+        console.error("Error checking availability:", error);
+        setIsAvailable(true); // Default to available if check fails
+        setAvailabilityMessage("Available");
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, [_id, title]);
 
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
     try {
-      const sessionId =
-        localStorage.getItem("himspired_session_id") || "unknown";
+      const sessionId = SessionManager.getSessionId() || "unknown";
       const response = await fetch(
         `/api/products/stock/${_id}?sessionId=${sessionId}`
       );
@@ -163,6 +164,19 @@ const ProductCard = ({
     }
   }, [_id, title, lastKnownStock]);
 
+  // Success callback for reservation
+  const handleReservationSuccess = useCallback(async () => {
+    // Update availability after successful reservation
+    await checkAvailability();
+    await fetchRealTimeStock();
+  }, [checkAvailability, fetchRealTimeStock]);
+
+  // Product reservation hook
+  const { reserveProduct, isReserving } = useProductReservation({
+    productId: _id,
+    onReservationSuccess: handleReservationSuccess,
+  });
+
   // Update stock display based on availability and real-time data
   useEffect(() => {
     if (stock !== undefined) {
@@ -188,11 +202,14 @@ const ProductCard = ({
     if (isAvailable) {
       const interval = setInterval(() => {
         fetchRealTimeStock();
-      }, 5000); // Poll every 5 seconds for faster responsiveness
+      }, 30000); // Poll every 30 seconds for better performance
 
       // Listen for cart changes from other tabs
       const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === "cartSync" || event.key === "stockUpdate") {
+        if (
+          event.key === CACHE_KEYS.CART_SYNC ||
+          event.key === CACHE_KEYS.STOCK_UPDATE
+        ) {
           // Refetch stock when cart changes or stock updates
           fetchRealTimeStock();
         }
@@ -244,91 +261,18 @@ const ProductCard = ({
       return;
     }
 
-    setIsReserving(true);
-    let reservationResult: {
-      success: boolean;
-      reservationId?: string;
-      error?: string;
-    } | null = null;
+    // Get current cart quantity for this specific product and size
+    const currentSize = selectedSize || size?.[0] || "";
+    const currentCartQuantity = sizeQuantities[currentSize] || 0;
 
-    try {
-      const sessionId = SessionManager.getSessionId();
+    // Use the custom hook for reservation
+    const reservationResult = await reserveProduct(
+      currentCartQuantity,
+      selectedSize || size?.[0] || ""
+    );
 
-      // Get current cart quantity for this specific product and size
-      const currentSize = selectedSize || size?.[0] || "";
-      const currentCartQuantity = sizeQuantities[currentSize] || 0;
-
-      // Calculate new total quantity (current + 1)
-      const newTotalQuantity = currentCartQuantity + 1;
-
-      // Reserve product via API
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-      const response = await fetch(`/api/products/reserve/${_id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId,
-          quantity: newTotalQuantity, // Reserve the new total quantity
-          size: selectedSize || size?.[0] || "",
-          isUpdate: currentCartQuantity > 0, // Mark as update if item already in cart
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      reservationResult = await response.json();
-
-      if (!reservationResult?.success) {
-        // Check if it's a reservation conflict
-        if (
-          reservationResult?.error &&
-          reservationResult.error.includes("already reserved")
-        ) {
-          toast.error(
-            "This product is currently being purchased by another user"
-          );
-        } else if (
-          reservationResult?.error &&
-          (reservationResult.error.includes("timeout") ||
-            reservationResult.error.includes("connection"))
-        ) {
-          toast.error(
-            "This product is currently being purchased by another user"
-          );
-        } else {
-          toast.error(reservationResult?.error || "Failed to reserve product");
-        }
-        return;
-      }
-
-      toast.success("Product reserved and added to cart");
-
-      // Update availability after successful reservation
-      await checkAvailability();
-      await fetchRealTimeStock();
-
-      // Broadcast stock update to other tabs
-      localStorage.setItem("stockUpdate", Date.now().toString());
-    } catch (error) {
-      console.error("Reservation error:", error);
-
-      if (error instanceof Error) {
-        if (error.name === "AbortError") {
-          toast.error("Reservation timed out. Please try again.");
-        } else {
-          toast.error("Failed to reserve product");
-        }
-      } else {
-        toast.error("Failed to reserve product");
-      }
-      return;
-    } finally {
-      setIsReserving(false);
+    if (!reservationResult) {
+      return; // Reservation failed, error already handled by hook
     }
 
     // Fixed: Updated to match new CartItem interface
@@ -372,6 +316,37 @@ const ProductCard = ({
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/shop/${_id}/${slug?.current}`);
+  };
+
+  // Reusable function for button styling
+  const getButtonClassName = (
+    isAvailable: boolean,
+    isReserving: boolean,
+    addedToCart: string | null,
+    sizeOption?: string,
+    isSizeButton: boolean = false
+  ): string => {
+    const isSelected = sizeOption
+      ? addedToCart === sizeOption
+      : addedToCart === "default";
+
+    let baseClasses = "";
+
+    if (!isAvailable) {
+      baseClasses = "bg-gray-300 cursor-not-allowed";
+      if (isSizeButton) baseClasses += " text-gray-500";
+    } else if (isReserving) {
+      baseClasses = "bg-blue-100 border-2 border-blue-500 cursor-wait";
+      if (isSizeButton) baseClasses += " text-blue-700";
+    } else if (isSelected) {
+      baseClasses = "bg-green-100 border-2 border-green-500 cursor-pointer";
+      if (isSizeButton) baseClasses += " text-green-700";
+    } else {
+      baseClasses = "bg-[#F4F4F4] hover:bg-[#E0E0E0] cursor-pointer";
+      if (isSizeButton) baseClasses += " hover:bg-[#DADADA] text-[#1E1E1E]";
+    }
+
+    return baseClasses;
   };
 
   return (
@@ -461,15 +436,13 @@ const ProductCard = ({
                   setShowSizes(true);
                 }
               }}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                !isAvailable
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : isReserving
-                    ? "bg-blue-100 border-2 border-blue-500 cursor-wait"
-                    : addedToCart === "default"
-                      ? "bg-green-100 border-2 border-green-500 cursor-pointer"
-                      : "bg-[#F4F4F4] hover:bg-[#E0E0E0] cursor-pointer"
-              }`}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${getButtonClassName(
+                isAvailable,
+                isReserving,
+                addedToCart,
+                undefined,
+                false
+              )}`}
             >
               {isReserving ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -520,15 +493,13 @@ const ProductCard = ({
                         handleAddToCart(sizeOption);
                         setShowSizes(false);
                       }}
-                      className={`px-4 py-2 font-medium rounded-full flex flex-col items-center justify-center text-sm font-activo uppercase transition-all duration-300 ${
-                        !isAvailable
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : isReserving
-                            ? "bg-blue-100 border-2 border-blue-500 text-blue-700 cursor-wait"
-                            : addedToCart === sizeOption
-                              ? "bg-green-100 border-2 border-green-500 text-green-700 cursor-pointer"
-                              : "bg-[#F4F4F4] hover:bg-[#DADADA] text-[#1E1E1E] cursor-pointer"
-                      }`}
+                      className={`px-4 py-2 font-medium rounded-full flex flex-col items-center justify-center text-sm font-activo uppercase transition-all duration-300 ${getButtonClassName(
+                        isAvailable,
+                        isReserving,
+                        addedToCart,
+                        sizeOption,
+                        true
+                      )}`}
                       whileHover={{
                         scale: isAvailable && !isReserving ? 1.1 : 1,
                       }}

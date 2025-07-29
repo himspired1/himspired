@@ -10,7 +10,6 @@ export async function POST(
   try {
     // Authorization check - verify the request is authorized to modify stock
     const isAuthorized = await StockAuth.isAuthorized(req);
-    StockAuth.logAuthAttempt(req, isAuthorized, "decrement-stock");
 
     if (!isAuthorized) {
       return NextResponse.json(

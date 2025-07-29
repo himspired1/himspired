@@ -11,6 +11,7 @@ import {
   CartItem,
 } from "@/redux/slices/cartSlice";
 import { toast } from "sonner";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 function CartSyncListener() {
   const dispatch = useAppDispatch();
@@ -20,11 +21,11 @@ function CartSyncListener() {
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "cartSync") {
+      if (event.key === CACHE_KEYS.CART_SYNC) {
         // Get the timestamp of the change
         const changeTimestamp = parseInt(event.newValue || "0");
         const lastLocalChange = parseInt(
-          localStorage.getItem("lastLocalCartChange") || "0"
+          localStorage.getItem(CACHE_KEYS.LAST_LOCAL_CART_CHANGE) || "0"
         );
 
         // If this change is older than our last local change, ignore it
@@ -34,7 +35,7 @@ function CartSyncListener() {
         }
 
         // If this is our own change, don't process it
-        if (event.newValue === localStorage.getItem("cartSync")) {
+        if (event.newValue === localStorage.getItem(CACHE_KEYS.CART_SYNC)) {
           return;
         }
 
@@ -44,7 +45,10 @@ function CartSyncListener() {
         dispatch(cleanupDuplicates());
 
         // Update our last local change timestamp
-        localStorage.setItem("lastLocalCartChange", Date.now().toString());
+        localStorage.setItem(
+          CACHE_KEYS.LAST_LOCAL_CART_CHANGE,
+          Date.now().toString()
+        );
       }
     };
 
@@ -79,7 +83,7 @@ function SessionChangeListener() {
 
   useEffect(() => {
     const checkSessionChange = () => {
-      const currentSessionId = localStorage.getItem("himspired_session_id");
+      const currentSessionId = localStorage.getItem(CACHE_KEYS.SESSION_ID);
       const itemsWithOldReservations = cartItems.filter(
         (item: CartItem) =>
           item.reservationId &&
@@ -104,7 +108,7 @@ function SessionChangeListener() {
     checkSessionChange();
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "himspired_session_id") {
+      if (e.key === CACHE_KEYS.SESSION_ID) {
         checkSessionChange();
       }
     };

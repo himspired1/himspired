@@ -97,6 +97,7 @@ const OrderDetails = () => {
   const [paymentIssueSent, setPaymentIssueSent] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelingOrder, setCancelingOrder] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null); // Track which status is being updated
 
   useEffect(() => {
     const getOrderId = async () => {
@@ -167,6 +168,11 @@ const OrderDetails = () => {
   // Helper to update order status and state
   const updateOrderStatus = async (newStatus: Order["status"]) => {
     if (!order) return;
+
+    // Prevent multiple requests for the same status
+    if (updatingStatus === newStatus) return;
+
+    setUpdatingStatus(newStatus);
     try {
       const res = await fetch(`/api/orders/${order.orderId}`, {
         method: "PUT",
@@ -183,6 +189,8 @@ const OrderDetails = () => {
       }
     } catch {
       toast.error("Failed to update order status");
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -566,9 +574,21 @@ const OrderDetails = () => {
               <>
                 <button
                   onClick={() => updateOrderStatus("payment_confirmed")}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={updatingStatus === "payment_confirmed"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_confirmed"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
                 >
-                  Confirm Payment
+                  {updatingStatus === "payment_confirmed" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Confirming...
+                    </>
+                  ) : (
+                    "Confirm Payment"
+                  )}
                 </button>
                 {!paymentIssueSent && (
                   <button
@@ -585,15 +605,39 @@ const OrderDetails = () => {
               <>
                 <button
                   onClick={handleCancelAndReleaseStock}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  disabled={cancelingOrder}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    cancelingOrder
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
                 >
-                  Cancel & Release Stock
+                  {cancelingOrder ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Canceling...
+                    </>
+                  ) : (
+                    "Cancel & Release Stock"
+                  )}
                 </button>
                 <button
                   onClick={handleResolveIssue}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={updatingStatus === "payment_confirmed"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_confirmed"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
                 >
-                  Issue Resolved
+                  {updatingStatus === "payment_confirmed" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Resolving Issue...
+                    </>
+                  ) : (
+                    "Issue Resolved"
+                  )}
                 </button>
               </>
             )}
@@ -602,9 +646,21 @@ const OrderDetails = () => {
               <>
                 <button
                   onClick={handleCancelAndReleaseStock}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  disabled={cancelingOrder}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    cancelingOrder
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
                 >
-                  Cancel & Release Stock
+                  {cancelingOrder ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Canceling...
+                    </>
+                  ) : (
+                    "Cancel & Release Stock"
+                  )}
                 </button>
               </>
             )}
@@ -615,26 +671,62 @@ const OrderDetails = () => {
                 </span>
                 <button
                   onClick={handlePutBackToStock}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  disabled={updatingStatus === "payment_pending"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_pending"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
                 >
-                  Put Back to Stock
+                  {updatingStatus === "payment_pending" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Putting Back to Stock...
+                    </>
+                  ) : (
+                    "Put Back to Stock"
+                  )}
                 </button>
               </>
             )}
             {order.status === "payment_confirmed" && (
               <button
                 onClick={() => updateOrderStatus("shipped")}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={updatingStatus === "shipped"}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  updatingStatus === "shipped"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
               >
-                Mark as Shipped
+                {updatingStatus === "shipped" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Marking as Shipped...
+                  </>
+                ) : (
+                  "Mark as Shipped"
+                )}
               </button>
             )}
             {order.status === "shipped" && (
               <button
                 onClick={() => updateOrderStatus("complete")}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={updatingStatus === "complete"}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  updatingStatus === "complete"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-purple-600 text-white hover:bg-purple-700"
+                }`}
               >
-                Mark as Complete
+                {updatingStatus === "complete" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Marking as Complete...
+                  </>
+                ) : (
+                  "Mark as Complete"
+                )}
               </button>
             )}
           </div>

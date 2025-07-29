@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction, createAsyncThunk } from "@reduxjs/toolkit";
 import { RootState } from "../store";
 import { toast } from "sonner";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 // Thunk action to remove item and release reservation
 export const removeItemAndReleaseReservation = createAsyncThunk(
@@ -735,9 +736,9 @@ const debouncedCartSync = () => {
   }
   syncTimeout = setTimeout(() => {
     const timestamp = Date.now().toString();
-    localStorage.setItem("cartSync", timestamp);
-    localStorage.setItem("lastLocalCartChange", timestamp);
+    localStorage.setItem(CACHE_KEYS.CART_SYNC, timestamp);
+    localStorage.setItem(CACHE_KEYS.LAST_LOCAL_CART_CHANGE, timestamp);
     // Also trigger stock updates when cart changes
-    localStorage.setItem("stockUpdate", timestamp);
+    localStorage.setItem(CACHE_KEYS.STOCK_UPDATE, timestamp);
   }, SYNC_DEBOUNCE_MS);
 };

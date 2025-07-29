@@ -10,6 +10,7 @@ import { addItem, selectCartItemQuantity } from "@/redux/slices/cartSlice";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { toast } from "sonner";
 import { SessionManager } from "@/lib/session";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 const ProductDetails = () => {
   const [showSizes, setShowSizes] = useState(false);
@@ -382,7 +383,7 @@ const ProductDetails = () => {
 
                           // Broadcast stock update to other tabs
                           localStorage.setItem(
-                            "stockUpdate",
+                            CACHE_KEYS.STOCK_UPDATE,
                             Date.now().toString()
                           );
 
