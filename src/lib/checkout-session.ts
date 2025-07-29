@@ -43,11 +43,9 @@ export class CheckoutSessionManager {
       });
 
       if (response.ok) {
-        const result = await response.json();
         console.log("Checkout session started successfully");
         return true;
       } else {
-        const errorText = await response.text();
         console.error(
           `Failed to start checkout session: HTTP ${response.status}`
         );
@@ -92,7 +90,6 @@ export class CheckoutSessionManager {
         console.log("Checkout session ended successfully");
         return true;
       } else {
-        const errorText = await response.text();
         console.error(
           `Failed to end checkout session: HTTP ${response.status}`
         );

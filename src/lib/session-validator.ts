@@ -35,6 +35,7 @@ export class SessionValidator {
   // Periodic cleanup timer
   private static cleanupTimer: NodeJS.Timeout | null = null;
   private static readonly CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  private static cleanupCounter = 0; // Counter for periodic cleanup
 
   // Initialize cleanup timer on module load
   static {
@@ -120,9 +121,8 @@ export class SessionValidator {
     const now = new Date();
 
     // Clean up expired rate limits periodically (every 10th call)
-    static cleanupCounter = 0;
-    cleanupCounter++;
-    if (cleanupCounter % 10 === 0) {
+    this.cleanupCounter++;
+    if (this.cleanupCounter % 10 === 0) {
       this.cleanupExpiredRateLimits();
     }
 
@@ -229,10 +229,14 @@ export class SessionValidator {
 
     this.cleanupTimer = setInterval(() => {
       this.cleanupExpiredRateLimits();
-      console.log(`Rate limit cleanup: cleaned up expired entries at ${new Date().toISOString()}`);
+      console.log(
+        `Rate limit cleanup: cleaned up expired entries at ${new Date().toISOString()}`
+      );
     }, this.CLEANUP_INTERVAL);
 
-    console.log(`Rate limit cleanup timer initialized with ${this.CLEANUP_INTERVAL / 1000 / 60} minute intervals`);
+    console.log(
+      `Rate limit cleanup timer initialized with ${this.CLEANUP_INTERVAL / 1000 / 60} minute intervals`
+    );
   }
 
   /**
@@ -259,7 +263,9 @@ export class SessionValidator {
     }
 
     if (cleanedCount > 0) {
-      console.log(`Rate limit cleanup: removed ${cleanedCount} expired entries`);
+      console.log(
+        `Rate limit cleanup: removed ${cleanedCount} expired entries`
+      );
     }
   }
 }

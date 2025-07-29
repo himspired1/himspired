@@ -27,7 +27,11 @@ export async function POST(req: NextRequest) {
 
     // Validate all items first
     const productIds = items.map((item) => item.productId);
-    const products = await client.fetch(
+    const products: Array<{
+      _id: string;
+      stock: number;
+      reservations?: Reservation[];
+    }> = await client.fetch(
       `*[_type == "clothingItem" && _id in $productIds]{
         _id, stock, reservations
       }`,
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
     const validationErrors: string[] = [];
     const releaseOperations: Array<{
       productId: string;
-      product: any;
+      product: { _id: string; reservations?: Reservation[] };
       quantity: number;
       newReservations: Reservation[];
     }> = [];
