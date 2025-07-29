@@ -47,6 +47,16 @@ export const removeItemAndReleaseReservation = createAsyncThunk(
         }
       } catch (error) {
         console.error("Error releasing reservation:", error);
+
+        // Notify user about the reservation release failure
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to release product reservation";
+
+        toast.error(
+          `Unable to release product reservation. ${errorMessage}. Please try again or contact support if the issue persists.`
+        );
       }
     }
   }
@@ -105,7 +115,16 @@ export const decrementQuantityAndReleaseReservation = createAsyncThunk(
           }
         } catch (error) {
           console.error("Error updating reservation:", error);
-          toast.error("Failed to update reservation");
+
+          // Notify user about the reservation update failure
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : "Failed to update product reservation";
+
+          toast.error(
+            `Unable to update product quantity. ${errorMessage}. Please try again or contact support if the issue persists.`
+          );
         }
       } else {
         // Remove item and release reservation
@@ -155,10 +174,11 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
             return;
           }
 
-          // Check if we're already at max reservation
-          if (reservedByCurrentUser >= item.stock) {
+          // Check if we can increase our reservation without exceeding available stock
+          // Note: This uses real-time available stock from API, not stored stock value
+          if (reservedByCurrentUser >= availableStock) {
             toast.error(
-              `Cannot add more. Only ${item.stock} available in stock.`
+              `Cannot add more. Only ${availableStock} available in stock.`
             );
             return;
           }
@@ -190,21 +210,32 @@ export const incrementQuantityAndUpdateReservation = createAsyncThunk(
           } else {
             const errorData = await response.json();
             toast.error(errorData.error || "Failed to update reservation");
-            // Revert the cart increment if reservation failed
-            dispatch(decrementQuantity(id));
+            // Revert the cart increment if reservation failed (silent revert)
+            dispatch(updateQuantitySilent({ id, quantity: item.quantity }));
           }
         }
       } catch (error) {
         console.error("Error updating reservation:", error);
-        toast.error("Failed to update reservation");
-        // Revert the cart increment if there was an error
-        dispatch(decrementQuantity(id));
+
+        // Notify user about the reservation update failure
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to update product reservation";
+
+        toast.error(
+          `Unable to update product quantity. ${errorMessage}. Please try again or contact support if the issue persists.`
+        );
+
+        // Revert the cart increment if there was an error (silent revert)
+        dispatch(updateQuantitySilent({ id, quantity: item.quantity }));
       }
     }
   }
 );
 
 // Thunk action to validate cart items against their reservations
+// Uses production stock endpoint for secure validation
 export const validateCartReservations = createAsyncThunk(
   "cart/validateCartReservations",
   async (_, { getState, dispatch }) => {
@@ -215,14 +246,19 @@ export const validateCartReservations = createAsyncThunk(
       .filter((item) => item.reservationId)
       .map(async (item) => {
         try {
+          const sessionId =
+            localStorage.getItem("himspired_session_id") || "unknown";
+          // Use production stock endpoint for secure validation
           const response = await fetch(
-            `/api/products/debug/${item.originalProductId}`
+            `/api/products/stock/${item.originalProductId}?sessionId=${sessionId}`
           );
           if (response.ok) {
             const data = await response.json();
-            const reservation = data.reservations?.find(
-              (r: { id: string; quantity: number }) =>
-                r.id === item.reservationId
+
+            // Find the user's reservation by sessionId instead of reservationId
+            const userReservation = data.reservations?.find(
+              (r: { sessionId: string; quantity: number }) =>
+                r.sessionId === sessionId
             );
 
             // Check if stock has changed significantly (admin intervention)
@@ -235,20 +271,21 @@ export const validateCartReservations = createAsyncThunk(
               dispatch(updateItemStock({ id: item._id, stock: currentStock }));
             }
 
-            if (reservation && reservation.quantity !== item.quantity) {
+            // Validate reservation quantity matches cart quantity
+            if (userReservation && userReservation.quantity !== item.quantity) {
               console.warn(
-                `Quantity mismatch for ${item.title}: cart=${item.quantity}, reservation=${reservation.quantity}`
+                `Quantity mismatch for ${item.title}: cart=${item.quantity}, reservation=${userReservation.quantity}`
               );
               // Update cart quantity to match reservation
               dispatch(
                 updateItemQuantity({
                   id: item._id,
-                  quantity: reservation.quantity,
+                  quantity: userReservation.quantity,
                 })
               );
               return {
                 itemId: item._id,
-                correctedQuantity: reservation.quantity,
+                correctedQuantity: userReservation.quantity,
               };
             }
           }
@@ -256,6 +293,16 @@ export const validateCartReservations = createAsyncThunk(
           console.error(
             `Failed to validate reservation for ${item.title}:`,
             error
+          );
+
+          // Notify user about validation failure
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : "Failed to validate product reservation";
+
+          toast.error(
+            `Unable to validate reservation for ${item.title}. ${errorMessage}. Please refresh the page and try again.`
           );
         }
         return null;
@@ -307,10 +354,18 @@ const cartSlice = createSlice({
         Omit<CartItem, "quantity" | "originalPrice" | "originalProductId">
       >
     ) => {
-      // Prevent adding items without a reservationId
+      // Validate that reservationId is present before adding item
+      // Throwing an error ensures the calling component can handle the failure explicitly
       if (!action.payload.reservationId) {
-        toast.error("Reservation failed. Please try again.");
-        return;
+        const errorMessage =
+          "Cannot add item to cart: reservation failed. Please try again.";
+        console.error("addItem validation failed:", {
+          productId: action.payload._id,
+          title: action.payload.title,
+          reason: "Missing reservationId",
+        });
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
       const { size, ...productDetails } = action.payload;
 
@@ -343,7 +398,8 @@ const cartSlice = createSlice({
         }
 
         // Item doesn't exist, add new item with unique ID
-        const uniqueIdentifier = `${productDetails._id}-${size}-${Date.now()}`;
+        // Use a more robust delimiter to avoid conflicts with productId or size
+        const uniqueIdentifier = `${productDetails._id}:::${size}:::${Date.now()}`;
         state.items.push({
           ...productDetails,
           _id: uniqueIdentifier, // Use unique identifier as ID
@@ -456,6 +512,25 @@ const cartSlice = createSlice({
       debouncedCartSync();
     },
 
+    // Silent quantity update for reverting changes without side effects
+    updateQuantitySilent: (
+      state,
+      action: PayloadAction<{ id: string | number; quantity: number }>
+    ) => {
+      const { id, quantity } = action.payload;
+      const item = state.items.find((item) => item._id === id);
+      if (item) {
+        if (quantity > 0) {
+          item.quantity = quantity;
+          item.price = item.originalPrice * quantity;
+        } else {
+          // Remove item if quantity is 0 or negative
+          state.items = state.items.filter((item) => item._id !== id);
+        }
+      }
+      // No side effects: no toast, no sync
+    },
+
     // Clear cart with toast (for order completion)
     clearCart: (state) => {
       state.items = [];
@@ -521,6 +596,7 @@ export const {
   updateItemStock,
   incrementQuantity,
   decrementQuantity,
+  updateQuantitySilent, // Export the new silent action
   clearCart,
   clearCartForOrder, // Export the new order-specific action
   clearCartSilent, // Export the new silent action
@@ -598,6 +674,26 @@ export const selectProductTotalQuantity = (
     .reduce((total, item) => total + item.quantity, 0);
 };
 
+// Helper function to create consistent keys for cart items
+const createCartItemKey = (productId: string, size: string): string => {
+  // Use ":::" as delimiter to avoid conflicts with hyphens in productId or size
+  // This delimiter is unlikely to appear in product IDs or size values
+  return `${productId}:::${size}`;
+};
+
+// Helper function to parse cart item keys
+const parseCartItemKey = (
+  key: string
+): { productId: string; size: string } | null => {
+  const parts = key.split(":::");
+  if (parts.length >= 2) {
+    const productId = parts[0];
+    const size = parts.slice(1).join(":::"); // Rejoin in case size contains the delimiter
+    return { productId, size };
+  }
+  return null;
+};
+
 // New selector to check for duplicates (for debugging)
 export const selectCartDuplicates = (
   state: RootState
@@ -606,14 +702,23 @@ export const selectCartDuplicates = (
   const counts = new Map();
 
   state.persistedReducer.cart.items.forEach((item) => {
-    const key = `${item.originalProductId}-${item.size}`;
+    const key = createCartItemKey(item.originalProductId, item.size);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
 
   counts.forEach((count, key) => {
     if (count > 1) {
-      const [productId, size] = key.split("-");
-      duplicates.push({ productId, size, count });
+      const parsed = parseCartItemKey(key);
+      if (parsed) {
+        duplicates.push({
+          productId: parsed.productId,
+          size: parsed.size,
+          count,
+        });
+      } else {
+        // Fallback for malformed keys
+        console.warn("Malformed cart item key:", key);
+      }
     }
   });
 

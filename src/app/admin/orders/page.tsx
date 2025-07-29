@@ -755,28 +755,106 @@ const AdminOrders = () => {
                       );
 
                       if (response.ok) {
-                        const releasePromises = orderToCancel.items.map(
-                          async (item: {
-                            productId: string;
-                            quantity: number;
-                          }) => {
-                            const releaseResponse = await fetch(
-                              `/api/products/release/${item.productId}`,
-                              {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({
-                                  sessionId: "admin",
-                                  quantity: item.quantity,
-                                }),
+                        // Generate a unique session ID for this operation
+                        const sessionId = `admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                        // Track successful releases for rollback
+                        const successfulReleases: Array<{
+                          productId: string;
+                          quantity: number;
+                        }> = [];
+
+                        try {
+                          // Release stock for each item with individual error handling
+                          for (const item of orderToCancel.items) {
+                            try {
+                              const releaseResponse = await fetch(
+                                `/api/products/release/${item.productId}`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    sessionId: sessionId,
+                                    quantity: item.quantity,
+                                  }),
+                                }
+                              );
+
+                              if (!releaseResponse.ok) {
+                                const errorData = await releaseResponse
+                                  .json()
+                                  .catch(() => ({}));
+                                throw new Error(
+                                  `Failed to release product ${item.productId}: ${errorData.message || releaseResponse.statusText}`
+                                );
                               }
-                            );
-                            return releaseResponse.ok;
+
+                              // Track successful release for potential rollback
+                              successfulReleases.push({
+                                productId: item.productId,
+                                quantity: item.quantity,
+                              });
+                            } catch (releaseError) {
+                              console.error(
+                                `Release failed for product ${item.productId}:`,
+                                releaseError
+                              );
+
+                              // Rollback successful releases if any release fails
+                              if (successfulReleases.length > 0) {
+                                console.log(
+                                  `Rolling back ${successfulReleases.length} successful releases...`
+                                );
+
+                                const rollbackPromises = successfulReleases.map(
+                                  async (releasedItem) => {
+                                    try {
+                                      const rollbackResponse = await fetch(
+                                        `/api/products/release/${releasedItem.productId}`,
+                                        {
+                                          method: "POST",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            sessionId: sessionId,
+                                            quantity: releasedItem.quantity,
+                                          }),
+                                        }
+                                      );
+
+                                      if (!rollbackResponse.ok) {
+                                        console.error(
+                                          `Rollback failed for product ${releasedItem.productId}`
+                                        );
+                                      }
+                                    } catch (rollbackError) {
+                                      console.error(
+                                        `Rollback error for product ${releasedItem.productId}:`,
+                                        rollbackError
+                                      );
+                                    }
+                                  }
+                                );
+
+                                await Promise.all(rollbackPromises);
+                              }
+
+                              throw releaseError;
+                            }
                           }
-                        );
-                        await Promise.all(releasePromises);
+                        } catch (releaseError) {
+                          // Re-throw the error to be handled by the outer catch block
+                          const errorMessage =
+                            releaseError instanceof Error
+                              ? releaseError.message
+                              : "Unknown error occurred during stock release";
+                          throw new Error(
+                            `Stock release failed: ${errorMessage}`
+                          );
+                        }
                       }
                     }
 

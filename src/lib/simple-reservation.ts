@@ -1,3 +1,14 @@
+/**
+ * Simple Reservation Service
+ *
+ * Provides in-memory reservation management with automatic cleanup.
+ *
+ * Memory Management:
+ * - Automatic cleanup of expired reservations every minute
+ * - Manual cleanup controls for testing and shutdown
+ * - Memory leak prevention through proper timer management
+ * - Statistics tracking for monitoring
+ */
 interface Reservation {
   sessionId: string;
   expiresAt: Date;
@@ -105,17 +116,89 @@ class SimpleReservationService {
   // Clean up expired reservations
   cleanupExpiredReservations(): void {
     const now = new Date();
+    let cleanedCount = 0;
+    const initialSize = this.reservations.size;
+
     for (const [productId, reservation] of this.reservations.entries()) {
       if (now > reservation.expiresAt) {
         this.reservations.delete(productId);
+        cleanedCount++;
       }
     }
+
+    if (cleanedCount > 0) {
+      console.log(
+        `🧹 Cleaned up ${cleanedCount} expired reservations (${initialSize} → ${this.reservations.size})`
+      );
+    }
+  }
+
+  // Get statistics about current reservations
+  getReservationStats(): {
+    totalReservations: number;
+    expiredReservations: number;
+    activeReservations: number;
+  } {
+    const now = new Date();
+    let expiredCount = 0;
+    let activeCount = 0;
+
+    for (const [, reservation] of this.reservations.entries()) {
+      if (now > reservation.expiresAt) {
+        expiredCount++;
+      } else {
+        activeCount++;
+      }
+    }
+
+    return {
+      totalReservations: this.reservations.size,
+      expiredReservations: expiredCount,
+      activeReservations: activeCount,
+    };
+  }
+
+  // Manually trigger cleanup (useful for testing)
+  forceCleanup(): void {
+    this.cleanupExpiredReservations();
   }
 }
 
 export const reservationService = new SimpleReservationService();
 
-// Clean up expired reservations every minute
-setInterval(() => {
-  reservationService.cleanupExpiredReservations();
-}, 60000);
+// Store the interval ID for cleanup
+let cleanupIntervalId: NodeJS.Timeout | null = null;
+
+// Start the cleanup timer
+const startCleanupTimer = (): void => {
+  // Clear any existing timer first
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+  }
+
+  // Start new cleanup timer
+  cleanupIntervalId = setInterval(() => {
+    reservationService.cleanupExpiredReservations();
+  }, 60000);
+
+  console.log("🧹 Reservation cleanup timer started");
+};
+
+// Stop the cleanup timer
+const stopCleanupTimer = (): void => {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+    console.log("🧹 Reservation cleanup timer stopped");
+  }
+};
+
+// Start the cleanup timer immediately
+startCleanupTimer();
+
+// Export cleanup functions for external control
+export const reservationCleanup = {
+  start: startCleanupTimer,
+  stop: stopCleanupTimer,
+  isRunning: (): boolean => cleanupIntervalId !== null,
+};

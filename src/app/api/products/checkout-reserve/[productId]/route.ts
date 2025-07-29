@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { client, writeClient } from "@/sanity/client";
-import { sanityRateLimiter } from "@/lib/sanity-retry";
-import clientPromise from "@/lib/mongodb";
-
-type Reservation = {
-  sessionId: string;
-  quantity: number;
-  reservedUntil: string;
-};
+import { ReservationHandler } from "@/lib/reservation-handler";
+import { CheckoutAuth } from "@/lib/checkout-auth";
 
 export async function POST(
   req: NextRequest,
@@ -15,6 +8,9 @@ export async function POST(
 ) {
   try {
     const { productId } = await context.params;
+
+    // Clone the request to avoid consuming the body stream
+    const clonedReq = req.clone();
     const { sessionId, quantity = 1, isUpdate = false } = await req.json();
 
     if (!productId || !sessionId) {
@@ -24,140 +20,29 @@ export async function POST(
       );
     }
 
-    // Use rate limiting and retry logic for Sanity operations
-    const result = await sanityRateLimiter.executeWithRateLimit(
-      "checkout-reserve-product",
-      async () => {
-        // Fetch product and reservations
-        const product = await client.fetch(
-          `*[_type == "clothingItem" && _id == $productId][0]{
-            _id, title, stock, reservations
-          }`,
-          { productId }
-        );
+    // Authorization check: Verify user has an active checkout session
+    const isAuthorized = await CheckoutAuth.validateCheckoutSession(sessionId);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          message:
+            "You must have an active checkout session to create 24-hour reservations. Please start the checkout process first.",
+        },
+        { status: 401 }
+      );
+    }
 
-        if (!product) {
-          throw new Error("Product not found");
-        }
-
-        // Clean up expired reservations
-        const now = new Date();
-        const reservations: Reservation[] = (product.reservations || []).filter(
-          (r: Reservation) => r.reservedUntil && new Date(r.reservedUntil) > now
-        );
-
-        // Find current user's reservation (if any)
-        const userReservation = reservations.find(
-          (r) => r.sessionId === sessionId
-        );
-        const otherReservations = reservations.filter(
-          (r) => r.sessionId !== sessionId
-        );
-
-        // Calculate total reserved by others
-        const reservedByOthers = otherReservations.reduce(
-          (sum, r) => sum + (r.quantity || 0),
-          0
-        );
-
-        // Check for pending orders that contain this product
-        let pendingOrderReservedQuantity = 0;
-        try {
-          const mongoClient = await clientPromise;
-          const db = mongoClient.db("himspired");
-          const ordersCollection = db.collection("orders");
-
-          // Find pending orders that contain this product
-          const pendingOrders = await ordersCollection
-            .find({
-              status: "payment_pending",
-              "items.productId": productId,
-            })
-            .toArray();
-
-          // Calculate total quantity reserved by pending orders
-          pendingOrderReservedQuantity = pendingOrders.reduce(
-            (total, order) => {
-              const orderItem = order.items.find(
-                (item: { productId: string; quantity: number }) =>
-                  item.productId === productId
-              );
-              return total + (orderItem ? orderItem.quantity : 0);
-            },
-            0
-          );
-        } catch (error) {
-          console.error("Failed to check pending orders:", error);
-        }
-
-        // Calculate available stock for this reservation (including pending orders)
-        const totalReservedByOthers =
-          reservedByOthers + pendingOrderReservedQuantity;
-        const availableStock = product.stock - totalReservedByOthers;
-
-        // For updates, check if the new quantity is valid
-        if (isUpdate && userReservation) {
-          const currentUserQuantity = userReservation.quantity;
-          const additionalQuantity = quantity - currentUserQuantity;
-
-          if (additionalQuantity > availableStock) {
-            let errorMessage = `Cannot reserve ${additionalQuantity} more items. Only ${availableStock} available.`;
-            if (pendingOrderReservedQuantity > 0) {
-              errorMessage += ` (${pendingOrderReservedQuantity} items are in pending orders)`;
-            }
-            throw new Error(errorMessage);
-          }
-        } else if (quantity > availableStock) {
-          let errorMessage = `Only ${availableStock} items available for reservation`;
-          if (pendingOrderReservedQuantity > 0) {
-            errorMessage += ` (${pendingOrderReservedQuantity} items are in pending orders)`;
-          }
-          throw new Error(errorMessage);
-        }
-
-        // Set reservation to 24 hours for checkout
-        const reservedUntil = new Date();
-        reservedUntil.setHours(reservedUntil.getHours() + 24);
-
-        // Update or add the user's reservation
-        let newReservations: Reservation[];
-        if (userReservation) {
-          newReservations = reservations.map((r) =>
-            r.sessionId === sessionId
-              ? { ...r, quantity, reservedUntil: reservedUntil.toISOString() }
-              : r
-          );
-        } else {
-          newReservations = [
-            ...reservations,
-            { sessionId, quantity, reservedUntil: reservedUntil.toISOString() },
-          ];
-        }
-
-        // Patch the product with the new reservations array
-        await writeClient
-          .patch(productId)
-          .set({ reservations: newReservations })
-          .commit();
-
-        // Generate a unique reservation ID
-        const reservationId = `${sessionId}-${productId}-${Date.now()}`;
-
-        return {
-          success: true,
-          message: "Product reserved for checkout successfully",
-          productId,
-          sessionId,
-          quantity,
-          reservationId,
-          reservedUntil: reservedUntil.toISOString(),
-          availableStock:
-            product.stock -
-            newReservations.reduce((sum, r) => sum + (r.quantity || 0), 0),
-          reservations: newReservations,
-        };
-      }
-    );
+    // Use shared reservation handler with 24-hour checkout reservation
+    const result = await ReservationHandler.handleReservation({
+      productId,
+      sessionId,
+      quantity,
+      isUpdate,
+      reservationHours: 24, // 24 hours for checkout reservations
+      operationName: "checkout-reserve-product",
+      successMessage: "Product reserved for checkout successfully",
+    });
 
     return NextResponse.json(result);
   } catch (error) {

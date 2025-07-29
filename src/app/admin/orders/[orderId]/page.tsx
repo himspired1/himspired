@@ -240,6 +240,33 @@ const OrderDetails = () => {
     setCancelModalOpen(true);
   };
 
+  // Reusable function to release stock reservations for order items
+  const releaseStockReservations = async (items: any[]) => {
+    const releasePromises = items.map(async (item) => {
+      const originalProductId = item.productId;
+
+      const response = await fetch(
+        `/api/products/release/${originalProductId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: "admin",
+            quantity: item.quantity,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to release product ${originalProductId}`);
+      }
+
+      return response.json();
+    });
+
+    await Promise.all(releasePromises);
+  };
+
   const executeCancelOrder = async () => {
     if (!order) return;
 
@@ -253,30 +280,8 @@ const OrderDetails = () => {
       });
 
       if (response.ok) {
-        // Release all items back to stock
-        const releasePromises = order.items.map(async (item) => {
-          const originalProductId = item.productId;
-
-          const releaseResponse = await fetch(
-            `/api/products/release/${originalProductId}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sessionId: "admin",
-                quantity: item.quantity,
-              }),
-            }
-          );
-
-          if (!releaseResponse.ok) {
-            throw new Error(`Failed to release product ${originalProductId}`);
-          }
-
-          return releaseResponse.json();
-        });
-
-        await Promise.all(releasePromises);
+        // Release all items back to stock using the reusable function
+        await releaseStockReservations(order.items);
 
         toast.success("Order canceled and products released back to stock");
         setCancelModalOpen(false);
@@ -299,32 +304,8 @@ const OrderDetails = () => {
     if (!order) return;
 
     try {
-      // Release reservations for all items in the order
-      const releasePromises = order.items.map(async (item) => {
-        // Extract the original product ID from the item
-        const originalProductId = item.productId;
-
-        // Release the reservation for this product
-        const response = await fetch(
-          `/api/products/release/${originalProductId}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "admin", // Use admin session for admin operations
-              quantity: item.quantity,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to release product ${originalProductId}`);
-        }
-
-        return response.json();
-      });
-
-      await Promise.all(releasePromises);
+      // Release reservations for all items in the order using the reusable function
+      await releaseStockReservations(order.items);
       toast.success("All products put back to stock successfully");
 
       // Optionally refresh the order to show updated status

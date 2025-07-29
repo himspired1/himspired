@@ -16,6 +16,7 @@ import {
 import { ChevronLeft } from "lucide-react";
 import { useAppSelector } from "@/redux/hooks";
 import { toast } from "sonner";
+import { useStockUpdates } from "@/hooks/useStockUpdates";
 
 interface CartItemProps {
   title: string;
@@ -32,9 +33,7 @@ interface CartIncrementorProps {
   no_of_item: number;
 }
 
-interface WindowWithFetchStock extends Window {
-  [key: `fetchStock_${string}`]: (() => Promise<void>) | undefined;
-}
+// Removed window-based interface as we're using custom events now
 
 const CartItem: FC<CartItemProps> = ({
   title,
@@ -50,6 +49,7 @@ const CartItem: FC<CartItemProps> = ({
   const [, setShowDelete] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const isMobile = useIsMobile();
+  const { triggerStockUpdate } = useStockUpdates();
   const cartItem = useAppSelector((state) =>
     state.persistedReducer.cart.items.find((item) => item._id === id)
   );
@@ -69,10 +69,7 @@ const CartItem: FC<CartItemProps> = ({
       removeItemAndReleaseReservation({
         id,
         onReservationReleased: (productId) => {
-          const win = window as unknown as WindowWithFetchStock;
-          if (win && win[`fetchStock_${productId}`]) {
-            win[`fetchStock_${productId}`]!();
-          }
+          triggerStockUpdate(productId, "remove");
         },
       })
     );
@@ -196,6 +193,7 @@ export default CartItem;
 
 const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
   const dispatch = useDispatch<AppDispatch>();
+  const { triggerStockUpdate } = useStockUpdates();
   const cartItem = useAppSelector((state) =>
     state.persistedReducer.cart.items.find((item) => item._id === id)
   );
@@ -203,22 +201,11 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
   const handleIncrement = async () => {
     if (!cartItem) return;
 
-    // Check if we can increase quantity without exceeding stock
-    if (cartItem.quantity >= cartItem.stock) {
-      toast.error(
-        `Cannot add more. Only ${cartItem.stock} available in stock.`
-      );
-      return;
-    }
-
     dispatch(
       incrementQuantityAndUpdateReservation({
         id,
         onReservationReleased: (productId) => {
-          const win = window as unknown as WindowWithFetchStock;
-          if (win && win[`fetchStock_${productId}`]) {
-            win[`fetchStock_${productId}`]!();
-          }
+          triggerStockUpdate(productId, "increment");
         },
       })
     );
@@ -229,10 +216,7 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
       decrementQuantityAndReleaseReservation({
         id,
         onReservationReleased: (productId) => {
-          const win = window as unknown as WindowWithFetchStock;
-          if (win && win[`fetchStock_${productId}`]) {
-            win[`fetchStock_${productId}`]!();
-          }
+          triggerStockUpdate(productId, "decrement");
         },
       })
     );

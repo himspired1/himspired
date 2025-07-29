@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client, writeClient } from "@/sanity/client";
+import { sanityRateLimiter } from "@/lib/sanity-retry";
 
 type Reservation = {
   sessionId: string;
@@ -63,21 +64,49 @@ export async function POST(
       newReservations = reservations.filter((r) => r.sessionId !== sessionId);
     }
 
-    // Patch the product with the updated reservations array
-    await writeClient
-      .patch(productId)
-      .set({ reservations: newReservations })
-      .commit();
+    // Use rate limiting and retry logic for Sanity operations
+    const result = await sanityRateLimiter.executeWithRateLimit(
+      "release-reservation",
+      async () => {
+        // Patch the product with the updated reservations array
+        await writeClient
+          .patch(productId)
+          .set({ reservations: newReservations })
+          .commit();
 
-    return NextResponse.json({
-      success: true,
-      message: "Reservation released",
-      productId,
-      sessionId,
-      reservations: newReservations,
-    });
+        return {
+          success: true,
+          message: "Reservation released",
+          productId,
+          sessionId,
+          reservations: newReservations,
+        };
+      }
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Release reservation error:", error);
+
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes("Rate limit exceeded")) {
+        return NextResponse.json(
+          {
+            error:
+              "Service temporarily unavailable. Please try again in a moment.",
+          },
+          { status: 503 }
+        );
+      }
+      if (error.message.includes("Product not found")) {
+        return NextResponse.json(
+          { error: "Product not found" },
+          { status: 404 }
+        );
+      }
+    }
+
     return NextResponse.json(
       { error: "Failed to release reservation" },
       { status: 500 }

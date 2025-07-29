@@ -142,7 +142,7 @@ const Products = () => {
   if (loading && clothesByCategory.length === 0) {
     return (
       <div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <ProductCardSkeleton key={i} delay={i * 0.1} />
         ))}
       </div>
