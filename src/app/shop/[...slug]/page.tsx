@@ -23,21 +23,6 @@ const ProductDetails = () => {
   const params = useParams();
   const dispatch = useAppDispatch();
 
-  // Get cart quantities for this product
-  const cartQuantities = useAppSelector((state) => {
-    const quantities: Record<string, number> = {};
-    if (item?.size) {
-      item.size.forEach((sizeOption) => {
-        quantities[sizeOption] = selectCartItemQuantity(
-          state,
-          item._id,
-          sizeOption
-        );
-      });
-    }
-    return quantities;
-  });
-
   // Handle async params in Next.js 15+
   useEffect(() => {
     const getProductId = async () => {
@@ -56,6 +41,21 @@ const ProductDetails = () => {
   }, [params]);
 
   const { item, loading, error } = useClothingItem(productId, "id");
+
+  // Get cart quantities for this product
+  const cartQuantities = useAppSelector((state) => {
+    const quantities: Record<string, number> = {};
+    if (item?.size) {
+      item.size.forEach((sizeOption) => {
+        quantities[sizeOption] = selectCartItemQuantity(
+          state,
+          item._id,
+          sizeOption
+        );
+      });
+    }
+    return quantities;
+  });
 
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
@@ -310,8 +310,8 @@ const ProductDetails = () => {
                           const controller = new AbortController();
                           const timeoutId = setTimeout(
                             () => controller.abort(),
-                            5000
-                          ); // 5 second timeout
+                            15000
+                          ); // 15 second timeout (matching ProductCard)
 
                           const response = await fetch(
                             `/api/products/reserve/${item._id}`,
@@ -348,19 +348,10 @@ const ProductDetails = () => {
                             } else if (
                               reservationResult.error &&
                               (reservationResult.error.includes("timeout") ||
-                                reservationResult.error.includes(
-                                  "connection"
-                                ) ||
-                                reservationResult.error.includes("network") ||
-                                reservationResult.error.includes(
-                                  "unavailable"
-                                ) ||
-                                reservationResult.error.includes(
-                                  "Service temporarily unavailable"
-                                ))
+                                reservationResult.error.includes("connection"))
                             ) {
                               toast.error(
-                                "Network connection issue. Please check your internet and try again."
+                                "This product is currently being purchased by another user"
                               );
                             } else if (
                               reservationResult.error &&
@@ -387,6 +378,13 @@ const ProductDetails = () => {
 
                           // Update availability after successful reservation
                           await checkAvailability();
+                          await fetchRealTimeStock();
+
+                          // Broadcast stock update to other tabs
+                          localStorage.setItem(
+                            "stockUpdate",
+                            Date.now().toString()
+                          );
 
                           const cartData = {
                             _id: item._id,
@@ -396,31 +394,23 @@ const ProductDetails = () => {
                             price: item.price,
                             size: size,
                             stock: item.stock || 0, // Include stock information
+                            reservationId: reservationResult?.reservationId, // Include reservation ID
                           };
                           dispatch(addItem(cartData));
                           setShowSizes((prev) => !prev);
                         } catch (error) {
                           console.error("Reservation error:", error);
 
-                          // Provide more specific error messages based on error type
                           if (error instanceof Error) {
                             if (error.name === "AbortError") {
                               toast.error(
-                                "Request timed out. Please try again."
-                              );
-                            } else if (error.message.includes("fetch")) {
-                              toast.error(
-                                "Network connection issue. Please check your internet and try again."
+                                "Reservation timed out. Please try again."
                               );
                             } else {
-                              toast.error(
-                                "Failed to reserve product. Please try again."
-                              );
+                              toast.error("Failed to reserve product");
                             }
                           } else {
-                            toast.error(
-                              "Failed to reserve product. Please try again."
-                            );
+                            toast.error("Failed to reserve product");
                           }
                           return;
                         } finally {

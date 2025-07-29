@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
       items,
       total,
       message,
+      sessionId, // Include sessionId for checkout session cleanup
     });
 
     if (receiptUrl) {

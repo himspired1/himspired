@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { client, writeClient } from "@/sanity/client";
+import { writeClient } from "@/sanity/client";
 import { sanityRateLimiter } from "@/lib/sanity-retry";
 import { StockAuth } from "@/lib/stock-auth";
 
@@ -56,8 +56,11 @@ export async function POST(
         const transaction = writeClient.transaction();
 
         try {
-          // Fetch product within the transaction
-          const product = await transaction.getDocument(productId);
+          // Fetch product before the transaction
+          const product = await writeClient.fetch(
+            `*[_type == "clothingItem" && _id == $productId][0]`,
+            { productId }
+          );
 
           if (!product) {
             throw new Error("Product not found");

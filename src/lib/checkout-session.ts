@@ -105,11 +105,19 @@ export class CheckoutSessionManager {
    * @param cartItems - The cart items from Redux state
    * @returns CartItem[] - Formatted cart items
    */
-  static formatCartItemsForCheckout(cartItems: any[]): CartItem[] {
-    return cartItems.map((item) => ({
-      productId: item.originalProductId || item._id,
-      quantity: item.quantity,
-      price: item.price,
-    }));
+  static formatCartItemsForCheckout(cartItems: unknown[]): CartItem[] {
+    return (cartItems as unknown[]).map((itemRaw) => {
+      const item = itemRaw as {
+        originalProductId?: string;
+        _id?: string;
+        quantity: number;
+        price?: number;
+      };
+      return {
+        productId: item.originalProductId || item._id || "",
+        quantity: item.quantity,
+        price: item.price ?? 0,
+      };
+    });
   }
 }

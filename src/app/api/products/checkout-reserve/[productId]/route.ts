@@ -9,8 +9,6 @@ export async function POST(
   try {
     const { productId } = await context.params;
 
-    // Clone the request to avoid consuming the body stream
-    const clonedReq = req.clone();
     const { sessionId, quantity = 1, isUpdate = false } = await req.json();
 
     if (!productId || !sessionId) {

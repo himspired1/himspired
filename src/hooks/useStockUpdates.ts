@@ -33,8 +33,6 @@ export const useStockUpdateListener = (
   productId: string,
   callback?: () => void
 ) => {
-  const dispatch = useDispatch<AppDispatch>();
-
   const handleStockUpdate = useCallback(
     (event: CustomEvent<StockUpdateEvent>) => {
       if (event.detail.productId === productId) {

@@ -111,10 +111,11 @@ export class CheckoutAuth {
       // Release reservations for all items in the session
       if (activeSession && activeSession.cartItems) {
         const releasePromises = activeSession.cartItems.map(
-          async (item: any) => {
+          async (item: unknown) => {
+            const itemData = item as { productId: string; quantity: number };
             try {
               const response = await fetch(
-                `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/release/${item.productId}`,
+                `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/release/${itemData.productId}`,
                 {
                   method: "POST",
                   headers: {
@@ -122,24 +123,24 @@ export class CheckoutAuth {
                   },
                   body: JSON.stringify({
                     sessionId,
-                    quantity: item.quantity,
+                    quantity: itemData.quantity,
                   }),
                 }
               );
 
               if (response.ok) {
                 console.log(
-                  `✅ Released reservation for product ${item.productId}`
+                  `✅ Released reservation for product ${itemData.productId}`
                 );
               } else {
                 console.error(
-                  `Failed to release reservation for product ${item.productId}:`,
+                  `Failed to release reservation for product ${itemData.productId}:`,
                   await response.text()
                 );
               }
             } catch (error) {
               console.error(
-                `Error releasing reservation for product ${item.productId}:`,
+                `Error releasing reservation for product ${itemData.productId}:`,
                 error
               );
             }

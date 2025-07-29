@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
+import clientPromise from "@/lib/mongodb";
 
 type Reservation = {
   sessionId: string;
@@ -40,17 +41,53 @@ export async function GET(
       (r: Reservation) => r.reservedUntil && new Date(r.reservedUntil) > now
     );
 
+    // Check for pending orders that contain this product
+    // CRITICAL: This query is essential for accurate stock calculation
+    // If this fails, we must not continue with incorrect stock data
+    let pendingOrderReservedQuantity = 0;
+    try {
+      const mongoClient = await clientPromise;
+      const db = mongoClient.db("himspired");
+      const ordersCollection = db.collection("orders");
+
+      // Find pending orders that contain this product
+      const pendingOrders = await ordersCollection
+        .find({
+          status: "payment_pending",
+          "items.productId": productId,
+        })
+        .toArray();
+
+      // Calculate total quantity reserved by pending orders
+      pendingOrderReservedQuantity = pendingOrders.reduce((total, order) => {
+        const orderItem = order.items.find(
+          (item: { productId: string; quantity: number }) =>
+            item.productId === productId
+        );
+        return total + (orderItem ? orderItem.quantity : 0);
+      }, 0);
+    } catch (error) {
+      console.error("Failed to check pending orders:", error);
+      // Rethrow the error to prevent continuing with incorrect stock calculations
+      // This ensures the failure is propagated and handled upstream
+      throw new Error(
+        `MongoDB query failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+
     // Calculate reserved quantity and available stock
-    const reservedQuantity = reservations.reduce(
+    const reservationQuantity = reservations.reduce(
       (sum, r) => sum + (r.quantity || 0),
       0
     );
-    const availableStock = Math.max(0, product.stock - reservedQuantity);
+    const totalReservedQuantity =
+      reservationQuantity + pendingOrderReservedQuantity;
+    const availableStock = Math.max(0, product.stock - totalReservedQuantity);
     const userReservation = reservations.find((r) => r.sessionId === sessionId);
     const reservedByCurrentUser = userReservation
       ? userReservation.quantity
       : 0;
-    const reservedByOthers = reservedQuantity - reservedByCurrentUser;
+    const reservedByOthers = totalReservedQuantity - reservedByCurrentUser;
 
     // Check if product is out of stock
     if (product.stock <= 0) {
@@ -69,7 +106,7 @@ export async function GET(
         message: `You reserved ${reservedByCurrentUser} item${reservedByCurrentUser > 1 ? "s" : ""}`,
         stock: product.stock,
         availableStock: availableStock,
-        reservedQuantity: reservedQuantity,
+        reservedQuantity: totalReservedQuantity,
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByCurrentUser: true,
@@ -83,13 +120,13 @@ export async function GET(
       if (reservedByOthers >= product.stock) {
         message = "Item reserved by other users";
       }
-      
+
       return NextResponse.json({
         available: false,
         message: message,
         stock: product.stock,
         availableStock: 0,
-        reservedQuantity: reservedQuantity,
+        reservedQuantity: totalReservedQuantity,
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByOtherUser: true,
@@ -103,7 +140,7 @@ export async function GET(
         message: `${availableStock} in stock, ${reservedByOthers} currently reserved by others`,
         stock: product.stock,
         availableStock: availableStock,
-        reservedQuantity: reservedQuantity,
+        reservedQuantity: totalReservedQuantity,
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByOtherUser: true,
@@ -116,7 +153,7 @@ export async function GET(
       message: `${availableStock} in stock`,
       stock: product.stock,
       availableStock: availableStock,
-      reservedQuantity: reservedQuantity,
+      reservedQuantity: totalReservedQuantity,
       reservedByCurrentUser,
       reservedByOthers,
     });

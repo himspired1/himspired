@@ -97,20 +97,24 @@ const ProductItem = ({
     selectCartItemQuantity(state, product._id, product.size?.[0] || "")
   );
 
-  // Get size-specific quantities
-  const sizeQuantities = useAppSelector((state) => {
-    const items = state.persistedReducer.cart.items.filter(
+  // Get all cart items for this product
+  const cartItems = useAppSelector((state) =>
+    state.persistedReducer.cart.items.filter(
       (item) => item.originalProductId === product._id
-    );
+    )
+  );
+
+  // Memoized size-specific quantities to prevent unnecessary rerenders
+  const sizeQuantities = useMemo(() => {
     const quantities: Record<string, number> = {};
-    items.forEach((item: CartItem) => {
+    cartItems.forEach((item: CartItem) => {
       if (item.size) {
         quantities[item.size] =
           (quantities[item.size] || 0) + (item.quantity || 1);
       }
     });
     return quantities;
-  });
+  }, [cartItems]);
 
   // Check product availability
   const checkAvailability = useMemo(() => {
