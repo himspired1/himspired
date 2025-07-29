@@ -12,24 +12,12 @@ interface SchemaField {
   initialValue?: () => string | number | boolean | Date;
 }
 
-interface SchemaObject {
-  name: string;
-  type: string;
-  title: string;
-  fields: SchemaField[];
-}
-
 // Define the selection interface for type safety
 interface TestDocumentSelection {
   title?: string;
   createdAt?: string;
-  data?: {
-    value?: string;
-    meta?: {
-      info?: string;
-      extra?: string;
-    };
-  };
+  dataValue?: string;
+  dataInfo?: string;
 }
 
 const testDocumentSchema = {
@@ -111,13 +99,13 @@ const testDocumentSchema = {
     },
     prepare: (selection: TestDocumentSelection) => {
       const { title, createdAt, dataValue, dataInfo } = selection;
-      
+
       return {
         title: title || "Untitled Document",
-        subtitle: createdAt 
+        subtitle: createdAt
           ? `Created: ${new Date(createdAt).toLocaleDateString()}`
           : "No creation date",
-        description: dataValue 
+        description: dataValue
           ? `Data: ${dataValue}${dataInfo ? ` | Info: ${dataInfo}` : ""}`
           : "No data available",
       };
@@ -141,12 +129,16 @@ export const validateSchemaField = (
       errors.push(`${field.title} is required`);
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       if (rule.min && !rule.min(value.length)) {
-        errors.push(`${field.title} must be at least ${rule.min.toString()} characters`);
+        errors.push(
+          `${field.title} must be at least ${rule.min.toString()} characters`
+        );
       }
       if (rule.max && !rule.max(value.length)) {
-        errors.push(`${field.title} must be no more than ${rule.max.toString()} characters`);
+        errors.push(
+          `${field.title} must be no more than ${rule.max.toString()} characters`
+        );
       }
     }
 
