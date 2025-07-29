@@ -758,92 +758,32 @@ const AdminOrders = () => {
                         // Generate a unique session ID for this operation
                         const sessionId = `admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-                        // Track successful releases for rollback
-                        const successfulReleases: Array<{
-                          productId: string;
-                          quantity: number;
-                        }> = [];
-
                         try {
-                          // Release stock for each item with individual error handling
-                          for (const item of orderToCancel.items) {
-                            try {
-                              const releaseResponse = await fetch(
-                                `/api/products/release/${item.productId}`,
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    sessionId: sessionId,
-                                    quantity: item.quantity,
-                                  }),
-                                }
-                              );
-
-                              if (!releaseResponse.ok) {
-                                const errorData = await releaseResponse
-                                  .json()
-                                  .catch(() => ({}));
-                                throw new Error(
-                                  `Failed to release product ${item.productId}: ${errorData.message || releaseResponse.statusText}`
-                                );
-                              }
-
-                              // Track successful release for potential rollback
-                              successfulReleases.push({
-                                productId: item.productId,
-                                quantity: item.quantity,
-                              });
-                            } catch (releaseError) {
-                              console.error(
-                                `Release failed for product ${item.productId}:`,
-                                releaseError
-                              );
-
-                              // Rollback successful releases if any release fails
-                              if (successfulReleases.length > 0) {
-                                console.log(
-                                  `Rolling back ${successfulReleases.length} successful releases...`
-                                );
-
-                                const rollbackPromises = successfulReleases.map(
-                                  async (releasedItem) => {
-                                    try {
-                                      const rollbackResponse = await fetch(
-                                        `/api/products/release/${releasedItem.productId}`,
-                                        {
-                                          method: "POST",
-                                          headers: {
-                                            "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify({
-                                            sessionId: sessionId,
-                                            quantity: releasedItem.quantity,
-                                          }),
-                                        }
-                                      );
-
-                                      if (!rollbackResponse.ok) {
-                                        console.error(
-                                          `Rollback failed for product ${releasedItem.productId}`
-                                        );
-                                      }
-                                    } catch (rollbackError) {
-                                      console.error(
-                                        `Rollback error for product ${releasedItem.productId}:`,
-                                        rollbackError
-                                      );
-                                    }
-                                  }
-                                );
-
-                                await Promise.all(rollbackPromises);
-                              }
-
-                              throw releaseError;
+                          // Release all stock items atomically using batch release
+                          const batchReleaseResponse = await fetch(
+                            `/api/products/batch-release`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              body: JSON.stringify({
+                                sessionId: sessionId,
+                                items: orderToCancel.items.map((item) => ({
+                                  productId: item.productId,
+                                  quantity: item.quantity,
+                                })),
+                              }),
                             }
+                          );
+
+                          if (!batchReleaseResponse.ok) {
+                            const errorData = await batchReleaseResponse
+                              .json()
+                              .catch(() => ({}));
+                            throw new Error(
+                              `Failed to release products: ${errorData.message || batchReleaseResponse.statusText}`
+                            );
                           }
                         } catch (releaseError) {
                           // Re-throw the error to be handled by the outer catch block

@@ -41,6 +41,72 @@ const stockCache = new Map<
 >();
 const CACHE_TTL = 1000; // 1 second for immediate updates
 
+// Cache cleanup interval (5 minutes)
+const CLEANUP_INTERVAL = 5 * 60 * 1000;
+
+// Initialize cleanup interval only once
+let cleanupInterval: NodeJS.Timeout | null = null;
+let cleanupCount = 0;
+
+function initializeCleanupInterval(): void {
+  if (cleanupInterval) return; // Already initialized
+  
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+    
+    // Find expired entries
+    for (const [key, value] of stockCache.entries()) {
+      if (now - value.timestamp > CACHE_TTL) {
+        expiredKeys.push(key);
+      }
+    }
+    
+    // Remove expired entries
+    for (const key of expiredKeys) {
+      stockCache.delete(key);
+    }
+    
+    // Log cleanup activity if entries were removed
+    if (expiredKeys.length > 0) {
+      console.log(
+        `Stock cache cleanup: removed ${expiredKeys.length} expired entries`
+      );
+    }
+    
+    // Log cache statistics periodically (every 10th cleanup cycle)
+    cleanupCount++;
+    if (cleanupCount % 10 === 0) {
+      const stats = getCacheStats();
+      console.log(`Stock cache stats: ${stats.size} entries, oldest: ${stats.oldestEntry ? new Date(stats.oldestEntry).toISOString() : 'N/A'}`);
+    }
+  }, CLEANUP_INTERVAL);
+  
+  console.log("Stock cache cleanup interval initialized");
+}
+
+// Initialize cleanup on module load
+initializeCleanupInterval();
+
+function cleanupExpiredCache(): number {
+  const now = Date.now();
+  const expiredKeys: string[] = [];
+
+  // Find expired entries
+  for (const [key, value] of stockCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      expiredKeys.push(key);
+    }
+  }
+
+  // Remove expired entries
+  for (const key of expiredKeys) {
+    stockCache.delete(key);
+  }
+
+  return expiredKeys.length;
+}
+
 function getCachedStock(
   productId: string,
   sessionId: string | null
@@ -59,7 +125,30 @@ function setCachedStock(
   data: StockResponse
 ): void {
   const cacheKey = `${productId}-${sessionId || "anonymous"}`;
+  
+  // Safety check: if cache gets too large, trigger immediate cleanup
+  if (stockCache.size > 1000) {
+    const cleanedCount = cleanupExpiredCache();
+    console.log(
+      `Emergency cache cleanup: removed ${cleanedCount} entries due to size limit`
+    );
+  }
+  
   stockCache.set(cacheKey, { data, timestamp: Date.now() });
+}
+
+// Utility function to get cache statistics (for monitoring)
+function getCacheStats(): { size: number; oldestEntry: number | null; newestEntry: number | null } {
+  if (stockCache.size === 0) {
+    return { size: 0, oldestEntry: null, newestEntry: null };
+  }
+  
+  const timestamps = Array.from(stockCache.values()).map(entry => entry.timestamp);
+  return {
+    size: stockCache.size,
+    oldestEntry: Math.min(...timestamps),
+    newestEntry: Math.max(...timestamps)
+  };
 }
 
 export async function GET(
