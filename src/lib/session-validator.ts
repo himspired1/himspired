@@ -32,6 +32,15 @@ export class SessionValidator {
     { count: number; resetTime: Date }
   >();
 
+  // Periodic cleanup timer
+  private static cleanupTimer: NodeJS.Timeout | null = null;
+  private static readonly CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+  // Initialize cleanup timer on module load
+  static {
+    this.initializeCleanupTimer();
+  }
+
   /**
    * Validate a session ID and extract session information
    * @param sessionId - The session ID to validate
@@ -56,7 +65,7 @@ export class SessionValidator {
     }
 
     // Check session ID format (should match SessionManager format)
-    const sessionPattern = /^session_\d+_[a-zA-Z0-9]+$/;
+    const sessionPattern = /^session_\d+_[a-z0-9]+$/;
     if (!sessionPattern.test(sessionId)) {
       return {
         sessionId,
@@ -109,6 +118,13 @@ export class SessionValidator {
    */
   static checkRateLimit(sessionId: string, ipAddress: string): RateLimitInfo {
     const now = new Date();
+
+    // Clean up expired rate limits periodically (every 10th call)
+    static cleanupCounter = 0;
+    cleanupCounter++;
+    if (cleanupCounter % 10 === 0) {
+      this.cleanupExpiredRateLimits();
+    }
 
     // Check session-based rate limiting
     const sessionLimit = this.sessionRateLimits.get(sessionId);
@@ -204,15 +220,33 @@ export class SessionValidator {
   }
 
   /**
+   * Initialize periodic cleanup timer
+   */
+  private static initializeCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+    }
+
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredRateLimits();
+      console.log(`Rate limit cleanup: cleaned up expired entries at ${new Date().toISOString()}`);
+    }, this.CLEANUP_INTERVAL);
+
+    console.log(`Rate limit cleanup timer initialized with ${this.CLEANUP_INTERVAL / 1000 / 60} minute intervals`);
+  }
+
+  /**
    * Clean up expired rate limit entries
    */
   static cleanupExpiredRateLimits(): void {
     const now = new Date();
+    let cleanedCount = 0;
 
     // Clean up session rate limits
     for (const [sessionId, info] of this.sessionRateLimits.entries()) {
       if (now > info.resetTime) {
         this.sessionRateLimits.delete(sessionId);
+        cleanedCount++;
       }
     }
 
@@ -220,7 +254,12 @@ export class SessionValidator {
     for (const [ip, info] of this.ipRateLimits.entries()) {
       if (now > info.resetTime) {
         this.ipRateLimits.delete(ip);
+        cleanedCount++;
       }
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`Rate limit cleanup: removed ${cleanedCount} expired entries`);
     }
   }
 }

@@ -1,12 +1,11 @@
 import { NextRequest } from "next/server";
+import { timingSafeEqual } from "crypto";
 
 export class StockAuth {
-  private static readonly VALID_TOKENS = new Set(
-    [
-      process.env.STOCK_MODIFICATION_TOKEN,
-      process.env.ADMIN_STOCK_TOKEN,
-    ].filter(Boolean)
-  ); // Filter out undefined values
+  private static readonly VALID_TOKENS = [
+    process.env.STOCK_MODIFICATION_TOKEN,
+    process.env.ADMIN_STOCK_TOKEN,
+  ].filter(Boolean) as string[]; // Filter out undefined values
 
   /**
    * Validate if the request is authorized to modify stock
@@ -24,18 +23,45 @@ export class StockAuth {
         return false;
       }
 
-      // Check if it's a Bearer token
+      // Extract token from header
+      let token: string;
       if (authHeader.startsWith("Bearer ")) {
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        return this.VALID_TOKENS.has(token);
+        token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      } else {
+        token = authHeader;
       }
 
-      // Check if it's a direct token
-      return this.VALID_TOKENS.has(authHeader);
+      // Use timing-safe comparison to prevent timing attacks
+      return this.isValidToken(token);
     } catch (error) {
       console.error("Error validating stock authorization:", error);
       return false;
     }
+  }
+
+  /**
+   * Validate token using timing-safe comparison
+   * @param token - The token to validate
+   * @returns boolean - True if token is valid
+   */
+  private static isValidToken(token: string): boolean {
+    // Convert token to Buffer for timing-safe comparison
+    const tokenBuffer = Buffer.from(token, "utf8");
+
+    // Compare against each valid token using timing-safe comparison
+    for (const validToken of this.VALID_TOKENS) {
+      const validTokenBuffer = Buffer.from(validToken, "utf8");
+
+      // Use timingSafeEqual to prevent timing attacks
+      if (
+        tokenBuffer.length === validTokenBuffer.length &&
+        timingSafeEqual(tokenBuffer, validTokenBuffer)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

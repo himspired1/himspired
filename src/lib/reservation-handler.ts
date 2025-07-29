@@ -112,6 +112,7 @@ export class ReservationHandler {
           );
         } catch (error) {
           console.error("Failed to check pending orders:", error);
+          throw error; // Rethrow to prevent silent failures and ensure accurate stock calculations
         }
 
         // Calculate available stock for this reservation (including pending orders)
@@ -183,7 +184,8 @@ export class ReservationHandler {
           reservedUntil: reservedUntil.toISOString(),
           availableStock:
             product.stock -
-            newReservations.reduce((sum, r) => sum + (r.quantity || 0), 0),
+            newReservations.reduce((sum, r) => sum + (r.quantity || 0), 0) -
+            pendingOrderReservedQuantity,
           reservations: newReservations,
         };
       }
