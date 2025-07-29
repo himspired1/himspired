@@ -3,13 +3,16 @@ interface SchemaField {
   name: string;
   type: string;
   title: string;
-  validation?: Array<{
-    required?: () => boolean;
-    min?: (length: number) => boolean;
-    max?: (length: number) => boolean;
-    custom?: (value: unknown) => boolean;
-  }>;
+  validation?: Array<(value: unknown) => ValidationResult>;
   initialValue?: () => string | number | boolean | Date;
+}
+
+// Define validation result types that align with standard schema validation patterns
+interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+  warning?: string;
+  info?: string;
 }
 
 // Define the selection interface for type safety
@@ -30,10 +33,26 @@ const testDocumentSchema = {
       type: "string",
       title: "Title",
       validation: [
-        {
-          required: () => true,
-          min: (length: number) => length >= 1,
-          max: (length: number) => length <= 100,
+        (value: unknown) => {
+          if (!value) {
+            return { isValid: false, error: "Title is required" };
+          }
+          if (typeof value !== "string") {
+            return { isValid: false, error: "Title must be a string" };
+          }
+          if (value.length < 1) {
+            return {
+              isValid: false,
+              error: "Title must be at least 1 character",
+            };
+          }
+          if (value.length > 100) {
+            return {
+              isValid: false,
+              error: "Title must be no more than 100 characters",
+            };
+          }
+          return { isValid: true };
         },
       ],
     },
@@ -53,10 +72,26 @@ const testDocumentSchema = {
           type: "string",
           title: "Value",
           validation: [
-            {
-              required: () => true,
-              min: (length: number) => length >= 1,
-              max: (length: number) => length <= 500,
+            (value: unknown) => {
+              if (!value) {
+                return { isValid: false, error: "Value is required" };
+              }
+              if (typeof value !== "string") {
+                return { isValid: false, error: "Value must be a string" };
+              }
+              if (value.length < 1) {
+                return {
+                  isValid: false,
+                  error: "Value must be at least 1 character",
+                };
+              }
+              if (value.length > 500) {
+                return {
+                  isValid: false,
+                  error: "Value must be no more than 500 characters",
+                };
+              }
+              return { isValid: true };
             },
           ],
         },
@@ -70,8 +105,18 @@ const testDocumentSchema = {
               type: "string",
               title: "Info",
               validation: [
-                {
-                  max: (length: number) => length <= 200,
+                (value: unknown) => {
+                  if (
+                    value &&
+                    typeof value === "string" &&
+                    value.length > 200
+                  ) {
+                    return {
+                      isValid: false,
+                      error: "Info must be no more than 200 characters",
+                    };
+                  }
+                  return { isValid: true };
                 },
               ],
             },
@@ -80,8 +125,18 @@ const testDocumentSchema = {
               type: "string",
               title: "Extra",
               validation: [
-                {
-                  max: (length: number) => length <= 200,
+                (value: unknown) => {
+                  if (
+                    value &&
+                    typeof value === "string" &&
+                    value.length > 200
+                  ) {
+                    return {
+                      isValid: false,
+                      error: "Extra must be no more than 200 characters",
+                    };
+                  }
+                  return { isValid: true };
                 },
               ],
             },
@@ -124,26 +179,11 @@ export const validateSchemaField = (
     return { isValid: true, errors: [] };
   }
 
-  for (const rule of field.validation) {
-    if (rule.required && rule.required() && !value) {
-      errors.push(`${field.title} is required`);
-    }
+  for (const validationFn of field.validation) {
+    const result = validationFn(value);
 
-    if (typeof value === "string") {
-      if (rule.min && !rule.min(value.length)) {
-        errors.push(
-          `${field.title} must be at least ${rule.min.toString()} characters`
-        );
-      }
-      if (rule.max && !rule.max(value.length)) {
-        errors.push(
-          `${field.title} must be no more than ${rule.max.toString()} characters`
-        );
-      }
-    }
-
-    if (rule.custom && !rule.custom(value)) {
-      errors.push(`${field.title} is invalid`);
+    if (!result.isValid && result.error) {
+      errors.push(result.error);
     }
   }
 
