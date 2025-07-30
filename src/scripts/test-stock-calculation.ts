@@ -72,7 +72,7 @@ async function testStockCalculation() {
     );
 
     // Calculate reservations that should be counted
-    const validReservations = reservations.filter((reservation: any) => {
+    const validReservations = reservations.filter((reservation: { sessionId: string }) => {
       const isPendingOrder = pendingOrderSessionIds.has(reservation.sessionId);
       const isConfirmedOrder = confirmedOrderSessionIds.has(
         reservation.sessionId
@@ -81,7 +81,7 @@ async function testStockCalculation() {
     });
 
     const totalReservedQuantity = validReservations.reduce(
-      (sum: number, r: any) => sum + (r.quantity || 0),
+      (sum: number, r: { quantity: number }) => sum + (r.quantity || 0),
       0
     );
 
