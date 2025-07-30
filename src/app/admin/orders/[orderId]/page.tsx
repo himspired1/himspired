@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build issues
+export const dynamic = "force-dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { P, H } from "@/components/common/typography";
@@ -15,23 +18,13 @@ import {
   ExternalLink,
   Download,
 } from "lucide-react";
-import { Order } from "@/models/order";
+import { Order, OrderItem as SharedOrderItem } from "@/models/order";
 import Image from "next/image";
 import { PAYMENT_ISSUE_TEMPLATES } from "@/constants/email-templates";
 import { toast } from "sonner";
 
 // Product Image Component for Order Details
-interface OrderItem {
-  title: string;
-  mainImage?: {
-    asset?: {
-      _ref?: string;
-      _id?: string;
-      url?: string;
-    };
-    alt?: string;
-  };
-}
+type OrderItem = SharedOrderItem;
 
 const ProductImage = ({
   item,
@@ -60,11 +53,9 @@ const ProductImage = ({
   };
 
   // Check multiple possible image paths
-  const imageRef = item.mainImage?.asset?._ref || item.mainImage?.asset?._id;
-  const imageUrl = item.mainImage?.asset?.url;
+  const imageRef = item.mainImage?.asset?._ref;
   const sanityUrl = imageRef ? getSanityImageUrl(imageRef) : null;
-
-  const finalImageUrl = imageUrl || sanityUrl;
+  const finalImageUrl = sanityUrl;
 
   if (!finalImageUrl || imageError) {
     return (
@@ -104,6 +95,9 @@ const OrderDetails = () => {
   );
   const [sendingEmail, setSendingEmail] = useState(false);
   const [paymentIssueSent, setPaymentIssueSent] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelingOrder, setCancelingOrder] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null); // Track which status is being updated
 
   useEffect(() => {
     const getOrderId = async () => {
@@ -125,8 +119,8 @@ const OrderDetails = () => {
       const response = await fetch(`/api/orders/${orderId}`);
       const data = await response.json();
 
-      if (data.order) {
-        setOrder(data.order);
+      if (response.ok && !data.error) {
+        setOrder(data);
       } else {
         // Order not found - redirect to orders list
         router.push("/admin/orders");
@@ -174,6 +168,11 @@ const OrderDetails = () => {
   // Helper to update order status and state
   const updateOrderStatus = async (newStatus: Order["status"]) => {
     if (!order) return;
+
+    // Prevent multiple requests for the same status
+    if (updatingStatus === newStatus) return;
+
+    setUpdatingStatus(newStatus);
     try {
       const res = await fetch(`/api/orders/${order.orderId}`, {
         method: "PUT",
@@ -190,6 +189,8 @@ const OrderDetails = () => {
       }
     } catch {
       toast.error("Failed to update order status");
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -231,11 +232,84 @@ const OrderDetails = () => {
     }
   };
 
-  const handleCancelOrder = async () => {
-    await updateOrderStatus("canceled");
+  const handleCancelAndReleaseStock = () => {
+    setCancelModalOpen(true);
+  };
+
+  // Reusable function to release stock reservations for order items
+  const releaseStockReservations = async (items: OrderItem[]) => {
+    const releasePromises = items.map(async (item) => {
+      const originalProductId = item.productId;
+
+      const response = await fetch(
+        `/api/products/release/${originalProductId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: "admin",
+            quantity: item.quantity,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to release product ${originalProductId}`);
+      }
+
+      return response.json();
+    });
+
+    await Promise.all(releasePromises);
+  };
+
+  const executeCancelOrder = async () => {
+    if (!order) return;
+
+    setCancelingOrder(true);
+    try {
+      // Cancel order and release stock
+      const response = await fetch(`/api/orders/${order.orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "canceled" }),
+      });
+
+      if (response.ok) {
+        // Release all items back to stock using the reusable function
+        await releaseStockReservations(order.items);
+
+        toast.success("Order canceled and products released back to stock");
+        setCancelModalOpen(false);
+        fetchOrder();
+      } else {
+        toast.error("Failed to cancel order");
+      }
+    } catch (error) {
+      console.error("Failed to cancel order:", error);
+      toast.error("Failed to cancel order");
+    } finally {
+      setCancelingOrder(false);
+    }
   };
   const handleResolveIssue = async () => {
     await updateOrderStatus("payment_confirmed");
+  };
+
+  const handlePutBackToStock = async () => {
+    if (!order) return;
+
+    try {
+      // Release reservations for all items in the order using the reusable function
+      await releaseStockReservations(order.items);
+      toast.success("All products put back to stock successfully");
+
+      // Optionally refresh the order to show updated status
+      fetchOrder();
+    } catch (error) {
+      console.error("Failed to put products back to stock:", error);
+      toast.error("Failed to put some products back to stock");
+    }
   };
 
   if (loading) {
@@ -500,9 +574,21 @@ const OrderDetails = () => {
               <>
                 <button
                   onClick={() => updateOrderStatus("payment_confirmed")}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={updatingStatus === "payment_confirmed"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_confirmed"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
                 >
-                  Confirm Payment
+                  {updatingStatus === "payment_confirmed" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Confirming...
+                    </>
+                  ) : (
+                    "Confirm Payment"
+                  )}
                 </button>
                 {!paymentIssueSent && (
                   <button
@@ -518,38 +604,129 @@ const OrderDetails = () => {
             {order.status === "payment_not_confirmed" && (
               <>
                 <button
-                  onClick={handleCancelOrder}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={handleCancelAndReleaseStock}
+                  disabled={cancelingOrder}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    cancelingOrder
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
                 >
-                  Cancel Order
+                  {cancelingOrder ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Canceling...
+                    </>
+                  ) : (
+                    "Cancel & Release Stock"
+                  )}
                 </button>
                 <button
                   onClick={handleResolveIssue}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={updatingStatus === "payment_confirmed"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_confirmed"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
                 >
-                  Issue Resolved
+                  {updatingStatus === "payment_confirmed" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Resolving Issue...
+                    </>
+                  ) : (
+                    "Issue Resolved"
+                  )}
+                </button>
+              </>
+            )}
+            {/* Add cancel button for payment_pending orders */}
+            {order.status === "payment_pending" && (
+              <>
+                <button
+                  onClick={handleCancelAndReleaseStock}
+                  disabled={cancelingOrder}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    cancelingOrder
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
+                >
+                  {cancelingOrder ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Canceling...
+                    </>
+                  ) : (
+                    "Cancel & Release Stock"
+                  )}
                 </button>
               </>
             )}
             {order.status === "canceled" && (
-              <span className="px-4 py-2 bg-gray-400 text-white rounded-lg">
-                Order Canceled
-              </span>
+              <>
+                <span className="px-4 py-2 bg-gray-400 text-white rounded-lg">
+                  Order Canceled
+                </span>
+                <button
+                  onClick={handlePutBackToStock}
+                  disabled={updatingStatus === "payment_pending"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "payment_pending"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
+                >
+                  {updatingStatus === "payment_pending" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Putting Back to Stock...
+                    </>
+                  ) : (
+                    "Put Back to Stock"
+                  )}
+                </button>
+              </>
             )}
             {order.status === "payment_confirmed" && (
               <button
                 onClick={() => updateOrderStatus("shipped")}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={updatingStatus === "shipped"}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  updatingStatus === "shipped"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
               >
-                Mark as Shipped
+                {updatingStatus === "shipped" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Marking as Shipped...
+                  </>
+                ) : (
+                  "Mark as Shipped"
+                )}
               </button>
             )}
             {order.status === "shipped" && (
               <button
                 onClick={() => updateOrderStatus("complete")}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={updatingStatus === "complete"}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  updatingStatus === "complete"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-purple-600 text-white hover:bg-purple-700"
+                }`}
               >
-                Mark as Complete
+                {updatingStatus === "complete" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Marking as Complete...
+                  </>
+                ) : (
+                  "Mark as Complete"
+                )}
               </button>
             )}
           </div>
@@ -603,6 +780,46 @@ const OrderDetails = () => {
                 disabled={sendingEmail || !emailText.trim()}
               >
                 {sendingEmail ? "Sending..." : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Order Confirmation Modal */}
+      {cancelModalOpen && order && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <P className="font-semibold">Confirm Cancelation</P>
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <P className="text-gray-700 mb-4">
+              Are you sure you want to cancel order {order.orderId}?
+            </P>
+            <P className="text-sm text-orange-600 mb-4">
+              This will also release all reserved items back to stock for other
+              customers to purchase.
+            </P>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setCancelModalOpen(false)}
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                disabled={cancelingOrder}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeCancelOrder}
+                className="px-4 py-2 rounded bg-[#68191E] text-white hover:bg-[#5a1519] disabled:opacity-50"
+                disabled={cancelingOrder}
+              >
+                {cancelingOrder ? "Cancelling..." : "Proceed to Cancel"}
               </button>
             </div>
           </div>

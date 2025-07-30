@@ -36,6 +36,7 @@ export interface Order {
   _id?: string;
   orderId: string;
   userId?: string;
+  sessionId?: string; // Track the checkout session for cleanup
   customerInfo: CustomerInfo;
   items: OrderItem[];
   total: number;
@@ -51,6 +52,7 @@ export interface CreateOrderRequest {
   items: OrderItem[];
   total: number;
   message?: string;
+  sessionId?: string; // Include sessionId for checkout session cleanup
 }
 
 export function isValidOrderStatus(status: unknown): status is OrderStatus {
