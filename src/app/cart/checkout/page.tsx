@@ -133,9 +133,12 @@ const CheckoutPage = () => {
     setSubmitting(true);
     setUploadProgress(0);
 
+    // Declare progressInterval in outer scope so it's accessible in finally block
+    let progressInterval: NodeJS.Timeout | undefined;
+
     try {
       // Simulate upload progress for better UX
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 90) {
             clearInterval(progressInterval);
@@ -181,10 +184,22 @@ const CheckoutPage = () => {
       }
 
       // Start checkout session before extending reservations
-      const checkoutSessionStarted =
-        await CheckoutSessionManager.startCheckoutSession(
-          CheckoutSessionManager.formatCartItemsForCheckout(cartItems)
+      let formattedCartItems;
+      try {
+        formattedCartItems =
+          CheckoutSessionManager.formatCartItemsForCheckout(cartItems);
+      } catch (formatError) {
+        console.error("Error formatting cart items for checkout:", formatError);
+        toast.error(
+          "Failed to process cart items. Please refresh and try again."
         );
+        setUploadProgress(0);
+        setSubmitting(false);
+        return;
+      }
+
+      const checkoutSessionStarted =
+        await CheckoutSessionManager.startCheckoutSession(formattedCartItems);
 
       if (!checkoutSessionStarted) {
         toast.error("Failed to start checkout session. Please try again.");
@@ -227,8 +242,8 @@ const CheckoutPage = () => {
           );
           failedReservations.push({
             productId: item._id || "unknown",
-            title: item.title || "Unknown Item",
-            error: "Item data is incomplete",
+            title: item.title || "Unknown",
+            error: "Missing required fields - item may be corrupted",
             status: 400,
           });
           return false;
@@ -237,16 +252,8 @@ const CheckoutPage = () => {
         return true;
       });
 
-      if (validCartItems.length === 0) {
-        toast.error(
-          "All items in your cart are missing product information. Please refresh and try again."
-        );
-        setUploadProgress(0);
-        setSubmitting(false);
-        return;
-      }
-
-      const extendReservationsPromises = validCartItems.map(async (item) => {
+      // Extend reservations for valid items
+      for (const item of validCartItems) {
         try {
           const response = await fetch(
             `/api/products/checkout-reserve/${item.originalProductId}`,
@@ -258,102 +265,65 @@ const CheckoutPage = () => {
               body: JSON.stringify({
                 sessionId,
                 quantity: item.quantity,
-                isUpdate: true, // This is an update to existing reservation
+                size: item.size,
               }),
             }
           );
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.message || `HTTP ${response.status}`;
-
+            console.error(
+              `Failed to extend reservation for ${item.title}:`,
+              errorData
+            );
             failedReservations.push({
               productId: item.originalProductId,
               title: item.title,
-              error: errorMessage,
+              error: errorData.error || `HTTP ${response.status}`,
               status: response.status,
             });
-
-            console.error(
-              `Failed to extend reservation for ${item.title}:`,
-              errorMessage
+          } else {
+            console.log(
+              `✅ Extended reservation for ${item.title} (${item.originalProductId})`
             );
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Network error";
-
-          failedReservations.push({
-            productId: item.originalProductId,
-            title: item.title,
-            error: errorMessage,
-          });
-
           console.error(
             `Error extending reservation for ${item.title}:`,
             error
           );
-        }
-      });
-
-      // Wait for all reservation extensions to complete
-      await Promise.all(extendReservationsPromises);
-
-      // Check if there were any failed reservations
-      if (failedReservations.length > 0) {
-        console.error("Reservation extension failures:", failedReservations);
-
-        // Determine if we should abort the checkout process
-        const criticalFailures = failedReservations.filter((failure) =>
-          isCriticalFailure(failure.status, failure.error)
-        );
-
-        if (criticalFailures.length > 0) {
-          // Critical failures - abort checkout
-          const failureMessage =
-            criticalFailures.length === 1
-              ? `Failed to reserve "${criticalFailures[0].title}" for checkout. Please refresh and try again.`
-              : `Failed to reserve ${criticalFailures.length} items for checkout. Please refresh and try again.`;
-
-          toast.error(failureMessage);
-          setUploadProgress(0);
-          setSubmitting(false);
-
-          // Log critical failures for debugging
-          console.error("Critical reservation failures - checkout aborted:", {
-            totalFailures: failedReservations.length,
-            criticalFailures: criticalFailures.length,
-            failures: failedReservations.map((f) => ({
-              product: f.title,
-              error: f.error,
-              status: f.status,
-              isCritical: isCriticalFailure(f.status, f.error),
-            })),
-          });
-          return;
-        } else {
-          // Non-critical failures - warn user but continue
-          const warningMessage =
-            failedReservations.length === 1
-              ? `Warning: "${failedReservations[0].title}" may not be available. Proceeding with checkout...`
-              : `Warning: ${failedReservations.length} items may not be available. Proceeding with checkout...`;
-
-          toast.warning(warningMessage);
-
-          // Log detailed failure information for debugging
-          console.warn("Non-critical reservation failures:", {
-            totalFailures: failedReservations.length,
-            failures: failedReservations.map((f) => ({
-              product: f.title,
-              error: f.error,
-              status: f.status,
-              isCritical: isCriticalFailure(f.status, f.error),
-            })),
+          failedReservations.push({
+            productId: item.originalProductId,
+            title: item.title,
+            error: error instanceof Error ? error.message : "Network error",
           });
         }
       }
 
-      // Submit to API
+      // Handle critical failures
+      const criticalFailures = failedReservations.filter((failure) =>
+        isCriticalFailure(failure.status, failure.error)
+      );
+
+      if (criticalFailures.length > 0) {
+        console.error("Critical reservation failures:", criticalFailures);
+        toast.error(
+          "Some items are no longer available. Please refresh and try again."
+        );
+        setUploadProgress(0);
+        setSubmitting(false);
+        return;
+      }
+
+      // Handle non-critical failures with warnings
+      if (failedReservations.length > 0) {
+        console.warn("Non-critical reservation failures:", failedReservations);
+        toast.warning(
+          `Warning: ${failedReservations.length} items may have limited availability.`
+        );
+      }
+
+      // Submit order
       const response = await fetch("/api/orders", {
         method: "POST",
         body: formData,
@@ -362,7 +332,9 @@ const CheckoutPage = () => {
       const result = await response.json();
 
       // Complete progress
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       setUploadProgress(100);
 
       if (response.ok && result.success) {
@@ -405,6 +377,10 @@ const CheckoutPage = () => {
         toast.error("Failed to submit order. Please try again.");
       }
     } finally {
+      // Ensure progressInterval is cleared in finally block
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       setSubmitting(false);
     }
   };

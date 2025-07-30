@@ -1,29 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
 import { RateLimiter } from "@/lib/rate-limiter";
+import { forceCleanupProducts } from "@/lib/product-cleanup";
 
 interface ForceCleanupRequest {
   productIds: string[];
   clearAll?: boolean;
 }
 
-interface ForceCleanupResult {
-  success: boolean;
-  productId: string;
-  message: string;
-}
-
 export async function POST(req: NextRequest) {
   try {
     // Apply rate limiting for sensitive cleanup operations
-    const rateLimitMiddleware = RateLimiter.middleware({
+    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
       windowMs: 60 * 1000, // 1 minute
       maxRequests: 5, // 5 requests per minute (very restrictive for cleanup)
     });
 
-    const rateLimitResponse = await rateLimitMiddleware(req);
-    if (rateLimitResponse) {
-      return rateLimitResponse;
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!;
     }
 
     // Validate environment variables
@@ -67,74 +61,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const results: ForceCleanupResult[] = [];
+    // Use the shared function instead of making HTTP requests
+    const result = await forceCleanupProducts(productIds, clearAll);
 
-    // Perform force cleanup for each product
-    for (const productId of productIds) {
-      try {
-        // Extract base product ID from order product ID (remove size and timestamp metadata)
-        const baseProductId = productId.split(":::")[0];
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/force-cleanup/${baseProductId}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${StockAuth.getValidTokens()[0]}`,
-            },
-            body: JSON.stringify({
-              clearAll: clearAll,
-            }),
-          }
-        );
-
-        if (response.ok) {
-          const result = await response.json();
-          results.push({
-            success: true,
-            productId: baseProductId,
-            message: `Force cleanup completed successfully`,
-          });
-          console.log(
-            `✅ Force cleanup completed for ${baseProductId}:`,
-            result
-          );
-        } else {
-          const errorText = await response.text();
-          results.push({
-            success: false,
-            productId: baseProductId,
-            message: `Force cleanup failed: ${errorText}`,
-          });
-          console.error(
-            `❌ Force cleanup failed for ${baseProductId}:`,
-            errorText
-          );
-        }
-      } catch (error) {
-        results.push({
-          success: false,
-          productId: productId,
-          message: `Error during force cleanup: ${error instanceof Error ? error.message : "Unknown error"}`,
-        });
-        console.error(`❌ Error during force cleanup for ${productId}:`, error);
-      }
-    }
-
-    const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.filter((r) => !r.success).length;
-
-    return NextResponse.json({
-      success: failureCount === 0,
-      message: `Force cleanup completed: ${successCount} successful, ${failureCount} failed`,
-      results: results,
-      summary: {
-        total: results.length,
-        successful: successCount,
-        failed: failureCount,
-      },
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Force cleanup API error:", error);
     return NextResponse.json(

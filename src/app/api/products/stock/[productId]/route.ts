@@ -39,7 +39,7 @@ const stockCache = new Map<
   string,
   { data: StockResponse; timestamp: number }
 >();
-const CACHE_TTL = 1000; // 1 second for immediate updates
+const CACHE_TTL = 50; 
 
 // Cache cleanup interval (5 minutes)
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
@@ -265,8 +265,30 @@ export async function GET(
       (sum, r) => sum + (r.quantity || 0),
       0
     );
-    const totalReservedQuantity =
-      reservationQuantity + pendingOrderReservedQuantity;
+
+    // Calculate total reserved quantity, but avoid double-counting
+    // If there are reservations and pending orders, we need to be smart about counting
+    let totalReservedQuantity =
+      reservationQuantity + (pendingOrderReservedQuantity || 0);
+
+    // If we have both reservations and pending orders, we might be double-counting
+    // For now, we'll use the maximum of the two to avoid over-counting
+    if (reservationQuantity > 0 && pendingOrderReservedQuantity > 0) {
+      // Use the larger of the two to avoid double-counting
+      totalReservedQuantity = Math.max(
+        reservationQuantity,
+        pendingOrderReservedQuantity
+      );
+    }
+
+    // Debug logging to understand the calculation
+    console.log(`🔍 Stock calculation debug for ${productId}:`);
+    console.log(`  - reservations.length: ${reservations.length}`);
+    console.log(`  - reservationQuantity: ${reservationQuantity}`);
+    console.log(
+      `  - pendingOrderReservedQuantity: ${pendingOrderReservedQuantity}`
+    );
+    console.log(`  - totalReservedQuantity: ${totalReservedQuantity}`);
 
     // Validate that we have valid data before calculating stock
     if (typeof product.stock !== "number" || product.stock < 0) {
@@ -301,11 +323,23 @@ export async function GET(
       stockMessage = `${availableStock} in stock`;
     }
 
-    if (reservedByOthers > 0 && availableStock > 0) {
-      stockMessage += `, ${reservedByOthers} currently reserved by others`;
+    // Calculate actual reservations by others (excluding current user)
+    const actualReservations = reservations.filter(
+      (r) => r.sessionId !== sessionId
+    );
+    const actualReservedByOthers = actualReservations.reduce(
+      (sum, r) => sum + (r.quantity || 0),
+      0
+    );
+
+    // Show reserved by others if there are actual reservations
+    if (actualReservedByOthers > 0 && availableStock > 0) {
+      stockMessage += `, ${actualReservedByOthers} currently reserved by others`;
     }
 
     // Add information about pending orders if any
+    // Show pending orders info if there are pending orders
+    // This helps users understand why stock might be lower than expected
     if (pendingOrderReservedQuantity > 0) {
       stockMessage += ` (${pendingOrderReservedQuantity} in pending orders)`;
     }

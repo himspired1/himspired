@@ -3,7 +3,7 @@ import { Plus, Check } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SanityImageComponent } from "@/components/sanity/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
   addItem,
@@ -118,20 +118,18 @@ const ProductItem = ({
   }, [cartItems]);
 
   // Check product availability
-  const checkAvailability = useMemo(() => {
-    return async () => {
-      try {
-        const sessionId = SessionManager.getSessionId();
-        const res = await fetch(
-          `/api/products/availability/${product._id}?sessionId=${sessionId}`
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        setIsAvailable(data.isAvailable);
-      } catch (error) {
-        console.error("Error checking availability:", error);
-      }
-    };
+  const checkAvailability = useCallback(async () => {
+    try {
+      const sessionId = SessionManager.getSessionId();
+      const res = await fetch(
+        `/api/products/availability/${product._id}?sessionId=${sessionId}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setIsAvailable(data.isAvailable);
+    } catch (error) {
+      console.error("Error checking availability:", error);
+    }
   }, [product._id]);
 
   // Real-time polling for stock and reservation status
@@ -241,10 +239,10 @@ const ProductItem = ({
     checkAvailability();
 
     // Also fetch stock immediately when component mounts
-    if (isAvailable && fetchStockRef.current) {
+    if (fetchStockRef.current) {
       fetchStockRef.current();
     }
-  }, [product._id, checkAvailability, isAvailable]);
+  }, [product._id, checkAvailability]);
 
   const handleClick = () => {
     router.push(`/shop/${product._id}/${product.slug?.current}`);

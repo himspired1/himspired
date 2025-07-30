@@ -23,6 +23,23 @@ class RateLimiter {
     );
   }
 
+  /**
+   * Clean up the rate limiter and prevent memory leaks
+   * Call this method when the rate limiter is no longer needed
+   * (e.g., during application shutdown, in serverless environments, or for testing)
+   */
+  static cleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      console.log("🧹 Rate limiter cleanup interval cleared");
+    }
+
+    // Clear all rate limits
+    this.limits.clear();
+    console.log("🧹 Rate limiter limits cleared");
+  }
+
   static checkRateLimit(
     key: string,
     windowMs: number,
@@ -67,7 +84,7 @@ class RateLimiter {
   }
 
   static middleware(config: RateLimitConfig) {
-    return async (request: NextRequest): Promise<NextResponse | null> => {
+    return async (request: NextRequest): Promise<NextResponse> => {
       const key = config.keyGenerator
         ? config.keyGenerator(request)
         : this.getDefaultKey(request);
@@ -101,16 +118,85 @@ class RateLimiter {
         new Date(result.resetTime).toISOString()
       );
 
-      return null; // Continue to next middleware/handler
+      return response; // Return the response object to continue processing
     };
   }
 
+  /**
+   * Check rate limit for API route handlers
+   * This method is designed for use in API route handlers, not middleware
+   */
+  static checkRateLimitForAPI(
+    request: NextRequest,
+    config: RateLimitConfig
+  ): { allowed: boolean; response?: NextResponse } {
+    const key = config.keyGenerator
+      ? config.keyGenerator(request)
+      : this.getDefaultKey(request);
+
+    const result = this.checkRateLimit(
+      key,
+      config.windowMs,
+      config.maxRequests
+    );
+
+    if (!result.allowed) {
+      return {
+        allowed: false,
+        response: NextResponse.json(
+          {
+            error: "Rate limit exceeded",
+            message: "Too many requests, please try again later",
+            resetTime: new Date(result.resetTime).toISOString(),
+          },
+          { status: 429 }
+        ),
+      };
+    }
+
+    return { allowed: true };
+  }
+
   private static getDefaultKey(request: NextRequest): string {
+    // Try to get IP from various headers
     const ip =
       request.headers.get("x-forwarded-for") ||
       request.headers.get("x-real-ip") ||
-      "unknown";
-    return `rate_limit:${ip}`;
+      request.headers.get("cf-connecting-ip") || // Cloudflare
+      request.headers.get("x-client-ip") ||
+      "no-ip";
+
+    // Create a more granular key by incorporating request properties
+    const method = request.method;
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Include user agent as additional differentiation (truncated for security)
+    const userAgent = request.headers.get("user-agent") || "no-ua";
+    const userAgentHash = this.hashString(userAgent.substring(0, 50)); // Truncate for security
+
+    // Include referer as additional differentiation
+    const referer = request.headers.get("referer") || "no-referer";
+    const refererHash = this.hashString(referer.substring(0, 50)); // Truncate for security
+
+    // Create a unique key combining multiple request properties
+    const uniqueKey = `${ip}:${method}:${path}:${userAgentHash}:${refererHash}`;
+
+    return `rate_limit:${uniqueKey}`;
+  }
+
+  /**
+   * Simple hash function to create consistent hashes for strings
+   * This helps differentiate requests while maintaining security
+   */
+  private static hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36); // Convert to base36 for shorter strings
   }
 }
 

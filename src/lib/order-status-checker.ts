@@ -3,17 +3,7 @@
  *
  * Monitors order status and triggers cleanup when payment is confirmed
  */
-interface OrderItem {
-  productId: string;
-  title?: string;
-  quantity?: number;
-}
-
-interface Order {
-  _id: string;
-  status: string;
-  items?: OrderItem[];
-}
+import { Order, OrderItem } from "@/models/order";
 
 export class OrderStatusChecker {
   private static checkInterval: NodeJS.Timeout | null = null;
@@ -72,10 +62,10 @@ export class OrderStatusChecker {
 
         const order: Order = await response.json();
 
-        // Check if order is in a final state (completed, cancelled, etc.)
-        if (order.status === "completed" || order.status === "cancelled") {
+        // Check if order is in a final state (complete, canceled, etc.)
+        if (order.status === "complete" || order.status === "canceled") {
           console.log(`Order ${orderId} is in final state, triggering cleanup`);
-          await this.triggerCleanup();
+          await this.cleanupSpecificOrder(orderId);
           this.orderIds.delete(orderId);
         }
       } catch (error) {
@@ -156,6 +146,53 @@ export class OrderStatusChecker {
       );
     } catch (error) {
       console.error("❌ Error during cleanup trigger:", error);
+    }
+  }
+
+  /**
+   * Cleanup for a specific order only
+   * This method handles cleanup for a single order that has reached a final state
+   */
+  static async cleanupSpecificOrder(orderId: string): Promise<void> {
+    try {
+      console.log(`🔧 Triggering cleanup for specific order ${orderId}...`);
+
+      const response = await fetch(`/api/orders/${orderId}`);
+      if (!response.ok) {
+        console.warn(`⚠️ Order ${orderId} not found during cleanup`);
+        return;
+      }
+
+      const order: Order = await response.json();
+      if (!order || !order.items) {
+        console.warn(`⚠️ Order ${orderId} has no items for cleanup`);
+        return;
+      }
+
+      // Extract product IDs from order items
+      const productIds = order.items.map((item: OrderItem) => item.productId);
+
+      // Call the server-side API route for cleanup
+      const cleanupResponse = await fetch("/api/admin/force-cleanup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productIds: productIds,
+          clearAll: true,
+        }),
+      });
+
+      if (cleanupResponse.ok) {
+        const result = await cleanupResponse.json();
+        console.log(`✅ Cleanup completed for order ${orderId}:`, result);
+      } else {
+        const errorText = await cleanupResponse.text();
+        console.error(`❌ Cleanup failed for order ${orderId}:`, errorText);
+      }
+    } catch (error) {
+      console.error(`❌ Error during cleanup for order ${orderId}:`, error);
     }
   }
 

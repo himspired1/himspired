@@ -119,8 +119,8 @@ const OrderDetails = () => {
       const response = await fetch(`/api/orders/${orderId}`);
       const data = await response.json();
 
-      if (data.order) {
-        setOrder(data.order);
+      if (response.ok && !data.error) {
+        setOrder(data);
       } else {
         // Order not found - redirect to orders list
         router.push("/admin/orders");
