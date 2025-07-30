@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import clientPromise from "./mongodb";
+import { timingSafeEqual } from "crypto";
 
 export interface CheckoutSession {
   sessionId: string;
@@ -14,143 +14,101 @@ export interface CheckoutSession {
 }
 
 export class CheckoutAuth {
-  private static SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
+  private static readonly VALID_TOKENS = [
+    process.env.CHECKOUT_TOKEN,
+    process.env.ADMIN_CHECKOUT_TOKEN,
+  ].filter(Boolean) as string[];
 
-  /**
-   * Validate if a session has an active checkout process
-   * @param sessionId - The session ID to validate
-   * @returns Promise<boolean> - True if session has active checkout
-   */
-  static async validateCheckoutSession(sessionId: string): Promise<boolean> {
+  static async isAuthorized(request: NextRequest): Promise<boolean> {
     try {
-      const client = await clientPromise;
-      const db = client.db("himspired");
-      const checkoutSessions = db.collection("checkout_sessions");
+      const authHeader = request.headers.get("authorization");
+      if (!authHeader) {
+        console.warn("Checkout request missing authorization header");
+        return false;
+      }
 
-      // Find active checkout session for this sessionId
-      const session = await checkoutSessions.findOne({
-        sessionId,
-        isActive: true,
-        expiresAt: { $gt: new Date() },
-      });
+      let token: string;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      } else {
+        token = authHeader;
+      }
 
-      return !!session;
+      return this.isValidToken(token);
     } catch (error) {
-      console.error("Error validating checkout session:", error);
+      console.error("Error validating checkout token:", error);
       return false;
     }
   }
 
-  /**
-   * Create a checkout session for a user
-   * @param sessionId - The session ID
-   * @param cartItems - The items in the cart
-   * @returns Promise<boolean> - True if session created successfully
-   */
-  static async createCheckoutSession(
-    sessionId: string,
-    cartItems: Array<{
-      productId: string;
-      quantity: number;
-      price: number;
-    }>
-  ): Promise<boolean> {
-    try {
-      const client = await clientPromise;
-      const db = client.db("himspired");
-      const checkoutSessions = db.collection("checkout_sessions");
+  private static isValidToken(token: string): boolean {
+    const tokenBuffer = Buffer.from(token, "utf8");
 
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + this.SESSION_DURATION);
+    for (const validToken of this.VALID_TOKENS) {
+      const validTokenBuffer = Buffer.from(validToken, "utf8");
 
-      // Deactivate any existing sessions for this sessionId
-      await checkoutSessions.updateMany(
-        { sessionId },
-        { $set: { isActive: false } }
+      if (
+        tokenBuffer.length === validTokenBuffer.length &&
+        timingSafeEqual(tokenBuffer, validTokenBuffer)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static validateEnvironmentVariables(): void {
+    if (!process.env.CHECKOUT_TOKEN && !process.env.ADMIN_CHECKOUT_TOKEN) {
+      throw new Error(
+        "CHECKOUT_TOKEN or ADMIN_CHECKOUT_TOKEN environment variable must be set"
       );
-
-      // Create new checkout session
-      await checkoutSessions.insertOne({
-        sessionId,
-        cartItems,
-        createdAt: now,
-        expiresAt,
-        isActive: true,
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Error creating checkout session:", error);
-      return false;
     }
   }
 
+  static getValidTokens(): string[] {
+    return [...this.VALID_TOKENS];
+  }
+
   /**
-   * Deactivate a checkout session and release associated reservations
-   * @param sessionId - The session ID to deactivate
-   * @returns Promise<boolean> - True if session deactivated successfully
+   * Safely get the first valid token
+   * @throws Error if no valid tokens are available
+   */
+  static getFirstValidToken(): string {
+    if (this.VALID_TOKENS.length === 0) {
+      throw new Error("No valid checkout tokens available");
+    }
+    return this.VALID_TOKENS[0];
+  }
+
+  /**
+   * Check if any valid tokens are available
+   */
+  static hasValidTokens(): boolean {
+    return this.VALID_TOKENS.length > 0;
+  }
+
+  /**
+   * Deactivate a checkout session
    */
   static async deactivateCheckoutSession(sessionId: string): Promise<boolean> {
     try {
-      const client = await clientPromise;
-      const db = client.db("himspired");
-      const checkoutSessions = db.collection("checkout_sessions");
+      // Get the base URL for API calls
+      const baseUrl =
+        process.env.BASE_URL ||
+        process.env.NEXT_PUBLIC_BASE_URL ||
+        "http://localhost:3000";
 
-      // Get the active session to find cart items
-      const activeSession = await checkoutSessions.findOne({
-        sessionId,
-        isActive: true,
+      const response = await fetch(`${baseUrl}/api/session/clear`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.getFirstValidToken()}`,
+        },
+        body: JSON.stringify({ sessionId }),
       });
 
-      // Deactivate the session
-      await checkoutSessions.updateMany(
-        { sessionId },
-        { $set: { isActive: false } }
-      );
-
-      // Release reservations for all items in the session
-      if (activeSession && activeSession.cartItems) {
-        const releasePromises = activeSession.cartItems.map(
-          async (item: unknown) => {
-            const itemData = item as { productId: string; quantity: number };
-            try {
-              const response = await fetch(
-                `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/release/${itemData.productId}`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    sessionId,
-                    quantity: itemData.quantity,
-                  }),
-                }
-              );
-
-              if (response.ok) {
-                console.log(
-                  `✅ Released reservation for product ${itemData.productId}`
-                );
-              } else {
-                console.error(
-                  `Failed to release reservation for product ${itemData.productId}:`,
-                  await response.text()
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Error releasing reservation for product ${itemData.productId}:`,
-                error
-              );
-            }
-          }
-        );
-
-        await Promise.all(releasePromises);
-      }
-
-      return true;
+      return response.ok;
     } catch (error) {
       console.error("Error deactivating checkout session:", error);
       return false;
@@ -158,47 +116,38 @@ export class CheckoutAuth {
   }
 
   /**
-   * Clean up expired checkout sessions
-   * @returns Promise<number> - Number of sessions cleaned up
+   * Release a product reservation
    */
-  static async cleanupExpiredSessions(): Promise<number> {
+  static async releaseProductReservation(itemData: {
+    productId: string;
+    sessionId?: string;
+    quantity?: number;
+  }): Promise<boolean> {
     try {
-      const client = await clientPromise;
-      const db = client.db("himspired");
-      const checkoutSessions = db.collection("checkout_sessions");
+      // Get the base URL for API calls
+      const baseUrl =
+        process.env.BASE_URL ||
+        process.env.NEXT_PUBLIC_BASE_URL ||
+        "http://localhost:3000";
 
-      const result = await checkoutSessions.updateMany(
+      const response = await fetch(
+        `${baseUrl}/api/products/release/${itemData.productId}`,
         {
-          expiresAt: { $lt: new Date() },
-          isActive: true,
-        },
-        { $set: { isActive: false } }
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.getFirstValidToken()}`,
+          },
+          body: JSON.stringify({
+            sessionId: itemData.sessionId,
+            quantity: itemData.quantity,
+          }),
+        }
       );
 
-      return result.modifiedCount;
+      return response.ok;
     } catch (error) {
-      console.error("Error cleaning up expired sessions:", error);
-      return 0;
-    }
-  }
-
-  /**
-   * Validate checkout session from request
-   * @param request - The NextRequest object
-   * @returns Promise<boolean> - True if request has valid checkout session
-   */
-  static async validateRequest(request: NextRequest): Promise<boolean> {
-    try {
-      const body = await request.json();
-      const sessionId = body.sessionId;
-
-      if (!sessionId) {
-        return false;
-      }
-
-      return await this.validateCheckoutSession(sessionId);
-    } catch (error) {
-      console.error("Error validating request:", error);
+      console.error("Error releasing product reservation:", error);
       return false;
     }
   }

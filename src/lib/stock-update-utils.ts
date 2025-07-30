@@ -1,23 +1,25 @@
 // Stock update utility functions
-interface StockUpdateResult {
-  success: boolean;
-  error?: string;
-  previousStock?: number;
-  newStock?: number;
-}
-
-interface StockUpdateParams {
+export interface StockUpdateParams {
   productId: string;
   quantity: number;
   orderId: string;
 }
 
-import { StockAuth } from "./stock-auth";
+export interface StockUpdateResult {
+  success: boolean;
+  previousStock?: number;
+  newStock?: number;
+  error?: string;
+}
 
-// Validate environment variables when function is called
-const validateEnvironmentVariables = (): void => {
+import { StockAuth } from "@/lib/stock-auth";
+
+/**
+ * Validate environment variables at runtime
+ */
+function validateEnvironmentVariables(): void {
   const requiredVars = {
-    NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
+    BASE_URL: process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL,
   };
 
   const missingVars = Object.entries(requiredVars)
@@ -25,20 +27,25 @@ const validateEnvironmentVariables = (): void => {
     .map(([key]) => key);
 
   if (missingVars.length > 0) {
-    console.error(
-      `Missing required environment variables: ${missingVars.join(", ")}`
-    );
     throw new Error(
       `Missing required environment variables: ${missingVars.join(", ")}`
     );
   }
-
-  // Validate stock auth environment variables
-  StockAuth.validateEnvironmentVariables();
-};
+}
 
 /**
- * Decrement stock for a product after payment confirmation
+ * Get the base URL for API calls
+ */
+function getBaseUrl(): string {
+  return (
+    process.env.BASE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    "http://localhost:3000"
+  );
+}
+
+/**
+ * Decrement stock for an order and update Sanity
  */
 export async function decrementStockForOrder(
   params: StockUpdateParams
@@ -46,12 +53,18 @@ export async function decrementStockForOrder(
   // Validate environment variables
   validateEnvironmentVariables();
 
+  // Validate that we have valid tokens
+  if (!StockAuth.hasValidTokens()) {
+    return {
+      success: false,
+      error: "No valid stock modification tokens available",
+    };
+  }
+
   const { productId, quantity, orderId } = params;
 
   try {
-    // Use the productId directly - it's already the correct Sanity product ID
-    // from the order items (item._id from cart items)
-    const baseProductId = productId;
+    const baseProductId = productId; // Fixed: Use productId directly
 
     console.log(`🔄 Starting stock decrement process for order ${orderId}`);
     console.log(
@@ -60,11 +73,12 @@ export async function decrementStockForOrder(
 
     // Get current stock
     const stockCheckResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/products/stock/${baseProductId}?sessionId=order-${orderId}`,
+      `${getBaseUrl()}/api/products/stock/${baseProductId}?sessionId=order-${orderId}`,
       {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${StockAuth.getFirstValidToken()}`,
         },
       }
     );
@@ -89,12 +103,12 @@ export async function decrementStockForOrder(
 
     // Update stock using the update API
     const stockResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/products/update-stock/${baseProductId}`,
+      `${getBaseUrl()}/api/products/update-stock/${baseProductId}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${StockAuth.getValidTokens()[0]}`,
+          Authorization: `Bearer ${StockAuth.getFirstValidToken()}`,
         },
         body: JSON.stringify({
           newStock: newStock,
@@ -118,12 +132,12 @@ export async function decrementStockForOrder(
     try {
       console.log(`🔄 Triggering stock update notification...`);
       const triggerResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/products/trigger-stock-update/${baseProductId}`,
+        `${getBaseUrl()}/api/products/trigger-stock-update/${baseProductId}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${StockAuth.getValidTokens()[0]}`,
+            Authorization: `Bearer ${StockAuth.getFirstValidToken()}`,
           },
         }
       );
@@ -143,41 +157,15 @@ export async function decrementStockForOrder(
       // Don't fail the entire operation if trigger fails
     }
 
-    // Trigger frontend refresh by updating localStorage
-    // This will notify all connected clients about the stock change
-    try {
-      console.log(`🔄 Triggering frontend refresh via localStorage...`);
-
-      // Import the cache constants
-      const { CACHE_KEYS } = await import("./cache-constants");
-
-      // Update localStorage to trigger frontend refresh
-      // This will be picked up by the storage event listeners in frontend components
-      const timestamp = Date.now().toString();
-
-      // Update stockUpdate to trigger stock refresh
-      if (typeof window !== "undefined") {
-        localStorage.setItem(CACHE_KEYS.STOCK_UPDATE, timestamp);
-        console.log(`✅ localStorage stockUpdate triggered: ${timestamp}`);
-      } else {
-        // Server-side: we can't directly update localStorage, but we can log it
-        console.log(
-          `ℹ️ Server-side stock update - frontend will refresh on next poll`
-        );
-      }
-    } catch (localStorageError) {
-      console.error(`Error triggering localStorage update:`, localStorageError);
-      // Don't fail the entire operation if localStorage update fails
-    }
-
     // Verify the stock was actually updated
     console.log(`🔍 Verifying stock update...`);
     const verifyResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/products/stock/${baseProductId}?sessionId=verify-${orderId}`,
+      `${getBaseUrl()}/api/products/stock/${baseProductId}?sessionId=verify-${orderId}`,
       {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${StockAuth.getFirstValidToken()}`,
         },
       }
     );

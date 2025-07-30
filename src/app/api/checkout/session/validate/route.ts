@@ -1,37 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CheckoutAuth } from "@/lib/checkout-auth";
+import { RateLimiter } from "@/lib/rate-limiter";
 
 export async function POST(req: NextRequest) {
   try {
+    // Apply rate limiting for session validation
+    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
+      windowMs: 60 * 1000, // 1 minute
+      maxRequests: 20, // 20 requests per minute
+    });
+
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!;
+    }
+
     const { sessionId } = await req.json();
 
-    if (!sessionId) {
+    if (!sessionId || typeof sessionId !== "string") {
       return NextResponse.json(
-        { error: "Session ID is required" },
+        { error: "Valid session ID is required" },
         { status: 400 }
       );
     }
 
-    // Validate checkout session
-    const isValid = await CheckoutAuth.validateCheckoutSession(sessionId);
+    // Simple session validation - just check if it's a valid string format
+    const isValidSessionId = /^[a-z0-9_-]+$/.test(sessionId);
 
-    if (isValid) {
-      return NextResponse.json({
-        success: true,
-        message: "Checkout session is valid",
-      });
-    } else {
+    if (!isValidSessionId) {
       return NextResponse.json(
-        {
-          error: "Invalid checkout session",
-          message:
-            "No active checkout session found. Please start the checkout process first.",
-        },
-        { status: 401 }
+        { error: "Invalid session ID format" },
+        { status: 400 }
       );
     }
+
+    return NextResponse.json({
+      success: true,
+      message: "Session ID is valid",
+      sessionId,
+    });
   } catch (error) {
-    console.error("Error validating checkout session:", error);
+    console.error("Error validating session:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

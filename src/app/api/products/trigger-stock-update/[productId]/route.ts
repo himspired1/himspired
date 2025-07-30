@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
+import { RateLimiter } from "@/lib/rate-limiter";
+
+/**
+ * Get the base URL for API calls
+ */
+function getBaseUrl(): string {
+  return (
+    process.env.BASE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    "http://localhost:3000"
+  );
+}
 
 /**
  * Trigger Stock Update Endpoint
@@ -14,36 +26,39 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ productId: string }> }
 ) {
-  try {
-    // Authorization check - verify the request is authorized to trigger stock updates
-    const isAuthorized = await StockAuth.isAuthorized(req);
+  const { productId } = await context.params;
 
+  try {
+    // Apply rate limiting for stock update notifications
+    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
+      windowMs: 60 * 1000, // 1 minute
+      maxRequests: 20, // 20 requests per minute
+    });
+
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!;
+    }
+
+    // Validate environment variables
+    StockAuth.validateEnvironmentVariables();
+
+    // Use timing-safe authentication
+    const isAuthorized = await StockAuth.isAuthorized(req);
     if (!isAuthorized) {
       return NextResponse.json(
         {
           error: "Unauthorized",
-          message: "Authorization header required to trigger stock updates.",
+          message: "Valid token required to trigger stock updates",
         },
         { status: 401 }
       );
     }
 
-    const { productId } = await context.params;
-
-    if (!productId) {
-      return NextResponse.json(
-        { error: "Product ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Log the stock update trigger
     console.log(`📢 Triggering stock update for product ${productId}`);
-
     // Clear stock cache for this product to ensure fresh data
     try {
       const cacheClearResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/products/stock/${productId}?clearCache=true`,
+        `${getBaseUrl()}/api/products/stock/${productId}?clearCache=true`,
         {
           method: "GET",
           headers: {
@@ -70,9 +85,15 @@ export async function POST(
       cacheCleared: true,
     });
   } catch (error) {
-    console.error("Error triggering stock update:", error);
+    console.error(
+      `Error triggering stock update for product ${productId}:`,
+      error
+    );
     return NextResponse.json(
-      { error: "Failed to trigger stock update" },
+      {
+        error: "Failed to trigger stock update",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }

@@ -60,4 +60,22 @@ export class StockAuth {
   static getValidTokens(): string[] {
     return [...this.VALID_TOKENS];
   }
+
+  /**
+   * Safely get the first valid token
+   * @throws Error if no valid tokens are available
+   */
+  static getFirstValidToken(): string {
+    if (this.VALID_TOKENS.length === 0) {
+      throw new Error("No valid stock modification tokens available");
+    }
+    return this.VALID_TOKENS[0];
+  }
+
+  /**
+   * Check if any valid tokens are available
+   */
+  static hasValidTokens(): boolean {
+    return this.VALID_TOKENS.length > 0;
+  }
 }
