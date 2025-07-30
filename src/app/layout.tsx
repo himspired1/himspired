@@ -6,6 +6,7 @@ import { Toaster } from "sonner"
 import { LoadingProvider } from "@/context/LoadingContext"
 import AppShell from "@/components/AppShell"
 import { ReduxProvider } from "@/components/providers/ReduxProvider" 
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: "Himspired",
@@ -26,6 +27,7 @@ export default function RootLayout({
             <Toaster position="bottom-left" richColors expand={false} />
           </LoadingProvider>
         </ReduxProvider>
+        <Analytics />
       </body>
     </html>
   )
