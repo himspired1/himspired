@@ -12,8 +12,8 @@ import Image from "next/image"
 
 const TheTeam = () => {
   const teams = [
-    {name:"Ejere David", image:team1, role:"Founder & Web Developer"},
-    {name:"Precious Chidera", image:team2, role:"Manager"},
+    {name:"Dumtochukwu Ejere", image:team1, role:"Founder & Web Developer"},
+    {name:"Chibuikem Ilonze", image:team2, role:"Manager"},
     {name:"Igharosa efosa", image:team3, role:"Product Designer"},
     {name:"Tobe Emeka-Opah", image:team4, role:"Video Editor"},
     {name:"Precious Gift", image:team5, role:"Content creator"},
@@ -21,8 +21,8 @@ const TheTeam = () => {
   ]
 
   return (
-    <>
-      <div className="w-full bg-[#F4F4F4] items-center mt-[74px] lg:px-[120px] py-[80px]">
+    <div className="mt-[1em]">
+      <div className="w-full bg-[#F4F4F4] items-center lg:mt-[74px] lg:px-[120px] py-[80px]">
         <div className="w-full px-[2em] lg:px-0">
           <H fontFamily="moon" className="font-normal text-4xl">
             Meet the <span className="text-primary">himspired</span> team
@@ -46,7 +46,7 @@ const TheTeam = () => {
         </div> 
         */}
       </div>
-    </>
+    </div>
   );
 }
 
