@@ -52,16 +52,25 @@ export async function POST(
     }
 
     let newReservations: Reservation[];
-    if (userReservation.quantity > quantity) {
-      // Decrement the quantity
+
+    // If the quantity to release is >= the reservation quantity, remove the entire reservation
+    // This handles the case where an item is completely removed from cart
+    if (quantity >= userReservation.quantity) {
+      // Remove the reservation entirely
+      newReservations = reservations.filter((r) => r.sessionId !== sessionId);
+      console.log(
+        `🗑️ Removed entire reservation for session ${sessionId} (quantity: ${userReservation.quantity})`
+      );
+    } else {
+      // Decrement the quantity (partial removal)
       newReservations = reservations.map((r) =>
         r.sessionId === sessionId
           ? { ...r, quantity: r.quantity - quantity }
           : r
       );
-    } else {
-      // Remove the reservation entirely
-      newReservations = reservations.filter((r) => r.sessionId !== sessionId);
+      console.log(
+        `📉 Decremented reservation for session ${sessionId} by ${quantity} (from ${userReservation.quantity} to ${userReservation.quantity - quantity})`
+      );
     }
 
     // Use rate limiting and retry logic for Sanity operations

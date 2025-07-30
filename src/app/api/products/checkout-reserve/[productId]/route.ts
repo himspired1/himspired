@@ -73,17 +73,27 @@ export async function POST(
     // Create a 24-hour reservation
     const reservedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
 
-    // Add reservation to the product
+    // Get current reservations and filter out existing ones for this session
+    const currentReservations = product.reservations || [];
+    const otherReservations = currentReservations.filter(
+      (r: { sessionId: string; quantity: number; reservedUntil: string }) =>
+        r.sessionId !== sessionId
+    );
+
+    // Add new reservation (replacing any existing ones for this session)
+    const newReservations = [
+      ...otherReservations,
+      {
+        sessionId,
+        quantity,
+        reservedUntil: reservedUntil.toISOString(),
+      },
+    ];
+
+    // Update the product with the new reservations
     await writeClient
       .patch(productId)
-      .setIfMissing({ reservations: [] })
-      .append("reservations", [
-        {
-          sessionId,
-          quantity,
-          reservedUntil: reservedUntil.toISOString(),
-        },
-      ])
+      .set({ reservations: newReservations })
       .commit();
 
     console.log(

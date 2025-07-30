@@ -88,10 +88,6 @@ const ProductCard = ({
       } else {
         setIsAvailable(availability.available);
         setAvailabilityMessage(availability.message);
-        // Log if product is permanently out of stock
-        if (availability.permanentlyOutOfStock) {
-          console.log(`🚨 Product permanently out of stock: ${title}`);
-        }
       }
     } catch (error: unknown) {
       if (
@@ -129,14 +125,6 @@ const ProductCard = ({
         const reservedByCurrentUser = data.reservedByCurrentUser || 0;
         const reservedByOthers = data.reservedByOthers || 0;
 
-        // Check if stock changed significantly (admin intervention)
-        if (Math.abs(newStock - lastKnownStock) > 1) {
-          console.warn(
-            `Significant stock change detected for ${title}: ${lastKnownStock} -> ${newStock}`
-          );
-          toast.info(`Stock updated for ${title}`);
-        }
-
         setCurrentStock(newStock);
         setLastKnownStock(newStock);
 
@@ -150,13 +138,6 @@ const ProductCard = ({
         } else {
           setIsAvailable(true);
           setAvailabilityMessage("Available");
-        }
-
-        // Log reservation info for debugging
-        if (reservedByCurrentUser > 0 || reservedByOthers > 0) {
-          console.log(
-            `${title}: You reserved ${reservedByCurrentUser}, Others reserved ${reservedByOthers}, Available: ${availableStock}`
-          );
         }
       }
     } catch (error) {
