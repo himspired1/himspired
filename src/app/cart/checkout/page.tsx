@@ -133,6 +133,9 @@ const CheckoutPage = () => {
     setSubmitting(true);
     setUploadProgress(0);
 
+    // Get sessionId early for use throughout the function
+    const sessionId = localStorage.getItem("himspired_session_id") || "unknown";
+
     // Declare progressInterval in outer scope so it's accessible in finally block
     let progressInterval: NodeJS.Timeout | undefined;
 
@@ -183,6 +186,9 @@ const CheckoutPage = () => {
         formData.append("file", data.file, data.file.name);
       }
 
+      // Add sessionId for order tracking and cleanup
+      formData.append("sessionId", sessionId);
+
       // Start checkout session before extending reservations
       let formattedCartItems;
       try {
@@ -209,8 +215,6 @@ const CheckoutPage = () => {
       }
 
       // Extend reservations to 24 hours for checkout
-      const sessionId =
-        localStorage.getItem("himspired_session_id") || "unknown";
 
       // Track failed reservation extensions
       const failedReservations: Array<{
@@ -282,10 +286,6 @@ const CheckoutPage = () => {
               error: errorData.error || `HTTP ${response.status}`,
               status: response.status,
             });
-          } else {
-            console.log(
-              `✅ Extended reservation for ${item.title} (${item.originalProductId})`
-            );
           }
         } catch (error) {
           console.error(
@@ -345,9 +345,6 @@ const CheckoutPage = () => {
         // 1. Payment is confirmed (in order update API) - stock decremented
         // 2. Order is cancelled (in admin) - reservations released
         // 3. Reservation expires (automatic cleanup)
-        console.log(
-          "Order created successfully - reservations remain active until payment confirmation"
-        );
 
         // Note: Checkout session and reservations remain active until payment confirmation
         // This ensures items are reserved during the payment process

@@ -31,8 +31,6 @@ export async function GET(
       return rateLimitResult.response!;
     }
 
-    console.log(`🔍 Looking for order: ${orderId}`);
-
     // Get order details using the order service (MongoDB)
     let order = null;
     let attempts = 0;
@@ -40,30 +38,21 @@ export async function GET(
 
     while (!order && attempts < maxAttempts) {
       attempts++;
-      console.log(`🔍 Attempt ${attempts} to find order ${orderId}`);
 
       try {
         order = await orderService.getOrder(orderId);
       } catch (error) {
-        console.log(`❌ Error on attempt ${attempts}:`, error);
+        console.error(`Error on attempt ${attempts}:`, error);
       }
 
       if (!order && attempts < maxAttempts) {
-        console.log(
-          `⏳ Order not found on attempt ${attempts}, waiting 1 second...`
-        );
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
 
     if (!order) {
-      console.log(
-        `❌ Order ${orderId} not found after ${maxAttempts} attempts`
-      );
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-
-    console.log(`✅ Order ${orderId} found successfully`);
     return NextResponse.json(order);
   } catch (error) {
     console.error(`Error retrieving order ${orderId}:`, error);
@@ -130,19 +119,11 @@ export async function PUT(
     // Update order status using the order service
     await orderService.updateOrderStatus(orderId, status);
 
-    console.log(
-      `✅ Order ${orderId} status updated: ${previousStatus} -> ${status}`
-    );
-
     // Handle payment confirmation
     if (
       status === "payment_confirmed" &&
       previousStatus !== "payment_confirmed"
     ) {
-      console.log(
-        `💰 Payment confirmed for order ${orderId}, processing stock updates and cleanup...`
-      );
-
       // Step 1: Decrement stock for each item in the order
       if (order.items && order.items.length > 0) {
         const stockUpdatePromises = order.items.map(async (item: OrderItem) => {
@@ -153,11 +134,7 @@ export async function PUT(
               orderId: orderId,
             });
 
-            if (result.success) {
-              console.log(
-                `✅ Stock decremented for product ${item.productId}: ${result.previousStock} -> ${result.newStock}`
-              );
-            } else {
+            if (!result.success) {
               console.error(
                 `❌ Failed to decrement stock for product ${item.productId}: ${result.error}`
               );
@@ -179,9 +156,129 @@ export async function PUT(
         await Promise.all(stockUpdatePromises);
       }
 
-      // Step 2: Consolidated cleanup - replaces multiple API calls
+      // Step 2: Wait a moment to ensure stock updates are processed
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Step 3: Consolidated cleanup - replaces multiple API calls
       if (order.items && order.items.length > 0) {
-        console.log(`🧹 Starting consolidated cleanup for order ${orderId}`);
+        const cleanupResult = await cleanupOrderReservations({
+          orderId,
+          sessionId: order.sessionId,
+        });
+
+        if (!cleanupResult.success) {
+          console.warn(
+            `⚠️ Order cleanup completed with errors:`,
+            cleanupResult.message
+          );
+          if (cleanupResult.errors && cleanupResult.errors.length > 0) {
+            cleanupResult.errors.forEach((error) =>
+              console.warn(`   - Error: ${error}`)
+            );
+          }
+        }
+      }
+
+      // Step 4: Final cache invalidation to ensure fresh data
+      if (order.items && order.items.length > 0) {
+        const cacheClearPromises = order.items.map(async (item: OrderItem) => {
+          try {
+            const baseUrl =
+              process.env.BASE_URL ||
+              process.env.NEXT_PUBLIC_BASE_URL ||
+              "http://localhost:3000";
+            const cacheClearResponse = await fetch(
+              `${baseUrl}/api/products/stock/${item.productId}?clearCache=true`,
+              {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+
+            if (cacheClearResponse.ok) {
+              console.log(
+                `✅ Final cache clear successful for product ${item.productId}`
+              );
+            } else {
+              console.warn(
+                `⚠️ Final cache clear failed for product ${item.productId}`
+              );
+            }
+          } catch (error) {
+            console.warn(
+              `⚠️ Error during final cache clear for product ${item.productId}:`,
+              error
+            );
+          }
+        });
+
+        await Promise.all(cacheClearPromises);
+      }
+    }
+
+    // Handle order cancellation
+    if (status === "canceled" && previousStatus !== "canceled") {
+      // Step 1: Release reservations for each item in the order
+      if (order.items && order.items.length > 0) {
+        const reservationReleasePromises = order.items.map(
+          async (item: OrderItem) => {
+            try {
+              // Release the reservation using the release endpoint
+              const baseUrl =
+                process.env.BASE_URL ||
+                process.env.NEXT_PUBLIC_BASE_URL ||
+                "http://localhost:3000";
+              const releaseResponse = await fetch(
+                `${baseUrl}/api/products/release/${item.productId}`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    sessionId: order.sessionId,
+                    quantity: item.quantity,
+                  }),
+                }
+              );
+
+              if (!releaseResponse.ok) {
+                console.warn(
+                  `⚠️ Failed to release reservation for product ${item.productId}: ${await releaseResponse.text()}`
+                );
+              }
+
+              return { success: releaseResponse.ok };
+            } catch (error) {
+              console.error(
+                `❌ Error releasing reservation for product ${item.productId}:`,
+                error
+              );
+              return {
+                success: false,
+                error: error instanceof Error ? error.message : "Unknown error",
+              };
+            }
+          }
+        );
+
+        await Promise.all(reservationReleasePromises);
+        console.log(
+          `✅ All reservation releases completed for order ${orderId}`
+        );
+      }
+
+      // Step 2: Wait a moment to ensure reservation releases are processed
+      console.log(`⏳ Waiting for reservation releases to settle...`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Step 3: Consolidated cleanup - replaces multiple API calls
+      if (order.items && order.items.length > 0) {
+        console.log(
+          `🧹 Starting consolidated cleanup for canceled order ${orderId}`
+        );
 
         const cleanupResult = await cleanupOrderReservations({
           orderId,
@@ -204,6 +301,50 @@ export async function PUT(
             );
           }
         }
+      }
+
+      // Step 4: Final cache invalidation to ensure fresh data
+      console.log(
+        `🔄 Performing final cache invalidation for canceled order...`
+      );
+      if (order.items && order.items.length > 0) {
+        const cacheClearPromises = order.items.map(async (item: OrderItem) => {
+          try {
+            const baseUrl =
+              process.env.BASE_URL ||
+              process.env.NEXT_PUBLIC_BASE_URL ||
+              "http://localhost:3000";
+            const cacheClearResponse = await fetch(
+              `${baseUrl}/api/products/stock/${item.productId}?clearCache=true`,
+              {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+
+            if (cacheClearResponse.ok) {
+              console.log(
+                `✅ Final cache clear successful for product ${item.productId}`
+              );
+            } else {
+              console.warn(
+                `⚠️ Final cache clear failed for product ${item.productId}`
+              );
+            }
+          } catch (error) {
+            console.warn(
+              `⚠️ Error during final cache clear for product ${item.productId}:`,
+              error
+            );
+          }
+        });
+
+        await Promise.all(cacheClearPromises);
+        console.log(
+          `✅ Final cache invalidation completed for canceled order ${orderId}`
+        );
       }
     }
 

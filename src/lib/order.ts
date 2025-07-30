@@ -192,7 +192,7 @@ export class OrderService {
       const collection = await this.getCollection();
 
       try {
-        return await collection.findOne(
+        const order = await collection.findOne(
           { orderId },
           {
             projection: {
@@ -206,9 +206,12 @@ export class OrderService {
               createdAt: 1,
               updatedAt: 1,
               message: 1,
+              sessionId: 1, // Include sessionId in projection
             },
           }
         );
+
+        return order;
       } catch (error) {
         console.error(`Failed to get order ${orderId}:`, error);
         throw new Error("Failed to retrieve order");

@@ -37,8 +37,6 @@ export async function cleanupOrderReservations(
   const errors: string[] = [];
 
   try {
-    console.log(`🧹 Starting cleanup for order ${orderId}...`);
-
     // Fetch the order to get product IDs from MongoDB
     const order = await orderService.getOrder(orderId);
 
@@ -61,22 +59,29 @@ export async function cleanupOrderReservations(
           { productId }
         );
 
-        if (!product || !product.reservations) {
+        if (!product) {
+          console.warn(`⚠️ Product ${productId} not found in Sanity`);
           continue;
         }
 
-        // For confirmed orders, remove all reservations for the products
-        // This ensures that when payment is confirmed, all reservations are cleared
-        // since the items are now sold and no longer need to be reserved
+        if (!product.reservations || product.reservations.length === 0) {
+          continue;
+        }
+
+        // For confirmed orders, remove only the reservations for this specific order's session
+        // This ensures that when payment is confirmed, only the confirmed order's reservations are cleared
+        // while other users' reservations remain intact
         const filteredReservations = product.reservations.filter(
           (reservation: Reservation) => {
             if (sessionId) {
               // If sessionId is provided, only remove reservations for that session
-              return reservation.sessionId !== sessionId;
+              const shouldKeep = reservation.sessionId !== sessionId;
+              return shouldKeep;
             } else {
-              // If no sessionId (confirmed order), remove ALL reservations
-              // This is the correct behavior for confirmed orders
-              return false; // Remove all reservations
+              // If no sessionId, we need to be more aggressive for confirmed orders
+              // Since this is a confirmed order, we should remove all reservations
+              // This is a fallback for orders created before sessionId was properly tracked
+              return false; // Remove all reservations for confirmed orders without sessionId
             }
           }
         );
@@ -87,7 +92,35 @@ export async function cleanupOrderReservations(
           .set({ reservations: filteredReservations })
           .commit();
 
-        console.log(`✅ Cleaned up reservations for product ${productId}`);
+        // Clear stock cache for this product to ensure fresh data
+        try {
+          const baseUrl =
+            process.env.BASE_URL ||
+            process.env.NEXT_PUBLIC_BASE_URL ||
+            "http://localhost:3000";
+          const cacheClearResponse = await fetch(
+            `${baseUrl}/api/products/stock/${productId}?clearCache=true`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (cacheClearResponse.ok) {
+    
+          } else {
+            console.warn(
+              `⚠️ Failed to clear stock cache for product ${productId}`
+            );
+          }
+        } catch (cacheError) {
+          console.warn(
+            `⚠️ Error clearing stock cache for product ${productId}:`,
+            cacheError
+          );
+        }
       } catch (error) {
         const errorMsg = `Failed to clean up product ${productId}: ${error}`;
         console.error(errorMsg);
@@ -97,7 +130,7 @@ export async function cleanupOrderReservations(
 
     // Simple session deactivation (no external API call needed)
     if (sessionId) {
-      console.log(`✅ Session ${sessionId} deactivated for order ${orderId}`);
+  
     }
 
     const success = errors.length === 0;

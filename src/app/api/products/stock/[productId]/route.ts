@@ -39,7 +39,7 @@ const stockCache = new Map<
   string,
   { data: StockResponse; timestamp: number }
 >();
-const CACHE_TTL = 50; 
+const CACHE_TTL = 50;
 
 // Cache cleanup interval (5 minutes)
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
@@ -222,14 +222,40 @@ export async function GET(
 
     // Clean up expired reservations
     const now = new Date();
-    const reservations: Reservation[] = (product.reservations || []).filter(
+    const allReservations: Reservation[] = (product.reservations || []).filter(
       (r: Reservation) => r.reservedUntil && new Date(r.reservedUntil) > now
     );
+
+    // Aggregate reservations by sessionId to handle duplicates
+    const aggregatedReservations = new Map<string, number>();
+    allReservations.forEach((reservation) => {
+      const currentQuantity =
+        aggregatedReservations.get(reservation.sessionId) || 0;
+      aggregatedReservations.set(
+        reservation.sessionId,
+        currentQuantity + (reservation.quantity || 0)
+      );
+    });
+
+    // Convert back to reservation format for consistency
+    const reservations: Reservation[] = Array.from(
+      aggregatedReservations.entries()
+    ).map(([sessionId, quantity]) => ({
+      sessionId,
+      quantity,
+      reservedUntil:
+        allReservations.find((r) => r.sessionId === sessionId)?.reservedUntil ||
+        new Date().toISOString(),
+    }));
 
     // Check for pending orders that contain this product
     // CRITICAL: This query is essential for accurate stock calculation
     // If this fails, we must not continue with incorrect stock data
-    let pendingOrderReservedQuantity = 0;
+    const pendingOrderDetails: Array<{ sessionId: string; quantity: number }> =
+      [];
+    let confirmedOrderSessionIds = new Set<string>();
+    let canceledOrderSessionIds = new Set<string>();
+
     try {
       const mongoClient = await clientPromise;
       const db = mongoClient.db("himspired");
@@ -243,16 +269,60 @@ export async function GET(
         })
         .toArray();
 
-      // Calculate total quantity reserved by pending orders
-      pendingOrderReservedQuantity = pendingOrders.reduce((total, order) => {
+      // Calculate total quantity reserved by pending orders and track session details
+      pendingOrders.reduce((total, order) => {
         const orderItem = order.items.find(
           (item: { productId: string; quantity: number }) =>
             item.productId === productId
         );
-        return total + (orderItem ? orderItem.quantity : 0);
+
+        if (orderItem) {
+          const quantity = orderItem.quantity || 0;
+          // Track session details for correlation
+          if (order.sessionId) {
+            pendingOrderDetails.push({
+              sessionId: order.sessionId,
+              quantity: quantity,
+            });
+          }
+          return total + quantity;
+        }
+        return total;
       }, 0);
+
+      // Also check for confirmed orders to ensure their reservations are not counted
+      // This is important because reservations might still exist in Sanity even after order confirmation
+      const confirmedOrders = await ordersCollection
+        .find({
+          status: "payment_confirmed",
+          "items.productId": productId,
+        })
+        .toArray();
+
+      // Also check for canceled orders to ensure their reservations are not counted
+      const canceledOrders = await ordersCollection
+        .find({
+          status: "canceled",
+          "items.productId": productId,
+        })
+        .toArray();
+
+      confirmedOrderSessionIds = new Set(
+        confirmedOrders
+          .filter((order) => order.sessionId)
+          .map((order) => order.sessionId)
+      );
+
+      canceledOrderSessionIds = new Set(
+        canceledOrders
+          .filter((order) => order.sessionId)
+          .map((order) => order.sessionId)
+      );
     } catch (error) {
       console.error("Failed to check pending orders:", error);
+      // Ensure confirmedOrderSessionIds is initialized even if the query fails
+      confirmedOrderSessionIds = new Set<string>();
+      canceledOrderSessionIds = new Set<string>();
       // Rethrow the error to prevent continuing with incorrect stock calculations
       // This ensures the failure is propagated and handled upstream
       throw new Error(
@@ -260,35 +330,77 @@ export async function GET(
       );
     }
 
-    // Calculate reserved quantity and available stock
-    const reservationQuantity = reservations.reduce(
-      (sum, r) => sum + (r.quantity || 0),
-      0
+    // CORRELATION LOGIC: Properly calculate total reserved quantity
+    // by correlating reservations with pending orders to avoid double-counting
+    let totalReservedQuantity = 0;
+    let correlatedReservations = 0;
+    let uncorrelatedReservations = 0;
+    let uncorrelatedPendingOrders = 0;
+
+    // Create a map of session IDs from pending orders for quick lookup
+    const pendingOrderSessionIds = new Set(
+      pendingOrderDetails.map((detail) => detail.sessionId)
     );
 
-    // Calculate total reserved quantity, but avoid double-counting
-    // If there are reservations and pending orders, we need to be smart about counting
-    let totalReservedQuantity =
-      reservationQuantity + (pendingOrderReservedQuantity || 0);
-
-    // If we have both reservations and pending orders, we might be double-counting
-    // For now, we'll use the maximum of the two to avoid over-counting
-    if (reservationQuantity > 0 && pendingOrderReservedQuantity > 0) {
-      // Use the larger of the two to avoid double-counting
-      totalReservedQuantity = Math.max(
-        reservationQuantity,
-        pendingOrderReservedQuantity
+    // Calculate reservations that are NOT correlated with pending orders
+    // These are reservations that don't have corresponding pending orders
+    // IMPORTANT: Also exclude reservations for confirmed orders and canceled orders
+    uncorrelatedReservations = reservations.reduce((total, reservation) => {
+      // If this reservation's sessionId is NOT in pending orders AND NOT in confirmed orders AND NOT in canceled orders, count it
+      const isPendingOrder = pendingOrderSessionIds.has(reservation.sessionId);
+      const isConfirmedOrder = confirmedOrderSessionIds.has(
+        reservation.sessionId
       );
-    }
+      const isCanceledOrder = canceledOrderSessionIds.has(
+        reservation.sessionId
+      );
 
-    // Debug logging to understand the calculation
-    console.log(`🔍 Stock calculation debug for ${productId}:`);
-    console.log(`  - reservations.length: ${reservations.length}`);
-    console.log(`  - reservationQuantity: ${reservationQuantity}`);
-    console.log(
-      `  - pendingOrderReservedQuantity: ${pendingOrderReservedQuantity}`
-    );
-    console.log(`  - totalReservedQuantity: ${totalReservedQuantity}`);
+      if (!isPendingOrder && !isConfirmedOrder && !isCanceledOrder) {
+        return total + (reservation.quantity || 0);
+      }
+      return total;
+    }, 0);
+
+    // Calculate pending orders that are NOT correlated with reservations
+    // These are pending orders that don't have corresponding active reservations
+    const reservationSessionIds = new Set(reservations.map((r) => r.sessionId));
+
+    uncorrelatedPendingOrders = pendingOrderDetails.reduce((total, detail) => {
+      // If this pending order's sessionId is NOT in active reservations, count it
+      if (!reservationSessionIds.has(detail.sessionId)) {
+        return total + detail.quantity;
+      }
+      return total;
+    }, 0);
+
+    // Calculate correlated quantities (reservations that have corresponding pending orders)
+    // For correlated items, we use the maximum of reservation and pending order quantity
+    // to avoid double-counting the same items
+    correlatedReservations = reservations.reduce((total, reservation) => {
+      if (pendingOrderSessionIds.has(reservation.sessionId)) {
+        // Find the corresponding pending order quantity
+        const pendingOrderDetail = pendingOrderDetails.find(
+          (detail) => detail.sessionId === reservation.sessionId
+        );
+
+        if (pendingOrderDetail) {
+          // Use the maximum to avoid double-counting the same items
+          // This ensures we count the higher of the two quantities
+          const maxQuantity = Math.max(
+            reservation.quantity || 0,
+            pendingOrderDetail.quantity || 0
+          );
+          return total + maxQuantity;
+        }
+      }
+      return total;
+    }, 0);
+
+    // Total reserved quantity = uncorrelated reservations + uncorrelated pending orders + correlated max
+    totalReservedQuantity =
+      uncorrelatedReservations +
+      uncorrelatedPendingOrders +
+      correlatedReservations;
 
     // Validate that we have valid data before calculating stock
     if (typeof product.stock !== "number" || product.stock < 0) {
@@ -332,16 +444,15 @@ export async function GET(
       0
     );
 
-    // Show reserved by others if there are actual reservations
+    // Show reserved by others if there are actual reservations and stock is available
     if (actualReservedByOthers > 0 && availableStock > 0) {
       stockMessage += `, ${actualReservedByOthers} currently reserved by others`;
     }
 
-    // Add information about pending orders if any
-    // Show pending orders info if there are pending orders
-    // This helps users understand why stock might be lower than expected
-    if (pendingOrderReservedQuantity > 0) {
-      stockMessage += ` (${pendingOrderReservedQuantity} in pending orders)`;
+    // Only show pending orders info if there are uncorrelated pending orders
+    // (pending orders without corresponding reservations)
+    if (uncorrelatedPendingOrders > 0) {
+      stockMessage += ` (${uncorrelatedPendingOrders} in pending orders)`;
     }
 
     const response: StockResponse = {
