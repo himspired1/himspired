@@ -515,7 +515,7 @@ const AdminOrders = () => {
                             </button>
                           )}
                           {/* Cancel order button for orders with payment issues */}
-                          {[
+                          {/* {[
                             "payment_pending",
                             "payment_not_confirmed",
                           ].includes(order.status) && (
@@ -567,7 +567,7 @@ const AdminOrders = () => {
                                 </svg>
                               </button>
                             </>
-                          )}
+                          )} */}
                         </div>
                       </td>
                     </tr>
