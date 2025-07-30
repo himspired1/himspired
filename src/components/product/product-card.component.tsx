@@ -44,7 +44,6 @@ const ProductCard = ({
   // Real-time stock display
   const [currentStock, setCurrentStock] = useState(stock || 0);
   const [stockMessage, setStockMessage] = useState<string>("");
-  const [lastKnownStock, setLastKnownStock] = useState(stock || 0);
 
   // Get cart quantity for products without sizes
   const cartQuantity = useAppSelector((state) =>
@@ -109,7 +108,7 @@ const ProductCard = ({
     } finally {
       clearTimeout(timeoutId);
     }
-  }, [_id, title]);
+  }, [_id]);
 
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
@@ -122,11 +121,8 @@ const ProductCard = ({
         const data = await response.json();
         const newStock = data.stock || 0;
         const availableStock = data.availableStock || 0;
-        const reservedByCurrentUser = data.reservedByCurrentUser || 0;
-        const reservedByOthers = data.reservedByOthers || 0;
 
         setCurrentStock(newStock);
-        setLastKnownStock(newStock);
 
         // Use the enhanced stock message from API
         setStockMessage(data.stockMessage || "");
@@ -143,7 +139,7 @@ const ProductCard = ({
     } catch (error) {
       console.error("Error fetching real-time stock:", error);
     }
-  }, [_id, title, lastKnownStock]);
+  }, [_id]);
 
   // Success callback for reservation
   const handleReservationSuccess = useCallback(async () => {
