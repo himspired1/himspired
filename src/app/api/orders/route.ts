@@ -141,8 +141,22 @@ export async function POST(req: NextRequest) {
       await orderService.uploadPaymentReceipt(order.orderId, receiptUrl);
     }
 
-    // Email confirmation is no longer sent here. This responsibility has been moved to the admin UI.
-    // See: src/app/admin/orders/page.tsx at line 436, where sendEmail(order.orderId) is called from the client side.
+    // Send automatic order confirmation email
+    try {
+      const { sendOrderConfirmationEmail } = await import("@/lib/email");
+      await sendOrderConfirmationEmail(
+        email,
+        name,
+        order.orderId,
+        items,
+        total
+      );
+      console.log(`✅ Order confirmation email sent for order ${order.orderId}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send order confirmation email for order ${order.orderId}:`, emailError);
+      // Don't fail the order creation if email fails
+    }
+
     return NextResponse.json({ success: true, orderId: order.orderId });
   } catch (error) {
     console.error("Order submission failed:", error);
