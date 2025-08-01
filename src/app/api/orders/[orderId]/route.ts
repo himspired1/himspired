@@ -209,6 +209,61 @@ export async function PUT(
       }
     }
 
+    // Send automatic payment confirmation email
+    if (
+      status === "payment_confirmed" &&
+      previousStatus !== "payment_confirmed"
+    ) {
+      try {
+        const { sendPaymentConfirmationEmail } = await import("@/lib/email");
+        await sendPaymentConfirmationEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Payment confirmation email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send payment confirmation email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic shipping email
+    if (status === "shipped" && previousStatus !== "shipped") {
+      try {
+        const { sendOrderShippedEmail } = await import("@/lib/email");
+        await sendOrderShippedEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId
+        );
+        console.log(`✅ Order shipped email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order shipped email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic completion email
+    if (status === "complete" && previousStatus !== "complete") {
+      try {
+        const { sendOrderCompletionEmail } = await import("@/lib/email");
+        await sendOrderCompletionEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Order completion email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order completion email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
+      }
+    }
+
     // Handle order cancellation
     if (status === "canceled" && previousStatus !== "canceled") {
       // Consolidated cleanup - handles reservation release and cache invalidation
