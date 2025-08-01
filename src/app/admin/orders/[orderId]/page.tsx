@@ -639,6 +639,13 @@ const OrderDetails = () => {
                     "Issue Resolved"
                   )}
                 </button>
+                <button
+                  onClick={openEmailModal}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send Custom Email
+                </button>
               </>
             )}
             {/* Add cancel button for payment_pending orders */}
@@ -661,6 +668,13 @@ const OrderDetails = () => {
                   ) : (
                     "Cancel & Release Stock"
                   )}
+                </button>
+                <button
+                  onClick={openEmailModal}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send Custom Email
                 </button>
               </>
             )}
@@ -690,44 +704,62 @@ const OrderDetails = () => {
               </>
             )}
             {order.status === "payment_confirmed" && (
-              <button
-                onClick={() => updateOrderStatus("shipped")}
-                disabled={updatingStatus === "shipped"}
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  updatingStatus === "shipped"
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
-              >
-                {updatingStatus === "shipped" ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Marking as Shipped...
-                  </>
-                ) : (
-                  "Mark as Shipped"
-                )}
-              </button>
+              <>
+                <button
+                  onClick={() => updateOrderStatus("shipped")}
+                  disabled={updatingStatus === "shipped"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "shipped"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {updatingStatus === "shipped" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Marking as Shipped...
+                    </>
+                  ) : (
+                    "Mark as Shipped"
+                  )}
+                </button>
+                <button
+                  onClick={openEmailModal}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send Custom Email
+                </button>
+              </>
             )}
             {order.status === "shipped" && (
-              <button
-                onClick={() => updateOrderStatus("complete")}
-                disabled={updatingStatus === "complete"}
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  updatingStatus === "complete"
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-purple-600 text-white hover:bg-purple-700"
-                }`}
-              >
-                {updatingStatus === "complete" ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Marking as Complete...
-                  </>
-                ) : (
-                  "Mark as Complete"
-                )}
-              </button>
+              <>
+                <button
+                  onClick={() => updateOrderStatus("complete")}
+                  disabled={updatingStatus === "complete"}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    updatingStatus === "complete"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-purple-600 text-white hover:bg-purple-700"
+                  }`}
+                >
+                  {updatingStatus === "complete" ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Marking as Complete...
+                    </>
+                  ) : (
+                    "Mark as Complete"
+                  )}
+                </button>
+                <button
+                  onClick={openEmailModal}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send Custom Email
+                </button>
+              </>
             )}
           </div>
         </motion.div>

@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
 import { forceCleanupProducts } from "@/lib/product-cleanup";
+import { RateLimiter } from "@/lib/rate-limiter";
 
-// Simple rate limiting for admin cleanup operations
-const adminCleanupAttempts = new Map<
-  string,
-  { count: number; firstAttempt: number }
->();
-const MAX_CLEANUP_ATTEMPTS = 5;
-const WINDOW_MS = 60 * 1000; // 1 minute
+// Rate limiter for admin cleanup operations (5 attempts per minute)
+const adminCleanupRateLimiter = new RateLimiter(5, 60 * 1000, "admin-cleanup");
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -25,19 +21,10 @@ interface ForceCleanupRequest {
 
 export async function POST(req: NextRequest) {
   try {
-    // Simple rate limiting for sensitive cleanup operations
+    // Rate limiting for sensitive cleanup operations
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = adminCleanupAttempts.get(clientIp);
 
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-
-    entry.count++;
-    adminCleanupAttempts.set(clientIp, entry);
-
-    if (entry.count > MAX_CLEANUP_ATTEMPTS) {
+    if (!(await adminCleanupRateLimiter.isAllowed(clientIp))) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",

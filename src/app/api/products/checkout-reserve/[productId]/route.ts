@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client, writeClient } from "@/sanity/client";
+import { getClientIp } from "@/lib/request-utils";
 
 // Simple rate limiting for checkout reservations
 const checkoutReserveAttempts = new Map<
@@ -8,14 +9,6 @@ const checkoutReserveAttempts = new Map<
 >();
 const MAX_RESERVE_ATTEMPTS = 10;
 const WINDOW_MS = 60 * 1000; // 1 minute
-
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for") ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
 
 export async function POST(
   req: NextRequest,

@@ -4,11 +4,15 @@ import { decrementStockForOrder } from "@/lib/stock-update-utils";
 import { cleanupOrderReservations } from "@/lib/order-cleanup";
 import { orderService } from "@/lib/order";
 import { cacheService } from "@/lib/cache-service";
+import { RateLimiter } from "@/lib/rate-limiter";
 
-// Simple rate limiting for order retrieval
-const orderRetrievalAttempts = new Map<string, { count: number; firstAttempt: number }>();
-const MAX_RETRIEVAL_ATTEMPTS = 20;
-const WINDOW_MS = 60 * 1000; // 1 minute
+// Separate rate limiters for GET and PUT operations
+const orderRetrievalRateLimiter = new RateLimiter(
+  20,
+  60 * 1000,
+  "order-retrieval"
+); // 20 attempts per minute
+const orderUpdateRateLimiter = new RateLimiter(10, 60 * 1000, "order-updates"); // 10 attempts per minute
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -34,19 +38,10 @@ export async function GET(
   const { orderId } = await context.params;
 
   try {
-    // Simple rate limiting
+    // Rate limiting for order retrieval
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = orderRetrievalAttempts.get(clientIp);
-    
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    
-    entry.count++;
-    orderRetrievalAttempts.set(clientIp, entry);
-    
-    if (entry.count > MAX_RETRIEVAL_ATTEMPTS) {
+
+    if (!(await orderRetrievalRateLimiter.isAllowed(clientIp))) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",
@@ -98,19 +93,10 @@ export async function PUT(
   const { orderId } = await context.params;
 
   try {
-    // Simple rate limiting for order updates
+        // Rate limiting for order updates
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = orderRetrievalAttempts.get(clientIp);
     
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    
-    entry.count++;
-    orderRetrievalAttempts.set(clientIp, entry);
-    
-    if (entry.count > 10) { // Lower limit for updates
+    if (!(await orderUpdateRateLimiter.isAllowed(clientIp))) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",

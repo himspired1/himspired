@@ -159,13 +159,6 @@ export async function POST(
     // Only trigger broadcast if stock changed significantly
     if (Math.abs(currentStock - newStock) > 0) {
       try {
-        // OPTIMIZATION: Use internal cache clearing instead of external API call
-        await Promise.all([
-          cacheService.clearStockCache(productId),
-          cacheService.clearProductCache(productId),
-          cacheService.clearReservationCache(productId)
-        ]);
-        
         console.log(`📢 Broadcasting stock update for product ${productId}`);
       } catch (error) {
         console.warn("Failed to broadcast stock update:", error);
