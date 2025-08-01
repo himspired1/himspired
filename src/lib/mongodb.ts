@@ -41,7 +41,7 @@ let clientPromise: Promise<MongoClient>;
 if (process.env.NODE_ENV === "development") {
   // In development mode, use a global variable so that the value
   // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
+  const globalWithMongo = global as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>;
   };
 
@@ -79,18 +79,20 @@ export async function getClientWithRetry(maxRetries = 3): Promise<MongoClient> {
       return client;
     } catch (error) {
       console.error(`MongoDB connection attempt ${attempt} failed:`, error);
-      
+
       if (attempt === maxRetries) {
-        throw new Error(`Failed to connect to MongoDB after ${maxRetries} attempts`);
+        throw new Error(
+          `Failed to connect to MongoDB after ${maxRetries} attempts`
+        );
       }
-      
+
       // Wait before retrying (exponential backoff)
       const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
       console.log(`Retrying MongoDB connection in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  
+
   throw new Error("Failed to connect to MongoDB");
 }
 
@@ -104,20 +106,23 @@ export async function withPerformanceLogging<T>(
   operation: () => Promise<T>
 ): Promise<T> {
   const startTime = Date.now();
-  
+
   try {
     const result = await operation();
     const duration = Date.now() - startTime;
-    
+
     // Log slow queries for optimization
     if (duration > 100) {
       console.log(`Slow query detected: ${operationName} took ${duration}ms`);
     }
-    
+
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`Query failed: ${operationName} failed after ${duration}ms`, error);
+    console.error(
+      `Query failed: ${operationName} failed after ${duration}ms`,
+      error
+    );
     throw error;
   }
 }

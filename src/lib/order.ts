@@ -1,4 +1,4 @@
-import clientPromise, {
+import {
   withPerformanceLogging,
   getClientWithRetry,
 } from "./mongodb";
@@ -31,7 +31,7 @@ export class OrderService {
 
       try {
         // OPTIMIZATION: Use write concern for better performance
-        const result = await collection.insertOne(order, {
+        await collection.insertOne(order, {
           writeConcern: { w: 1, j: false }, // Acknowledged writes without journaling for speed
         });
 

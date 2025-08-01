@@ -22,8 +22,7 @@ export class CacheService {
   async ping(): Promise<boolean> {
     try {
       const redis = await this.getRedisClient();
-      await redis.ping();
-      return true;
+      return redis.isAvailable();
     } catch (error) {
       console.error("Redis ping failed:", error);
       return false;
@@ -33,21 +32,17 @@ export class CacheService {
   /**
    * Get Redis client with fallback
    */
-  private async getRedisClient(): Promise<any> {
+  private async getRedisClient(): Promise<CacheInterface> {
     if (this.cache.isAvailable()) {
       return this.cache;
     }
     // Fallback to a dummy client if Redis is not available
     console.warn("Redis is not available, using a dummy client for ping.");
     return {
-      ping: async () => {
-        console.log("Dummy Redis ping successful.");
-        return true;
-      },
       isAvailable: () => false,
-      get: async (key: string) => null,
-      set: async (key: string, value: any, ttl: number) => {},
-      delete: async (key: string) => {},
+      get: async () => null,
+      set: async () => {},
+      delete: async () => {},
       clear: async () => {},
     };
   }
