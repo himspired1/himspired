@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RateLimiter } from "@/lib/rate-limiter";
 
 export async function POST(req: NextRequest) {
   try {
-    // Apply rate limiting for session validation
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 20, // 20 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
-    }
 
     const { sessionId } = await req.json();
 

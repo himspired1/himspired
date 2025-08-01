@@ -66,7 +66,9 @@ const AdminOrders = () => {
   );
   const [sendingEmail, setSendingEmail] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [cancelAction, setCancelAction] = useState<"simple" | "with-release">(
     "simple"
   );

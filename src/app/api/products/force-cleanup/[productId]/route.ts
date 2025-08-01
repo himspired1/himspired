@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
 import { forceCleanupProduct } from "@/lib/product-cleanup";
+
+// Simple rate limiting for product cleanup operations
+const productCleanupAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const MAX_CLEANUP_ATTEMPTS = 5;
+const WINDOW_MS = 60 * 1000; // 1 minute
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 /**
  * Force Cleanup Reservations Endpoint
@@ -19,14 +31,26 @@ export async function POST(
   const { productId } = await context.params;
 
   try {
-    // Apply rate limiting for sensitive cleanup operations
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 5, // 5 requests per minute (more restrictive for cleanup)
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Simple rate limiting for sensitive cleanup operations
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    let entry = productCleanupAttempts.get(clientIp);
+    
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    
+    entry.count++;
+    productCleanupAttempts.set(clientIp, entry);
+    
+    if (entry.count > MAX_CLEANUP_ATTEMPTS) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many cleanup attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Validate environment variables
