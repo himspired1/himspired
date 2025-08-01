@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ReservationHandler } from "@/lib/reservation-handler";
 import { SessionValidator } from "@/lib/session-validator";
+import { cacheService } from "@/lib/cache-service";
 
 /**
  * Cart Reservation Endpoint
- * 
+ *
  * This endpoint handles 30-minute cart reservations only.
  * For 24-hour checkout reservations, use /api/products/checkout-reserve/[productId]
- * 
+ *
  * Features:
  * - Session validation and authentication
  * - Rate limiting (10 requests per 5 minutes per session)
@@ -82,6 +83,18 @@ export async function POST(
       operationName: "reserve-product",
       successMessage: "Product reserved for cart successfully",
     });
+
+    // Clear related caches after reservation
+    if (result.success) {
+      try {
+        await cacheService.invalidateProductRelatedCaches(productId);
+      } catch (error) {
+        console.warn(
+          "Failed to clear product caches after reservation:",
+          error
+        );
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {

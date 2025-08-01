@@ -1,16 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RateLimiter } from "@/lib/rate-limiter";
 
+// Rate limiter for checkout sessions (10 attempts per minute)
+const checkoutRateLimiter = new RateLimiter(10, 60 * 1000, "checkout-sessions");
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+/**
+ * Check rate limit for checkout operations
+ * @param clientIp - The client IP address
+ * @returns NextResponse if rate limit exceeded, null otherwise
+ */
+async function checkRateLimit(clientIp: string): Promise<NextResponse | null> {
+  if (!(await checkoutRateLimiter.isAllowed(clientIp))) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        message: "Too many checkout attempts. Please try again later.",
+      },
+      { status: 429 }
+    );
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // Apply rate limiting for checkout sessions (this is sufficient security)
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Rate limiting
+    const clientIp = getClientIp(req);
+    const rateLimitResponse = await checkRateLimit(clientIp);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { sessionId, cartItems } = await req.json();
@@ -58,16 +84,12 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    // Apply rate limiting for checkout sessions
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Rate limiting
+    const clientIp = getClientIp(req);
+    const rateLimitResponse = await checkRateLimit(clientIp);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
-
     const { sessionId } = await req.json();
 
     if (!sessionId) {

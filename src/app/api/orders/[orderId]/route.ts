@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
 import { decrementStockForOrder } from "@/lib/stock-update-utils";
 import { cleanupOrderReservations } from "@/lib/order-cleanup";
 import { orderService } from "@/lib/order";
+import { cacheService } from "@/lib/cache-service";
+import { RateLimiter } from "@/lib/rate-limiter";
+
+// Separate rate limiters for GET and PUT operations
+const orderRetrievalRateLimiter = new RateLimiter(
+  20,
+  60 * 1000,
+  "order-retrieval"
+); // 20 attempts per minute
+const orderUpdateRateLimiter = new RateLimiter(10, 60 * 1000, "order-updates"); // 10 attempts per minute
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 interface OrderItem {
   productId: string;
@@ -21,14 +38,17 @@ export async function GET(
   const { orderId } = await context.params;
 
   try {
-    // Apply rate limiting for order retrieval
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 20, // 20 requests per minute
-    });
+    // Rate limiting for order retrieval
+    const clientIp = getClientIp(req);
 
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    if (!(await orderRetrievalRateLimiter.isAllowed(clientIp))) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order retrieval attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Get order details using the order service (MongoDB)
@@ -73,14 +93,17 @@ export async function PUT(
   const { orderId } = await context.params;
 
   try {
-    // Apply rate limiting for order updates
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+        // Rate limiting for order updates
+    const clientIp = getClientIp(req);
+    
+    if (!(await orderUpdateRateLimiter.isAllowed(clientIp))) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order update attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Use admin authentication for order updates
@@ -118,6 +141,13 @@ export async function PUT(
 
     // Update order status using the order service
     await orderService.updateOrderStatus(orderId, status);
+
+    // Clear order cache after status update
+    try {
+      await cacheService.clearOrderCache(orderId);
+    } catch (error) {
+      console.warn("Failed to clear order cache:", error);
+    }
 
     // Handle payment confirmation
     if (
@@ -176,6 +206,61 @@ export async function PUT(
             );
           }
         }
+      }
+    }
+
+    // Send automatic payment confirmation email
+    if (
+      status === "payment_confirmed" &&
+      previousStatus !== "payment_confirmed"
+    ) {
+      try {
+        const { sendPaymentConfirmationEmail } = await import("@/lib/email");
+        await sendPaymentConfirmationEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Payment confirmation email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send payment confirmation email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic shipping email
+    if (status === "shipped" && previousStatus !== "shipped") {
+      try {
+        const { sendOrderShippedEmail } = await import("@/lib/email");
+        await sendOrderShippedEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId
+        );
+        console.log(`✅ Order shipped email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order shipped email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic completion email
+    if (status === "complete" && previousStatus !== "complete") {
+      try {
+        const { sendOrderCompletionEmail } = await import("@/lib/email");
+        await sendOrderCompletionEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Order completion email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order completion email for order ${orderId}:`, emailError);
+        // Don't fail the status update if email fails
       }
     }
 

@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
 import { forceCleanupProducts } from "@/lib/product-cleanup";
+import { RateLimiter } from "@/lib/rate-limiter";
+
+// Rate limiter for admin cleanup operations (5 attempts per minute)
+const adminCleanupRateLimiter = new RateLimiter(5, 60 * 1000, "admin-cleanup");
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 interface ForceCleanupRequest {
   productIds: string[];
@@ -10,14 +21,17 @@ interface ForceCleanupRequest {
 
 export async function POST(req: NextRequest) {
   try {
-    // Apply rate limiting for sensitive cleanup operations
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 5, // 5 requests per minute (very restrictive for cleanup)
-    });
+    // Rate limiting for sensitive cleanup operations
+    const clientIp = getClientIp(req);
 
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    if (!(await adminCleanupRateLimiter.isAllowed(clientIp))) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many cleanup attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Validate environment variables
