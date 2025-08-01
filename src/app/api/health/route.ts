@@ -13,7 +13,12 @@ export async function GET() {
     checks: {
       database: false,
       redis: false,
-      memory: false,
+      memory: {
+        rss: 0,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+      },
     },
     performance: {
       responseTime: 0,
