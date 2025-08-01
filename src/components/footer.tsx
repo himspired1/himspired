@@ -1,25 +1,47 @@
-"use client"
-import Wrapper from "./layout/Wrapper"
-import Link from "next/link"
-import { Him, Instagram, Logo_Large, Tiktok} from "../../public/images"
-import Image from "next/image"
-import { motion } from "framer-motion"
-import { useLoading } from "@/context/LoadingContext"
-import { useState } from "react"
-import TrackOrderModal from "@/components/modals/track-order"
+"use client";
+import Wrapper from "./layout/Wrapper";
+import Link from "next/link";
+import { Him, Instagram, Logo_Large, Tiktok } from "../../public/images";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { useLoading } from "@/context/LoadingContext";
+import { useState } from "react";
+import TrackOrderModal from "@/components/modals/track-order";
+import RefundPolicyModal from "@/components/modals/refund-policy";
+import StoreInfoModal from "@/components/modals/store-info";
+import DeliveriesModal from "@/components/modals/deliveries";
 
 const Footer = () => {
-  const { isLoading } = useLoading()
-  const isHomePage = typeof window !== "undefined" && window.location.pathname === "/"
-  const [isTrackOrderModalOpen, setIsTrackOrderModalOpen] = useState(false)
+  const { isLoading } = useLoading();
+  const isHomePage =
+    typeof window !== "undefined" && window.location.pathname === "/";
+  const [isTrackOrderModalOpen, setIsTrackOrderModalOpen] = useState(false);
+  const [isRefundPolicyModalOpen, setIsRefundPolicyModalOpen] = useState(false);
+  const [isStoreInfoModalOpen, setIsStoreInfoModalOpen] = useState(false);
+  const [isDeliveriesModalOpen, setIsDeliveriesModalOpen] = useState(false);
 
   // Skip animation if not on homepage or if still loading
-  const shouldAnimate = !isLoading && isHomePage
+  const shouldAnimate = !isLoading && isHomePage;
 
   const handleTrackOrderClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsTrackOrderModalOpen(true)
-  }
+    e.preventDefault();
+    setIsTrackOrderModalOpen(true);
+  };
+
+  const handleRefundPolicyClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsRefundPolicyModalOpen(true);
+  };
+
+  const handleStoreInfoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsStoreInfoModalOpen(true);
+  };
+
+  const handleDeliveriesClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDeliveriesModalOpen(true);
+  };
 
   const sections = [
     {
@@ -27,13 +49,15 @@ const Footer = () => {
       links: [
         { href: "/shop/men", label: "men" },
         { href: "/shop/women", label: "unisex" },
+        { href: "#", label: "refund policy", onClick: handleRefundPolicyClick },
+        { href: "#", label: "deliveries", onClick: handleDeliveriesClick },
       ],
     },
     {
       title: "company",
       links: [
         { href: "/about", label: "about us" },
-        { href: "/stores", label: "stores" },
+        { href: "#", label: "stores", onClick: handleStoreInfoClick },
         { href: "/contact", label: "contact us" },
       ],
     },
@@ -41,17 +65,29 @@ const Footer = () => {
       title: "support",
       links: [
         { href: "/contact", label: "help" },
-        { href: "/delivery", label: "delivery" },
-        { href: "#", label: "track your orders", onClick: handleTrackOrderClick },
+        { href: "#", label: "delivery", onClick: handleDeliveriesClick },
+        {
+          href: "#",
+          label: "track your orders",
+          onClick: handleTrackOrderClick,
+        },
       ],
     },
-  ]
+  ];
 
   const socialLinks = [
     // { href: "www.x.com", src: Twitter, alt: "twitter" },
-    { href: "https://www.instagram.com/himspired.ng?igsh=MWV3NHd5ZTFpNThwdA%3D%3D&utm_source=qr", src: Instagram, alt: "instagram" },
-    { href: "https://www.tiktok.com/@himspired.ng?_t=ZM-8xxDhBrZKqu&_r=1", src: Tiktok, alt: "tiktok" },
-  ]
+    {
+      href: "https://www.instagram.com/himspired.ng?igsh=MWV3NHd5ZTFpNThwdA%3D%3D&utm_source=qr",
+      src: Instagram,
+      alt: "instagram",
+    },
+    {
+      href: "https://www.tiktok.com/@himspired.ng?_t=ZM-8xxDhBrZKqu&_r=1",
+      src: Tiktok,
+      alt: "tiktok",
+    },
+  ];
 
   // Animation variants
   const containerVariants = {
@@ -63,7 +99,7 @@ const Footer = () => {
         delayChildren: 0.1,
       },
     },
-  }
+  };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -76,7 +112,7 @@ const Footer = () => {
         stiffness: 100,
       },
     },
-  }
+  };
 
   const logoVariants = {
     hidden: { opacity: 0, scale: 0.9 },
@@ -89,7 +125,7 @@ const Footer = () => {
         ease: [0.22, 1, 0.36, 1],
       },
     },
-  }
+  };
 
   return (
     <>
@@ -102,13 +138,22 @@ const Footer = () => {
         <Wrapper className="flex flex-col gap-y-15 md:flex-row pt-10">
           <motion.div className="space-y-6" variants={itemVariants}>
             <Image src={Him || "/placeholder.svg"} alt="logo" />
-            <p className="text-white-100 font-normal text-sm max-w-56">We provide you with quality and premium wears</p>
+            <p className="text-white-100 font-normal text-sm max-w-56">
+              We provide you with quality and premium wears
+            </p>
           </motion.div>
 
           <div className="flex gap-y-10 gap-x-20 flex-wrap">
             {sections.map((section, index) => (
-              <motion.div key={index} className="flex flex-col space-y-6" variants={itemVariants} custom={index}>
-                <h1 className="font-normal text-base lg:text-lg text-white-100">{section.title}</h1>
+              <motion.div
+                key={index}
+                className="flex flex-col space-y-6"
+                variants={itemVariants}
+                custom={index}
+              >
+                <h1 className="font-normal text-base lg:text-lg text-white-100">
+                  {section.title}
+                </h1>
                 <div className="flex flex-col space-y-4 text-white-100/70">
                   {section.links.map((link, idx) => (
                     <motion.div
@@ -150,29 +195,60 @@ const Footer = () => {
                   whileHover={{ y: -5, scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Image src={social.src || "/placeholder.svg"} alt={social.alt} />
+                  <Image
+                    src={social.src || "/placeholder.svg"}
+                    alt={social.alt}
+                  />
                 </motion.a>
               ))}
             </motion.div>
 
-            <motion.p className="text-white-100/70 text-sm" variants={itemVariants}>
+            <motion.p
+              className="text-white-100/70 text-sm"
+              variants={itemVariants}
+            >
               all rights reserved - himspire 2025
             </motion.p>
           </Wrapper>
 
-          <motion.div className="px-2 md:px-12 w-full flex justify-center" variants={logoVariants}>
-            <Image src={Logo_Large || "/placeholder.svg"} alt="logo" className="w-full" />
+          <motion.div
+            className="px-2 md:px-12 w-full flex justify-center"
+            variants={logoVariants}
+          >
+            <Image
+              src={Logo_Large || "/placeholder.svg"}
+              alt="logo"
+              className="w-full"
+            />
           </motion.div>
         </div>
       </motion.div>
 
       {/* Track Order Modal */}
-      <TrackOrderModal 
+      <TrackOrderModal
         isOpen={isTrackOrderModalOpen}
         onClose={() => setIsTrackOrderModalOpen(false)}
       />
-    </>
-  )
-}
 
-export default Footer
+      {/* Refund Policy Modal */}
+      <RefundPolicyModal
+        isOpen={isRefundPolicyModalOpen}
+        onClose={() => setIsRefundPolicyModalOpen(false)}
+      />
+
+      {/* Store Info Modal */}
+      <StoreInfoModal
+        isOpen={isStoreInfoModalOpen}
+        onClose={() => setIsStoreInfoModalOpen(false)}
+      />
+
+      {/* Deliveries Modal */}
+      <DeliveriesModal
+        isOpen={isDeliveriesModalOpen}
+        onClose={() => setIsDeliveriesModalOpen(false)}
+      />
+    </>
+  );
+};
+
+export default Footer;
