@@ -34,62 +34,70 @@ type StockResponse = {
   reservations: Reservation[];
 };
 
-// In-memory cache for stock data
+import { cacheService } from "@/lib/cache-service";
+
+// Cache configuration
+const CACHE_TTL = 50; // 50 seconds (matching existing cache)
+
+// Enhanced cache management for better stock accuracy
+
+// Legacy in-memory cache for fallback (will be removed after Redis is stable)
 const stockCache = new Map<
   string,
   { data: StockResponse; timestamp: number }
 >();
-const CACHE_TTL = 50;
 
-// Cache cleanup interval (5 minutes)
-const CLEANUP_INTERVAL = 5 * 60 * 1000;
-
-// Initialize cleanup interval only once
-let cleanupInterval: NodeJS.Timeout | null = null;
-let cleanupCount = 0;
-
-function initializeCleanupInterval(): void {
-  if (cleanupInterval) return; // Already initialized
-
-  cleanupInterval = setInterval(() => {
-    const now = Date.now();
-    const expiredKeys: string[] = [];
-
-    // Find expired entries
-    for (const [key, value] of stockCache.entries()) {
-      if (now - value.timestamp > CACHE_TTL) {
-        expiredKeys.push(key);
-      }
+// Cache functions with Redis fallback
+async function getCachedStock(
+  productId: string,
+  sessionId: string | null
+): Promise<StockResponse | null> {
+  try {
+    // Try Redis first
+    const cached = await cacheService.getStockCache(productId, sessionId);
+    if (cached && typeof cached === "object" && "success" in cached) {
+      return cached as StockResponse;
     }
+  } catch (error) {
+    console.warn("Redis cache get failed, falling back to memory:", error);
+  }
 
-    // Remove expired entries
-    for (const key of expiredKeys) {
-      stockCache.delete(key);
-    }
-
-    // Log cleanup activity if entries were removed
-    if (expiredKeys.length > 0) {
-      console.log(
-        `Stock cache cleanup: removed ${expiredKeys.length} expired entries`
-      );
-    }
-
-    // Log cache statistics periodically (every 10th cleanup cycle)
-    cleanupCount++;
-    if (cleanupCount % 10 === 0) {
-      const stats = getCacheStats();
-      console.log(
-        `Stock cache stats: ${stats.size} entries, oldest: ${stats.oldestEntry ? new Date(stats.oldestEntry).toISOString() : "N/A"}`
-      );
-    }
-  }, CLEANUP_INTERVAL);
-
-  console.log("Stock cache cleanup interval initialized");
+  // Fallback to in-memory cache
+  const cacheKey = `${productId}-${sessionId || "anonymous"}`;
+  const cached = stockCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
 }
 
-// Initialize cleanup on module load
-initializeCleanupInterval();
+async function setCachedStock(
+  productId: string,
+  sessionId: string | null,
+  data: StockResponse
+): Promise<void> {
+  try {
+    // Try Redis first
+    await cacheService.setStockCache(productId, sessionId, data, CACHE_TTL);
+  } catch (error) {
+    console.warn("Redis cache set failed, falling back to memory:", error);
+  }
 
+  // Fallback to in-memory cache
+  const cacheKey = `${productId}-${sessionId || "anonymous"}`;
+
+  // Safety check: if cache gets too large, trigger immediate cleanup
+  if (stockCache.size > 1000) {
+    const cleanedCount = cleanupExpiredCache();
+    console.log(
+      `Emergency cache cleanup: removed ${cleanedCount} entries due to size limit`
+    );
+  }
+
+  stockCache.set(cacheKey, { data, timestamp: Date.now() });
+}
+
+// Legacy cleanup function for in-memory fallback
 function cleanupExpiredCache(): number {
   const now = Date.now();
   const expiredKeys: string[] = [];
@@ -107,56 +115,6 @@ function cleanupExpiredCache(): number {
   }
 
   return expiredKeys.length;
-}
-
-function getCachedStock(
-  productId: string,
-  sessionId: string | null
-): StockResponse | null {
-  const cacheKey = `${productId}-${sessionId || "anonymous"}`;
-  const cached = stockCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedStock(
-  productId: string,
-  sessionId: string | null,
-  data: StockResponse
-): void {
-  const cacheKey = `${productId}-${sessionId || "anonymous"}`;
-
-  // Safety check: if cache gets too large, trigger immediate cleanup
-  if (stockCache.size > 1000) {
-    const cleanedCount = cleanupExpiredCache();
-    console.log(
-      `Emergency cache cleanup: removed ${cleanedCount} entries due to size limit`
-    );
-  }
-
-  stockCache.set(cacheKey, { data, timestamp: Date.now() });
-}
-
-// Utility function to get cache statistics (for monitoring)
-function getCacheStats(): {
-  size: number;
-  oldestEntry: number | null;
-  newestEntry: number | null;
-} {
-  if (stockCache.size === 0) {
-    return { size: 0, oldestEntry: null, newestEntry: null };
-  }
-
-  const timestamps = Array.from(stockCache.values()).map(
-    (entry) => entry.timestamp
-  );
-  return {
-    size: stockCache.size,
-    oldestEntry: Math.min(...timestamps),
-    newestEntry: Math.max(...timestamps),
-  };
 }
 
 export async function GET(
@@ -178,8 +136,16 @@ export async function GET(
     // Clear cache if requested
     if (clearCache) {
       console.log(`🧹 Clearing stock cache for product ${productId}`);
-      const cacheKeysToRemove: string[] = [];
 
+      try {
+        // Clear Redis cache
+        await cacheService.clearStockCache(productId);
+      } catch (error) {
+        console.warn("Redis cache clear failed, clearing memory cache:", error);
+      }
+
+      // Clear legacy in-memory cache
+      const cacheKeysToRemove: string[] = [];
       for (const [key] of stockCache.entries()) {
         if (key.startsWith(productId)) {
           cacheKeysToRemove.push(key);
@@ -190,22 +156,20 @@ export async function GET(
         stockCache.delete(key);
       }
 
-      console.log(
-        `✅ Cleared ${cacheKeysToRemove.length} cache entries for product ${productId}`
-      );
+      console.log(`✅ Cleared cache entries for product ${productId}`);
 
       // Return a simple success response for cache clearing
       return NextResponse.json({
         success: true,
-        message: `Cleared ${cacheKeysToRemove.length} cache entries`,
+        message: `Cleared cache entries`,
         productId: productId,
       });
     }
 
     // Check cache first
-    const cached = getCachedStock(productId, sessionId);
-    if (cached) {
-      return NextResponse.json(cached);
+    const cached = await getCachedStock(productId, sessionId);
+    if (cached && typeof cached === "object" && "success" in cached) {
+      return NextResponse.json(cached as StockResponse);
     }
 
     // Get current stock and reservations from Sanity
@@ -261,63 +225,59 @@ export async function GET(
       const db = mongoClient.db("himspired");
       const ordersCollection = db.collection("orders");
 
-      // Find pending orders that contain this product
-      const pendingOrders = await ordersCollection
-        .find({
-          status: "payment_pending",
-          "items.productId": productId,
-        })
+      // OPTIMIZATION: Use single aggregation pipeline instead of multiple queries
+      const orderStats = await ordersCollection
+        .aggregate([
+          {
+            $match: {
+              "items.productId": productId,
+              status: {
+                $in: ["payment_pending", "payment_confirmed", "canceled"],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$status",
+              sessionIds: { $addToSet: "$sessionId" },
+              totalQuantity: {
+                $sum: {
+                  $reduce: {
+                    input: {
+                      $filter: {
+                        input: "$items",
+                        cond: { $eq: ["$$this.productId", productId] },
+                      },
+                    },
+                    initialValue: 0,
+                    in: { $add: ["$$value", "$$this.quantity"] },
+                  },
+                },
+              },
+            },
+          },
+        ])
         .toArray();
 
-      // Calculate total quantity reserved by pending orders and track session details
-      pendingOrders.reduce((total, order) => {
-        const orderItem = order.items.find(
-          (item: { productId: string; quantity: number }) =>
-            item.productId === productId
+      // Process aggregation results
+      const pendingOrders = orderStats.find((s) => s._id === "payment_pending");
+      const confirmedOrders = orderStats.find(
+        (s) => s._id === "payment_confirmed"
+      );
+      const canceledOrders = orderStats.find((s) => s._id === "canceled");
+
+      if (pendingOrders) {
+        pendingOrderDetails.push(
+          ...pendingOrders.sessionIds.map((sessionId: string) => ({
+            sessionId,
+            quantity:
+              pendingOrders.totalQuantity / pendingOrders.sessionIds.length,
+          }))
         );
+      }
 
-        if (orderItem) {
-          const quantity = orderItem.quantity || 0;
-          // Track session details for correlation
-          if (order.sessionId) {
-            pendingOrderDetails.push({
-              sessionId: order.sessionId,
-              quantity: quantity,
-            });
-          }
-          return total + quantity;
-        }
-        return total;
-      }, 0);
-
-      // Also check for confirmed orders to ensure their reservations are not counted
-      // This is important because reservations might still exist in Sanity even after order confirmation
-      const confirmedOrders = await ordersCollection
-        .find({
-          status: "payment_confirmed",
-          "items.productId": productId,
-        })
-        .toArray();
-
-      // Also check for canceled orders to ensure their reservations are not counted
-      const canceledOrders = await ordersCollection
-        .find({
-          status: "canceled",
-          "items.productId": productId,
-        })
-        .toArray();
-
-      confirmedOrderSessionIds = new Set(
-        confirmedOrders
-          .filter((order) => order.sessionId)
-          .map((order) => order.sessionId)
-      );
-
-      canceledOrderSessionIds = new Set(
-        canceledOrders
-          .filter((order) => order.sessionId)
-          .map((order) => order.sessionId)
-      );
+      confirmedOrderSessionIds = new Set(confirmedOrders?.sessionIds || []);
+      canceledOrderSessionIds = new Set(canceledOrders?.sessionIds || []);
     } catch (error) {
       console.error("Failed to check pending orders:", error);
       // Ensure confirmedOrderSessionIds is initialized even if the query fails
@@ -470,7 +430,7 @@ export async function GET(
     };
 
     // Cache the response
-    setCachedStock(productId, sessionId, response);
+    await setCachedStock(productId, sessionId, response);
 
     return NextResponse.json(response);
   } catch (error) {

@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
 import { decrementStockForOrder } from "@/lib/stock-update-utils";
 import { cleanupOrderReservations } from "@/lib/order-cleanup";
 import { orderService } from "@/lib/order";
+import { cacheService } from "@/lib/cache-service";
+
+// Simple rate limiting for order retrieval
+const orderRetrievalAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const MAX_RETRIEVAL_ATTEMPTS = 20;
+const WINDOW_MS = 60 * 1000; // 1 minute
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 interface OrderItem {
   productId: string;
@@ -21,14 +34,26 @@ export async function GET(
   const { orderId } = await context.params;
 
   try {
-    // Apply rate limiting for order retrieval
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 20, // 20 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Simple rate limiting
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    let entry = orderRetrievalAttempts.get(clientIp);
+    
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    
+    entry.count++;
+    orderRetrievalAttempts.set(clientIp, entry);
+    
+    if (entry.count > MAX_RETRIEVAL_ATTEMPTS) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order retrieval attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Get order details using the order service (MongoDB)
@@ -73,14 +98,26 @@ export async function PUT(
   const { orderId } = await context.params;
 
   try {
-    // Apply rate limiting for order updates
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Simple rate limiting for order updates
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    let entry = orderRetrievalAttempts.get(clientIp);
+    
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    
+    entry.count++;
+    orderRetrievalAttempts.set(clientIp, entry);
+    
+    if (entry.count > 10) { // Lower limit for updates
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order update attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Use admin authentication for order updates
@@ -118,6 +155,13 @@ export async function PUT(
 
     // Update order status using the order service
     await orderService.updateOrderStatus(orderId, status);
+
+    // Clear order cache after status update
+    try {
+      await cacheService.clearOrderCache(orderId);
+    } catch (error) {
+      console.warn("Failed to clear order cache:", error);
+    }
 
     // Handle payment confirmation
     if (

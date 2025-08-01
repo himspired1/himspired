@@ -257,7 +257,13 @@ const CheckoutPage = () => {
       });
 
       // Extend reservations for valid items
+      console.log(
+        `Processing ${validCartItems.length} items for reservation extension`
+      );
       for (const item of validCartItems) {
+        console.log(
+          `Attempting to reserve: ${item.title} (ID: ${item.originalProductId}, Qty: ${item.quantity})`
+        );
         try {
           const response = await fetch(
             `/api/products/checkout-reserve/${item.originalProductId}`,
@@ -274,6 +280,9 @@ const CheckoutPage = () => {
             }
           );
 
+          console.log(
+            `Reservation response for ${item.title}: ${response.status} ${response.statusText}`
+          );
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error(
@@ -283,9 +292,14 @@ const CheckoutPage = () => {
             failedReservations.push({
               productId: item.originalProductId,
               title: item.title,
-              error: errorData.error || `HTTP ${response.status}`,
+              error:
+                errorData.error ||
+                errorData.details ||
+                `HTTP ${response.status}`,
               status: response.status,
             });
+          } else {
+            console.log(`Successfully reserved ${item.title}`);
           }
         } catch (error) {
           console.error(

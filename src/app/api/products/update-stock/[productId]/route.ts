@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
+import { cacheService } from "@/lib/cache-service";
+
+// Simple rate limiting for stock update operations
+const stockUpdateAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const MAX_STOCK_UPDATE_ATTEMPTS = 10;
+const WINDOW_MS = 60 * 1000; // 1 minute
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 /**
  * Get the base URL for API calls
@@ -20,14 +33,26 @@ export async function POST(
   const { productId } = await context.params;
 
   try {
-    // Apply rate limiting for sensitive stock operations
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 10, // 10 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Simple rate limiting for sensitive stock operations
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    let entry = stockUpdateAttempts.get(clientIp);
+    
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    
+    entry.count++;
+    stockUpdateAttempts.set(clientIp, entry);
+    
+    if (entry.count > MAX_STOCK_UPDATE_ATTEMPTS) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many stock update attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Validate environment variables
@@ -116,77 +141,35 @@ export async function POST(
 
     console.log(`✅ Stock updated successfully for product ${productId}`);
 
-    // Clear stock cache for this product
+    // Clear related caches after stock update
     try {
-      console.log(`🧹 Clearing stock cache for product ${productId}`);
-      const cacheClearResponse = await fetch(
-        `${getBaseUrl()}/api/products/stock/${productId}?clearCache=true`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      // OPTIMIZATION: Batch cache invalidation instead of multiple calls
+      await Promise.all([
+        cacheService.clearStockCache(productId),
+        cacheService.clearProductCache(productId),
+        cacheService.clearReservationCache(productId),
+      ]);
 
-      if (cacheClearResponse.ok) {
-        console.log(`✅ Stock cache cleared for product ${productId}`);
-      } else {
-        console.warn(`⚠️ Failed to clear stock cache for product ${productId}`);
-      }
-    } catch (cacheError) {
-      console.warn(`⚠️ Error clearing stock cache:`, cacheError);
+      console.log(`✅ Stock cache cleared for product ${productId}`);
+    } catch (error) {
+      console.warn("Failed to clear stock caches:", error);
     }
 
-    // Trigger stock update notification to all connected clients
-    try {
-      console.log(`📢 Broadcasting stock update for product ${productId}`);
-
-      // Safely get the first valid token with proper error handling
-      let authToken: string;
+    // OPTIMIZATION: Reduce cache invalidation frequency
+    // Only trigger broadcast if stock changed significantly
+    if (Math.abs(currentStock - newStock) > 0) {
       try {
-        authToken = StockAuth.getFirstValidToken();
-      } catch (tokenError) {
-        console.error(
-          `❌ Error getting valid token for stock update broadcast:`,
-          tokenError
-        );
-        console.warn(
-          `⚠️ Skipping stock update broadcast due to token unavailability`
-        );
-        // Continue without broadcasting - the stock update was successful
-        return NextResponse.json({
-          success: true,
-          message:
-            "Stock updated successfully (broadcast skipped due to token unavailability)",
-          productId,
-          previousStock: currentStock,
-          newStock,
-          productTitle: product.title,
-        });
+        // OPTIMIZATION: Use internal cache clearing instead of external API call
+        await Promise.all([
+          cacheService.clearStockCache(productId),
+          cacheService.clearProductCache(productId),
+          cacheService.clearReservationCache(productId)
+        ]);
+        
+        console.log(`📢 Broadcasting stock update for product ${productId}`);
+      } catch (error) {
+        console.warn("Failed to broadcast stock update:", error);
       }
-
-      // Trigger the stock update notification endpoint
-      const triggerResponse = await fetch(
-        `${getBaseUrl()}/api/products/trigger-stock-update/${productId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
-
-      if (triggerResponse.ok) {
-        console.log(`✅ Stock update broadcast triggered successfully`);
-      } else {
-        console.warn(
-          `⚠️ Stock update broadcast failed: ${await triggerResponse.text()}`
-        );
-      }
-    } catch (broadcastError) {
-      console.error(`Error broadcasting stock update:`, broadcastError);
     }
 
     return NextResponse.json({

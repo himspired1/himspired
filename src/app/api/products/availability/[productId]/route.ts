@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
 import clientPromise from "@/lib/mongodb";
+import { cacheService } from "@/lib/cache-service";
 
 type Reservation = {
   sessionId: string;
@@ -21,6 +22,17 @@ export async function GET(
         { error: "Product ID is required" },
         { status: 400 }
       );
+    }
+
+    // OPTIMIZATION: Try to get from cache first
+    const cacheKey = `availability:${productId}:${sessionId || "anonymous"}`;
+    try {
+      const cached = await cacheService.getProductCache(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
+    } catch (error) {
+      console.warn("Availability cache get failed:", error);
     }
 
     // Get product stock and reservations from Sanity
@@ -63,54 +75,78 @@ export async function GET(
         new Date().toISOString(),
     }));
 
-    // Check for pending orders that contain this product
-    // CRITICAL: This query is essential for accurate stock calculation
-    // If this fails, we must not continue with incorrect stock data
+    // OPTIMIZATION: Use single aggregation pipeline instead of multiple queries
     const pendingOrderDetails: Array<{ sessionId: string; quantity: number }> =
       [];
+    let confirmedOrderSessionIds = new Set<string>();
+    let canceledOrderSessionIds = new Set<string>();
 
     try {
       const mongoClient = await clientPromise;
       const db = mongoClient.db("himspired");
       const ordersCollection = db.collection("orders");
 
-      // Find pending orders that contain this product
-      const pendingOrders = await ordersCollection
-        .find({
-          status: "payment_pending",
-          "items.productId": productId,
-        })
+      // OPTIMIZATION: Use aggregation pipeline for better performance
+      const orderStats = await ordersCollection
+        .aggregate([
+          {
+            $match: {
+              "items.productId": productId,
+              status: {
+                $in: ["payment_pending", "payment_confirmed", "canceled"],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$status",
+              sessionIds: { $addToSet: "$sessionId" },
+              totalQuantity: {
+                $sum: {
+                  $reduce: {
+                    input: {
+                      $filter: {
+                        input: "$items",
+                        cond: { $eq: ["$$this.productId", productId] },
+                      },
+                    },
+                    initialValue: 0,
+                    in: { $add: ["$$value", "$$this.quantity"] },
+                  },
+                },
+              },
+            },
+          },
+        ])
         .toArray();
 
-      // Calculate total quantity reserved by pending orders and track session details
-      pendingOrders.forEach((order) => {
-        const orderItem = order.items.find(
-          (item: { productId: string; quantity: number }) =>
-            item.productId === productId
-        );
+      // Process aggregation results
+      const pendingOrders = orderStats.find((s) => s._id === "payment_pending");
+      const confirmedOrders = orderStats.find(
+        (s) => s._id === "payment_confirmed"
+      );
+      const canceledOrders = orderStats.find((s) => s._id === "canceled");
 
-        if (orderItem) {
-          const quantity = orderItem.quantity || 0;
-          // Track session details for correlation
-          if (order.sessionId) {
-            pendingOrderDetails.push({
-              sessionId: order.sessionId,
-              quantity: quantity,
-            });
-          }
-        }
-      });
+      if (pendingOrders) {
+        pendingOrderDetails.push(
+          ...pendingOrders.sessionIds.map((sessionId: string) => ({
+            sessionId,
+            quantity:
+              pendingOrders.totalQuantity / pendingOrders.sessionIds.length,
+          }))
+        );
+      }
+
+      confirmedOrderSessionIds = new Set(confirmedOrders?.sessionIds || []);
+      canceledOrderSessionIds = new Set(canceledOrders?.sessionIds || []);
     } catch (error) {
       console.error("Failed to check pending orders:", error);
-      // Rethrow the error to prevent continuing with incorrect stock calculations
-      // This ensures the failure is propagated and handled upstream
       throw new Error(
         `MongoDB query failed: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
 
     // CORRELATION LOGIC: Properly calculate total reserved quantity
-    // by correlating reservations with pending orders to avoid double-counting
     let totalReservedQuantity = 0;
     let correlatedReservations = 0;
     let uncorrelatedReservations = 0;
@@ -122,39 +158,39 @@ export async function GET(
     );
 
     // Calculate reservations that are NOT correlated with pending orders
-    // These are reservations that don't have corresponding pending orders
     uncorrelatedReservations = reservations.reduce((total, reservation) => {
-      // If this reservation's sessionId is NOT in pending orders, count it
-      if (!pendingOrderSessionIds.has(reservation.sessionId)) {
+      const isPendingOrder = pendingOrderSessionIds.has(reservation.sessionId);
+      const isConfirmedOrder = confirmedOrderSessionIds.has(
+        reservation.sessionId
+      );
+      const isCanceledOrder = canceledOrderSessionIds.has(
+        reservation.sessionId
+      );
+
+      if (!isPendingOrder && !isConfirmedOrder && !isCanceledOrder) {
         return total + (reservation.quantity || 0);
       }
       return total;
     }, 0);
 
     // Calculate pending orders that are NOT correlated with reservations
-    // These are pending orders that don't have corresponding active reservations
     const reservationSessionIds = new Set(reservations.map((r) => r.sessionId));
 
     uncorrelatedPendingOrders = pendingOrderDetails.reduce((total, detail) => {
-      // If this pending order's sessionId is NOT in active reservations, count it
       if (!reservationSessionIds.has(detail.sessionId)) {
         return total + detail.quantity;
       }
       return total;
     }, 0);
 
-    // Calculate correlated quantities (reservations that have corresponding pending orders)
-    // For correlated items, we use the maximum of reservation and pending order quantity
-    // to avoid double-counting the same items
+    // Calculate correlated quantities
     correlatedReservations = reservations.reduce((total, reservation) => {
       if (pendingOrderSessionIds.has(reservation.sessionId)) {
-        // Find the corresponding pending order quantity
         const pendingOrderDetail = pendingOrderDetails.find(
           (detail) => detail.sessionId === reservation.sessionId
         );
 
         if (pendingOrderDetail) {
-          // Use the maximum to avoid double-counting the same items
           const maxQuantity = Math.max(
             reservation.quantity || 0,
             pendingOrderDetail.quantity || 0
@@ -165,7 +201,7 @@ export async function GET(
       return total;
     }, 0);
 
-    // Total reserved quantity = uncorrelated reservations + uncorrelated pending orders + correlated max
+    // Total reserved quantity
     totalReservedQuantity =
       uncorrelatedReservations +
       uncorrelatedPendingOrders +
@@ -179,19 +215,20 @@ export async function GET(
       : 0;
     const reservedByOthers = totalReservedQuantity - reservedByCurrentUser;
 
+    let response;
+
     // Check if product is out of stock
     if (product.stock <= 0) {
-      return NextResponse.json({
+      response = {
         available: false,
         message: "Product is out of stock",
         stock: 0,
         permanentlyOutOfStock: true,
-      });
+      };
     }
-
     // If user has a reservation
-    if (reservedByCurrentUser > 0) {
-      return NextResponse.json({
+    else if (reservedByCurrentUser > 0) {
+      response = {
         available: true,
         message: `You reserved ${reservedByCurrentUser} item${reservedByCurrentUser > 1 ? "s" : ""}`,
         stock: product.stock,
@@ -200,18 +237,16 @@ export async function GET(
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByCurrentUser: true,
-      });
+      };
     }
-
     // If all items are reserved by others
-    if (availableStock === 0) {
-      // When all items are reserved by others, show appropriate message
+    else if (availableStock === 0) {
       let message = "Item currently reserved by another customer";
       if (reservedByOthers >= product.stock) {
         message = "Item reserved by other users";
       }
 
-      return NextResponse.json({
+      response = {
         available: false,
         message: message,
         stock: product.stock,
@@ -220,12 +255,11 @@ export async function GET(
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByOtherUser: true,
-      });
+      };
     }
-
     // If some items are reserved by others, but there is still available stock
-    if (reservedByOthers > 0 && availableStock > 0) {
-      return NextResponse.json({
+    else if (reservedByOthers > 0 && availableStock > 0) {
+      response = {
         available: true,
         message: `${availableStock} in stock, ${reservedByOthers} currently reserved by others`,
         stock: product.stock,
@@ -234,19 +268,29 @@ export async function GET(
         reservedByCurrentUser,
         reservedByOthers,
         isReservedByOtherUser: true,
-      });
+      };
+    }
+    // Product is available
+    else {
+      response = {
+        available: true,
+        message: `${availableStock} in stock`,
+        stock: product.stock,
+        availableStock: availableStock,
+        reservedQuantity: totalReservedQuantity,
+        reservedByCurrentUser,
+        reservedByOthers,
+      };
     }
 
-    // Product is available
-    return NextResponse.json({
-      available: true,
-      message: `${availableStock} in stock`,
-      stock: product.stock,
-      availableStock: availableStock,
-      reservedQuantity: totalReservedQuantity,
-      reservedByCurrentUser,
-      reservedByOthers,
-    });
+    // OPTIMIZATION: Cache the result for 30 seconds
+    try {
+      await cacheService.setProductCache(cacheKey, response, 30);
+    } catch (error) {
+      console.warn("Availability cache set failed:", error);
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Availability check error:", error);
     return NextResponse.json(

@@ -29,10 +29,28 @@ const ORDER_INDEXES: {
     name: "customer_email",
     key: { "customerInfo.email": 1 },
   },
+  // NEW: Add indexes for slow queries identified in logs
+  {
+    name: "sessionId_index",
+    key: { sessionId: 1 },
+  },
+  {
+    name: "items_productId",
+    key: { "items.productId": 1 },
+  },
+  {
+    name: "status_items_productId",
+    key: { status: 1, "items.productId": 1 },
+  },
   // Compound index for common queries
   {
     name: "status_createdAt",
     key: { status: 1, createdAt: -1 },
+  },
+  // NEW: Compound index for order lookup by session and status
+  {
+    name: "sessionId_status",
+    key: { sessionId: 1, status: 1 },
   },
 ];
 
