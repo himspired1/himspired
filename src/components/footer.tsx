@@ -50,7 +50,6 @@ const Footer = () => {
         { href: "/shop/men", label: "men" },
         { href: "/shop/women", label: "unisex" },
         { href: "#", label: "refund policy", onClick: handleRefundPolicyClick },
-        { href: "#", label: "deliveries", onClick: handleDeliveriesClick },
       ],
     },
     {
