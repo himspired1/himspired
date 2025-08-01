@@ -176,7 +176,7 @@ const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClose }) =>
                   <P className="text-xs text-gray-600 text-center font-activo">
                     Can`t find your order ID? Contact us at{" "}
                     <a href={`mailto:${process.env.NEXT_PUBLIC_EMAIL || 'support@himspired.com'}`} className="text-[#68191E] hover:underline">
-                      support@himspired.com
+                      thehimspiredshop@gmail.com
                     </a>
                   </P>
                 </div>
