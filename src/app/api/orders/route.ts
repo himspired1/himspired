@@ -141,20 +141,35 @@ export async function POST(req: NextRequest) {
       await orderService.uploadPaymentReceipt(order.orderId, receiptUrl);
     }
 
+    // Validate email before sending confirmation
+    const isValidEmail = (email: string): boolean => {
+      if (!email || typeof email !== 'string' || email.trim() === '') {
+        return false;
+      }
+      
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email.trim());
+    };
+
     // Send automatic order confirmation email
-    try {
-      const { sendOrderConfirmationEmail } = await import("@/lib/email");
-      await sendOrderConfirmationEmail(
-        email,
-        name,
-        order.orderId,
-        items,
-        total
-      );
-      console.log(`✅ Order confirmation email sent for order ${order.orderId}`);
-    } catch (emailError) {
-      console.error(`❌ Failed to send order confirmation email for order ${order.orderId}:`, emailError);
-      // Don't fail the order creation if email fails
+    if (isValidEmail(email)) {
+      try {
+        const { sendOrderConfirmationEmail } = await import("@/lib/email");
+        await sendOrderConfirmationEmail(
+          email,
+          name,
+          order.orderId,
+          items,
+          total
+        );
+        console.log(`✅ Order confirmation email sent for order ${order.orderId}`);
+      } catch (emailError) {
+        console.error(`❌ Failed to send order confirmation email for order ${order.orderId}:`, emailError);
+        // Don't fail the order creation if email fails
+      }
+    } else {
+      console.warn(`⚠️ Skipping order confirmation email for order ${order.orderId}: Invalid or missing email address (${email})`);
     }
 
     return NextResponse.json({ success: true, orderId: order.orderId });

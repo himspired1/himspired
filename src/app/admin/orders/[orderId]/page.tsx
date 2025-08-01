@@ -26,6 +26,17 @@ import { toast } from "sonner";
 // Product Image Component for Order Details
 type OrderItem = SharedOrderItem;
 
+// Reusable Send Custom Email Button Component
+const SendCustomEmailButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+  >
+    <Mail className="w-4 h-4" />
+    Send Custom Email
+  </button>
+);
+
 const ProductImage = ({
   item,
   size = 64,
@@ -639,13 +650,7 @@ const OrderDetails = () => {
                     "Issue Resolved"
                   )}
                 </button>
-                <button
-                  onClick={openEmailModal}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Send Custom Email
-                </button>
+                <SendCustomEmailButton onClick={openEmailModal} />
               </>
             )}
             {/* Add cancel button for payment_pending orders */}
@@ -669,13 +674,7 @@ const OrderDetails = () => {
                     "Cancel & Release Stock"
                   )}
                 </button>
-                <button
-                  onClick={openEmailModal}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Send Custom Email
-                </button>
+                <SendCustomEmailButton onClick={openEmailModal} />
               </>
             )}
             {order.status === "canceled" && (
@@ -723,13 +722,7 @@ const OrderDetails = () => {
                     "Mark as Shipped"
                   )}
                 </button>
-                <button
-                  onClick={openEmailModal}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Send Custom Email
-                </button>
+                <SendCustomEmailButton onClick={openEmailModal} />
               </>
             )}
             {order.status === "shipped" && (
@@ -752,13 +745,7 @@ const OrderDetails = () => {
                     "Mark as Complete"
                   )}
                 </button>
-                <button
-                  onClick={openEmailModal}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Send Custom Email
-                </button>
+                <SendCustomEmailButton onClick={openEmailModal} />
               </>
             )}
           </div>
