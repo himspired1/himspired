@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Wrapper from "./layout/Wrapper";
 import { Logo } from "../../public/images";
@@ -20,6 +20,12 @@ const Navbar = () => {
   }>({});
   const cartItems = useAppSelector(selectCartItems);
   const pathname = usePathname();
+
+  // Refs to store timeout IDs for cleanup
+  const cartClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const linkClickTimeoutRefs = useRef<{ [key: string]: NodeJS.Timeout | null }>(
+    {}
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -57,6 +63,26 @@ const Navbar = () => {
     }
   }, [isSidebarOpen]);
 
+  // Cleanup timeouts on component unmount
+  useEffect(() => {
+    const cartTimeout = cartClickTimeoutRef.current;
+    const linkTimeouts = linkClickTimeoutRefs.current;
+
+    return () => {
+      // Clear cart click timeout
+      if (cartTimeout) {
+        clearTimeout(cartTimeout);
+      }
+
+      // Clear all link click timeouts
+      Object.values(linkTimeouts).forEach((timeout) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      });
+    };
+  }, []);
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
@@ -67,14 +93,27 @@ const Navbar = () => {
 
   // Cart click animation handler
   const handleCartClick = () => {
+    // Clear any existing timeout
+    if (cartClickTimeoutRef.current) {
+      clearTimeout(cartClickTimeoutRef.current);
+    }
+
     setCartClickAnimation(true);
-    setTimeout(() => setCartClickAnimation(false), 300);
+    cartClickTimeoutRef.current = setTimeout(
+      () => setCartClickAnimation(false),
+      300
+    );
   };
 
   // Link click animation handler
   const handleLinkClick = (linkHref: string) => {
+    // Clear any existing timeout for this link
+    if (linkClickTimeoutRefs.current[linkHref]) {
+      clearTimeout(linkClickTimeoutRefs.current[linkHref]!);
+    }
+
     setLinkClickAnimations((prev) => ({ ...prev, [linkHref]: true }));
-    setTimeout(() => {
+    linkClickTimeoutRefs.current[linkHref] = setTimeout(() => {
       setLinkClickAnimations((prev) => ({ ...prev, [linkHref]: false }));
     }, 300);
   };
