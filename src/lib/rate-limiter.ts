@@ -1,204 +1,299 @@
-import { NextRequest, NextResponse } from "next/server";
+// Rate limiter utilities
 
-interface RateLimitConfig {
-  windowMs: number;
-  maxRequests: number;
-  keyGenerator?: (request: NextRequest) => string;
+/**
+ * Centralized rate limiter with memory management
+ * Handles cleanup and prevents memory leaks
+ */
+
+interface RateLimitEntry {
+  count: number;
+  firstAttempt: number;
+  lastCleanup: number;
 }
 
-class RateLimiter {
-  private static limits = new Map<
-    string,
-    { count: number; resetTime: number }
-  >();
-  private static cleanupInterval: NodeJS.Timeout | null = null;
+export class RateLimiter {
+  private limits = new Map<string, RateLimitEntry>();
+  private readonly maxEntries = 10000; // Prevent unlimited growth
+  private readonly cleanupInterval = 5 * 60 * 1000; // 5 minutes
+  private lastGlobalCleanup = Date.now();
+  private cleanupTimerId: NodeJS.Timeout | null = null;
+  private readonly lock = new Map<string, Promise<void>>(); // Per-key locking mechanism
 
-  static {
-    // Clean up expired rate limits every 5 minutes
-    this.cleanupInterval = setInterval(
-      () => {
-        this.cleanupExpiredLimits();
-      },
-      5 * 60 * 1000
+  constructor(
+    private readonly maxAttempts: number,
+    private readonly windowMs: number,
+    private readonly identifier: string = "default"
+  ) {
+    // Start periodic cleanup and store the timer ID
+    this.cleanupTimerId = setInterval(
+      () => this.cleanup(),
+      this.cleanupInterval
     );
   }
 
   /**
-   * Clean up the rate limiter and prevent memory leaks
-   * Call this method when the rate limiter is no longer needed
-   * (e.g., during application shutdown, in serverless environments, or for testing)
+   * Atomic rate limit check with proper synchronization
+   * Prevents race conditions by using per-key locking
    */
-  static cleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-      console.log("🧹 Rate limiter cleanup interval cleared");
+  async isAllowed(key: string): Promise<boolean> {
+    // Wait for any existing operation on this key to complete
+    const existingLock = this.lock.get(key);
+    if (existingLock) {
+      await existingLock;
     }
 
-    // Clear all rate limits
-    this.limits.clear();
-    console.log("🧹 Rate limiter limits cleared");
+    // Create a new lock for this operation
+    let resolveLock: () => void;
+    const operationLock = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+    this.lock.set(key, operationLock);
+
+    try {
+      return await this.performAtomicCheck(key);
+    } finally {
+      // Always release the lock
+      this.lock.delete(key);
+      resolveLock!();
+    }
   }
 
-  static checkRateLimit(
-    key: string,
-    windowMs: number,
-    maxRequests: number
-  ): { allowed: boolean; remaining: number; resetTime: number } {
+  /**
+   * Synchronous version for backward compatibility
+   * Note: This version may have race conditions in high-concurrency scenarios
+   * Use the async version for better reliability
+   */
+  isAllowedSync(key: string): boolean {
     const now = Date.now();
-    const limit = this.limits.get(key);
+    let entry = this.limits.get(key);
 
-    if (!limit || now > limit.resetTime) {
-      // Create new rate limit window
-      this.limits.set(key, {
-        count: 1,
-        resetTime: now + windowMs,
-      });
-      return {
-        allowed: true,
-        remaining: maxRequests - 1,
-        resetTime: now + windowMs,
+    // Clean up expired entries
+    if (entry && now - entry.firstAttempt > this.windowMs) {
+      this.limits.delete(key);
+      entry = undefined;
+    }
+
+    // Create new entry if needed
+    if (!entry) {
+      entry = {
+        count: 0,
+        firstAttempt: now,
+        lastCleanup: now,
       };
     }
 
-    if (limit.count >= maxRequests) {
-      return { allowed: false, remaining: 0, resetTime: limit.resetTime };
+    // Check if limit exceeded
+    if (entry.count >= this.maxAttempts) {
+      return false;
     }
 
     // Increment count
-    limit.count++;
-    return {
-      allowed: true,
-      remaining: maxRequests - limit.count,
-      resetTime: limit.resetTime,
-    };
-  }
+    entry.count++;
+    this.limits.set(key, entry);
 
-  private static cleanupExpiredLimits(): void {
-    const now = Date.now();
-    for (const [key, limit] of this.limits.entries()) {
-      if (now > limit.resetTime) {
-        this.limits.delete(key);
-      }
+    // Emergency cleanup if too many entries
+    if (this.limits.size > this.maxEntries) {
+      this.emergencyCleanup();
     }
-  }
 
-  static middleware(config: RateLimitConfig) {
-    return async (request: NextRequest): Promise<NextResponse> => {
-      const key = config.keyGenerator
-        ? config.keyGenerator(request)
-        : this.getDefaultKey(request);
-
-      const result = this.checkRateLimit(
-        key,
-        config.windowMs,
-        config.maxRequests
-      );
-
-      if (!result.allowed) {
-        return NextResponse.json(
-          {
-            error: "Rate limit exceeded",
-            message: "Too many requests, please try again later",
-            resetTime: new Date(result.resetTime).toISOString(),
-          },
-          { status: 429 }
-        );
-      }
-
-      // Add rate limit headers
-      const response = NextResponse.next();
-      response.headers.set("X-RateLimit-Limit", config.maxRequests.toString());
-      response.headers.set(
-        "X-RateLimit-Remaining",
-        result.remaining.toString()
-      );
-      response.headers.set(
-        "X-RateLimit-Reset",
-        new Date(result.resetTime).toISOString()
-      );
-
-      return response; // Return the response object to continue processing
-    };
+    return true;
   }
 
   /**
-   * Check rate limit for API route handlers
-   * This method is designed for use in API route handlers, not middleware
+   * Perform atomic rate limit check with proper synchronization
    */
-  static checkRateLimitForAPI(
-    request: NextRequest,
-    config: RateLimitConfig
-  ): { allowed: boolean; response?: NextResponse } {
-    const key = config.keyGenerator
-      ? config.keyGenerator(request)
-      : this.getDefaultKey(request);
+  private async performAtomicCheck(key: string): Promise<boolean> {
+    const now = Date.now();
+    let entry = this.limits.get(key);
 
-    const result = this.checkRateLimit(
-      key,
-      config.windowMs,
-      config.maxRequests
-    );
+    // Clean up expired entries
+    if (entry && now - entry.firstAttempt > this.windowMs) {
+      this.limits.delete(key);
+      entry = undefined;
+    }
 
-    if (!result.allowed) {
-      return {
-        allowed: false,
-        response: NextResponse.json(
-          {
-            error: "Rate limit exceeded",
-            message: "Too many requests, please try again later",
-            resetTime: new Date(result.resetTime).toISOString(),
-          },
-          { status: 429 }
-        ),
+    // Create new entry if needed
+    if (!entry) {
+      entry = {
+        count: 0,
+        firstAttempt: now,
+        lastCleanup: now,
       };
     }
 
-    return { allowed: true };
+    // Check if limit exceeded
+    if (entry.count >= this.maxAttempts) {
+      return false;
+    }
+
+    // Emergency cleanup check BEFORE setting the entry to prevent exceeding maxEntries
+    if (this.limits.size >= this.maxEntries) {
+      this.emergencyCleanup();
+    }
+
+    // Atomic increment and set
+    entry.count++;
+    this.limits.set(key, entry);
+
+    return true;
   }
 
-  private static getDefaultKey(request: NextRequest): string {
-    // Try to get IP from various headers
-    const ip =
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      request.headers.get("cf-connecting-ip") || // Cloudflare
-      request.headers.get("x-client-ip") ||
-      "no-ip";
+  private cleanup(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+    const initialSize = this.limits.size;
 
-    // Create a more granular key by incorporating request properties
-    const method = request.method;
-    const url = new URL(request.url);
-    const path = url.pathname;
+    for (const [key, entry] of Array.from(this.limits.entries())) {
+      if (now - entry.firstAttempt > this.windowMs) {
+        this.limits.delete(key);
+        cleanedCount++;
+      }
+    }
 
-    // Include user agent as additional differentiation (truncated for security)
-    const userAgent = request.headers.get("user-agent") || "no-ua";
-    const userAgentHash = this.hashString(userAgent.substring(0, 50)); // Truncate for security
+    if (cleanedCount > 0) {
+      console.log(
+        `🧹 Rate limiter cleanup: removed ${cleanedCount} expired entries (${initialSize} → ${this.limits.size})`
+      );
+    }
+  }
 
-    // Include referer as additional differentiation
-    const referer = request.headers.get("referer") || "no-referer";
-    const refererHash = this.hashString(referer.substring(0, 50)); // Truncate for security
+  private emergencyCleanup(): void {
+    console.warn(
+      `🚨 Emergency rate limiter cleanup triggered (${this.limits.size} entries)`
+    );
 
-    // Create a unique key combining multiple request properties
-    const uniqueKey = `${ip}:${method}:${path}:${userAgentHash}:${refererHash}`;
+    // Remove oldest 50% of entries
+    const entries = Array.from(this.limits.entries());
+    entries.sort((a, b) => a[1].firstAttempt - b[1].firstAttempt);
 
-    return `rate_limit:${uniqueKey}`;
+    const toRemove = entries.slice(0, Math.floor(entries.length / 2));
+    toRemove.forEach(([key]) => this.limits.delete(key));
+
+    console.log(
+      `✅ Emergency cleanup completed: ${this.limits.size} entries remaining`
+    );
   }
 
   /**
-   * Simple hash function to create consistent hashes for strings
-   * This helps differentiate requests while maintaining security
+   * Clean up the rate limiter instance
+   * Call this method when the instance is no longer needed to prevent memory leaks
    */
-  private static hashString(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
+  destroy(): void {
+    if (this.cleanupTimerId) {
+      clearInterval(this.cleanupTimerId);
+      this.cleanupTimerId = null;
+      console.log(`🧹 Rate limiter destroyed for ${this.identifier}`);
     }
-    return Math.abs(hash).toString(36); // Convert to base36 for shorter strings
+  }
+
+  getStats(): { totalEntries: number; identifier: string } {
+    return {
+      totalEntries: this.limits.size,
+      identifier: this.identifier,
+    };
   }
 }
 
-export { RateLimiter };
-export type { RateLimitConfig };
+/**
+ * Simple rate limiter for basic rate limiting needs
+ * Uses the same pattern as inline rate limiting but encapsulated in a class
+ */
+export class SimpleRateLimiter {
+  private attempts = new Map<string, { count: number; firstAttempt: number }>();
+  private readonly lock = new Map<string, Promise<void>>(); // Per-key locking mechanism
+
+  constructor(
+    private readonly maxAttempts: number,
+    private readonly windowMs: number,
+    private readonly identifier: string = "simple"
+  ) {}
+
+  /**
+   * Atomic rate limit check with proper synchronization
+   * Prevents race conditions by using per-key locking
+   */
+  async checkLimit(key: string): Promise<boolean> {
+    // Wait for any existing operation on this key to complete
+    const existingLock = this.lock.get(key);
+    if (existingLock) {
+      await existingLock;
+    }
+
+    // Create a new lock for this operation
+    let resolveLock: () => void;
+    const operationLock = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+    this.lock.set(key, operationLock);
+
+    try {
+      return await this.performAtomicCheck(key);
+    } finally {
+      // Always release the lock
+      this.lock.delete(key);
+      resolveLock!();
+    }
+  }
+
+  /**
+   * Synchronous version for backward compatibility
+   * Note: This version may have race conditions in high-concurrency scenarios
+   * Use the async version for better reliability
+   */
+  checkLimitSync(key: string): boolean {
+    const now = Date.now();
+    let entry = this.attempts.get(key);
+
+    if (!entry || now - entry.firstAttempt > this.windowMs) {
+      entry = { count: 0, firstAttempt: now };
+    }
+
+    entry.count++;
+    this.attempts.set(key, entry);
+
+    return entry.count <= this.maxAttempts;
+  }
+
+  /**
+   * Perform atomic rate limit check with proper synchronization
+   */
+  private async performAtomicCheck(key: string): Promise<boolean> {
+    const now = Date.now();
+    let entry = this.attempts.get(key);
+
+    if (!entry || now - entry.firstAttempt > this.windowMs) {
+      entry = { count: 0, firstAttempt: now };
+    }
+
+    // Atomic increment and set
+    entry.count++;
+    this.attempts.set(key, entry);
+
+    return entry.count <= this.maxAttempts;
+  }
+
+  /**
+   * Clean up the simple rate limiter instance
+   * Clears all stored attempts to free memory
+   */
+  destroy(): void {
+    this.attempts.clear();
+    console.log(`🧹 Simple rate limiter destroyed for ${this.identifier}`);
+  }
+
+  getStats(): { totalEntries: number; identifier: string } {
+    return {
+      totalEntries: this.attempts.size,
+      identifier: this.identifier,
+    };
+  }
+}
+
+// Pre-configured rate limiters
+export const orderRateLimiter = new RateLimiter(3, 30 * 60 * 1000, "orders"); // 3 orders per 30 min
+export const adminRateLimiter = new RateLimiter(5, 10 * 60 * 1000, "admin"); // 5 attempts per 10 min
+export const newsletterRateLimiter = new RateLimiter(
+  3,
+  30 * 60 * 1000,
+  "newsletter"
+); // 3 subs per 30 min

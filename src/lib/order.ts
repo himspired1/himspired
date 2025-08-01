@@ -1,10 +1,19 @@
-import clientPromise, { withPerformanceLogging } from "./mongodb";
+import {
+  withPerformanceLogging,
+  getClientWithRetry,
+} from "./mongodb";
 import { Order, OrderStatus, CreateOrderRequest } from "@/models/order";
+import { cacheService } from "./cache-service";
 
 export class OrderService {
   private async getCollection() {
-    const client = await clientPromise;
-    return client.db("himspired").collection<Order>("orders");
+    try {
+      const client = await getClientWithRetry();
+      return client.db("himspired").collection<Order>("orders");
+    } catch (error) {
+      console.error("Failed to get MongoDB collection:", error);
+      throw new Error("Database connection failed");
+    }
   }
 
   async createOrder(orderData: CreateOrderRequest) {
@@ -21,16 +30,22 @@ export class OrderService {
       };
 
       try {
-        const result = await collection.insertOne(order);
+        // OPTIMIZATION: Use write concern for better performance
+        await collection.insertOne(order, {
+          writeConcern: { w: 1, j: false }, // Acknowledged writes without journaling for speed
+        });
 
-        // Note: Reservations are kept active after order creation
-        // They will only be released when admin confirms payment or cancels order
-        // This gives admin 24 hours to review the payment
+        // Clear order list cache when new order is created
+        try {
+          await cacheService.clearOrderCache();
+        } catch (cacheError) {
+          console.warn("Failed to clear order cache:", cacheError);
+        }
 
-        return { ...order, _id: result.insertedId.toString() };
+        return order;
       } catch (error) {
         console.error("Failed to create order:", error);
-        throw new Error("Order creation failed");
+        throw new Error("Failed to create order");
       }
     });
   }
@@ -52,110 +67,78 @@ export class OrderService {
       const skip = (page - 1) * limit;
 
       try {
-        // Get total count for pagination metadata
-        const totalCount = await collection.countDocuments(query);
+        // OPTIMIZATION: Use countDocuments with hint for better performance
+        const totalCount = await collection.countDocuments(query, {
+          hint: { status: 1, createdAt: -1 },
+        });
 
-        // Get paginated results
+        // OPTIMIZATION: Use more specific projection and add sort hint
         const orders = await collection
           .find(query, {
             projection: {
-              _id: 1,
               orderId: 1,
+              status: 1,
+              createdAt: 1,
               "customerInfo.name": 1,
               "customerInfo.email": 1,
               total: 1,
-              paymentReceipt: 1,
-              status: 1,
-              createdAt: 1,
-              "items.title": 1,
-              "items.quantity": 1,
+              items: 1,
+              paymentReceipt: 1, // Include payment receipt for admin display
             },
           })
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
+          .hint({ status: 1, createdAt: -1 })
           .toArray();
-
-        // Calculate pagination metadata
-        const totalPages = Math.ceil(totalCount / limit);
-        const hasNextPage = page < totalPages;
-        const hasPrevPage = page > 1;
 
         return {
           orders,
           pagination: {
             page,
             limit,
-            totalCount,
-            totalPages,
-            hasNextPage,
-            hasPrevPage,
+            total: totalCount,
+            totalPages: Math.ceil(totalCount / limit),
           },
         };
       } catch (error) {
-        console.error("Failed to fetch orders:", error);
+        console.error("Failed to get orders:", error);
         throw new Error("Failed to retrieve orders");
       }
     });
   }
 
-  async getOrderStats() {
-    return withPerformanceLogging("getOrderStats", async () => {
+  async getOrder(orderId: string) {
+    return withPerformanceLogging("getOrder", async () => {
       const collection = await this.getCollection();
 
       try {
-        const pipeline = [
+        const order = await collection.findOne(
+          { orderId },
           {
-            $group: {
-              _id: "$status",
-              count: { $sum: 1 },
+            projection: {
+              _id: 0,
+              orderId: 1,
+              status: 1,
+              customerInfo: 1,
+              items: 1,
+              total: 1,
+              message: 1,
+              paymentReceipt: 1, // FIXED: Use correct field name
+              createdAt: 1,
+              updatedAt: 1,
             },
-          },
-        ];
-
-        const results = await collection
-          .aggregate(pipeline, {
-            hint: { status: 1 },
-          })
-          .toArray();
-
-        const stats = {
-          pending: 0,
-          confirmed: 0,
-          shipped: 0,
-          complete: 0,
-        };
-
-        // Quick mapping - could be cleaner but works
-        results.forEach((result) => {
-          switch (result._id) {
-            case "payment_pending":
-              stats.pending = result.count;
-              break;
-            case "payment_confirmed":
-              stats.confirmed = result.count;
-              break;
-            case "shipped":
-              stats.shipped = result.count;
-              break;
-            case "complete":
-              stats.complete = result.count;
-              break;
           }
-        });
+        );
 
-        return stats;
+        if (!order) {
+          throw new Error("Order not found");
+        }
+
+        return order;
       } catch (error) {
-        console.error("Failed to get order stats:", error);
-        // Fallback - not optimal but reliable
-        const [pending, confirmed, shipped, complete] = await Promise.all([
-          collection.countDocuments({ status: "payment_pending" }),
-          collection.countDocuments({ status: "payment_confirmed" }),
-          collection.countDocuments({ status: "shipped" }),
-          collection.countDocuments({ status: "complete" }),
-        ]);
-
-        return { pending, confirmed, shipped, complete };
+        console.error(`Failed to get order ${orderId}:`, error);
+        throw new Error("Failed to retrieve order");
       }
     });
   }
@@ -179,42 +162,17 @@ export class OrderService {
           throw new Error("Order not found");
         }
 
-        return result;
+        // Clear order cache when status changes
+        try {
+          await cacheService.clearOrderCache();
+        } catch (cacheError) {
+          console.warn("Failed to clear order cache:", cacheError);
+        }
+
+        return { success: true, message: "Order status updated successfully" };
       } catch (error) {
         console.error(`Failed to update order ${orderId}:`, error);
-        throw error;
-      }
-    });
-  }
-
-  async getOrder(orderId: string) {
-    return withPerformanceLogging("getOrder", async () => {
-      const collection = await this.getCollection();
-
-      try {
-        const order = await collection.findOne(
-          { orderId },
-          {
-            projection: {
-              _id: 1,
-              orderId: 1,
-              customerInfo: 1,
-              items: 1,
-              total: 1,
-              paymentReceipt: 1,
-              status: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              message: 1,
-              sessionId: 1, // Include sessionId in projection
-            },
-          }
-        );
-
-        return order;
-      } catch (error) {
-        console.error(`Failed to get order ${orderId}:`, error);
-        throw new Error("Failed to retrieve order");
+        throw new Error("Failed to update order status");
       }
     });
   }
@@ -224,49 +182,24 @@ export class OrderService {
       const collection = await this.getCollection();
 
       try {
-        return await collection.updateOne(
+        const result = await collection.updateOne(
           { orderId },
           {
             $set: {
-              paymentReceipt: receiptUrl,
+              paymentReceipt: receiptUrl, // FIXED: Use correct field name
               updatedAt: new Date(),
             },
           }
         );
+
+        if (result.matchedCount === 0) {
+          throw new Error("Order not found");
+        }
+
+        return { success: true, message: "Receipt uploaded successfully" };
       } catch (error) {
         console.error(`Failed to upload receipt for order ${orderId}:`, error);
-        throw new Error("Failed to upload payment receipt");
-      }
-    });
-  }
-
-  async getOrdersByCustomerEmail(email: string) {
-    return withPerformanceLogging("getOrdersByCustomerEmail", async () => {
-      const collection = await this.getCollection();
-
-      try {
-        return await collection
-          .find(
-            { "customerInfo.email": email },
-            {
-              projection: {
-                _id: 1,
-                orderId: 1,
-                "customerInfo.name": 1,
-                "customerInfo.email": 1,
-                items: 1,
-                total: 1,
-                status: 1,
-                createdAt: 1,
-              },
-            }
-          )
-          .sort({ createdAt: -1 })
-          .limit(50) // Reasonable limit for customer view
-          .toArray();
-      } catch (error) {
-        console.error(`Failed to get orders for email ${email}:`, error);
-        throw new Error("Failed to retrieve customer orders");
+        throw new Error("Failed to upload receipt");
       }
     });
   }

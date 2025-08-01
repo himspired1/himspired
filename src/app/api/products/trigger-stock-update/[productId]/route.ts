@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
-import { RateLimiter } from "@/lib/rate-limiter";
+
+// Simple rate limiting for stock update trigger operations
+const stockTriggerAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const MAX_TRIGGER_ATTEMPTS = 20;
+const WINDOW_MS = 60 * 1000; // 1 minute
+
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 /**
  * Get the base URL for API calls
@@ -29,14 +41,26 @@ export async function POST(
   const { productId } = await context.params;
 
   try {
-    // Apply rate limiting for stock update notifications
-    const rateLimitResult = RateLimiter.checkRateLimitForAPI(req, {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 20, // 20 requests per minute
-    });
-
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!;
+    // Simple rate limiting for stock update notifications
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    let entry = stockTriggerAttempts.get(clientIp);
+    
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+    
+    entry.count++;
+    stockTriggerAttempts.set(clientIp, entry);
+    
+    if (entry.count > MAX_TRIGGER_ATTEMPTS) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many stock update trigger attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
     }
 
     // Validate environment variables

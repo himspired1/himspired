@@ -1,31 +1,83 @@
 import { NextResponse } from "next/server";
-import logger from "@/lib/logger";
+import { checkDatabaseConnection } from "@/lib/mongodb";
+import { cacheService } from "@/lib/cache-service";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  try {
-    logger.info("Health check requested");
+  const startTime = Date.now();
+  const healthChecks = {
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV,
+    checks: {
+      database: false,
+      redis: false,
+      memory: {
+        rss: 0,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+      },
+    },
+    performance: {
+      responseTime: 0,
+    },
+  };
 
-    // Basic health check - you can add more checks here
-    const healthStatus = {
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || "development",
+  try {
+    // Check database connectivity
+    try {
+      healthChecks.checks.database = await checkDatabaseConnection();
+    } catch (error) {
+      console.error("Database health check failed:", error);
+      healthChecks.checks.database = false;
+    }
+
+    // Check Redis connectivity
+    try {
+      await cacheService.ping();
+      healthChecks.checks.redis = true;
+    } catch (error) {
+      console.error("Redis health check failed:", error);
+      healthChecks.checks.redis = false;
+    }
+
+    // Check memory usage
+    const memUsage = process.memoryUsage();
+    healthChecks.checks.memory = {
+      rss: Math.round(memUsage.rss / 1024 / 1024), // MB
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024), // MB
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // MB
+      external: Math.round(memUsage.external / 1024 / 1024), // MB
     };
 
-    logger.info("Health check completed successfully", { healthStatus });
+    // Calculate response time
+    healthChecks.performance.responseTime = Date.now() - startTime;
 
-    return NextResponse.json(healthStatus);
-  } catch (error) {
-    logger.error("Health check failed", { error });
+    // Determine overall health status
+    const allChecksPassed = Object.values(healthChecks.checks).every(
+      (check) => check === true || (typeof check === "object" && check !== null)
+    );
+
+    const status = allChecksPassed ? 200 : 503;
+    const message = allChecksPassed ? "Healthy" : "Unhealthy";
 
     return NextResponse.json(
       {
-        status: "unhealthy",
-        error: "Health check failed",
+        status: message,
+        ...healthChecks,
+      },
+      { status }
+    );
+  } catch (error) {
+    console.error("Health check failed:", error);
+    return NextResponse.json(
+      {
+        status: "Error",
+        error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
       },
       { status: 500 }
     );

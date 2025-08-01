@@ -268,4 +268,16 @@ export class SessionValidator {
       );
     }
   }
+
+  /**
+   * Clean up the session validator instance
+   * Call this method when the instance is no longer needed to prevent memory leaks
+   */
+  static destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+      console.log("🧹 Session validator destroyed");
+    }
+  }
 }
