@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { RateLimiter } from "@/lib/rate-limiter";
 
-// Simple in-memory rate limiting for checkout sessions
-const checkoutAttempts = new Map<
-  string,
-  { count: number; firstAttempt: number }
->();
-const MAX_CHECKOUT_ATTEMPTS = 10;
-const WINDOW_MS = 60 * 1000; // 1 minute
+// Rate limiter for checkout sessions (10 attempts per minute)
+const checkoutRateLimiter = new RateLimiter(10, 60 * 1000, "checkout-sessions");
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -16,28 +12,31 @@ function getClientIp(req: NextRequest): string {
   );
 }
 
+/**
+ * Check rate limit for checkout operations
+ * @param clientIp - The client IP address
+ * @returns NextResponse if rate limit exceeded, null otherwise
+ */
+async function checkRateLimit(clientIp: string): Promise<NextResponse | null> {
+  if (!(await checkoutRateLimiter.isAllowed(clientIp))) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        message: "Too many checkout attempts. Please try again later.",
+      },
+      { status: 429 }
+    );
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    // Simple rate limiting
+    // Rate limiting
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = checkoutAttempts.get(clientIp);
-
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-
-    entry.count++;
-    checkoutAttempts.set(clientIp, entry);
-
-    if (entry.count > MAX_CHECKOUT_ATTEMPTS) {
-      return NextResponse.json(
-        {
-          error: "Rate limit exceeded",
-          message: "Too many checkout attempts. Please try again later.",
-        },
-        { status: 429 }
-      );
+    const rateLimitResponse = await checkRateLimit(clientIp);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const { sessionId, cartItems } = await req.json();
@@ -85,26 +84,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    // Simple rate limiting
+    // Rate limiting
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = checkoutAttempts.get(clientIp);
-    
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    
-    entry.count++;
-    checkoutAttempts.set(clientIp, entry);
-    
-    if (entry.count > MAX_CHECKOUT_ATTEMPTS) {
-      return NextResponse.json(
-        {
-          error: "Rate limit exceeded",
-          message: "Too many checkout attempts. Please try again later.",
-        },
-        { status: 429 }
-      );
+    const rateLimitResponse = await checkRateLimit(clientIp);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
     const { sessionId } = await req.json();
 

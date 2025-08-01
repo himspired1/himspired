@@ -225,7 +225,7 @@ export async function GET(
       const db = mongoClient.db("himspired");
       const ordersCollection = db.collection("orders");
 
-      // OPTIMIZATION: Use single aggregation pipeline instead of multiple queries
+      // OPTIMIZATION: Use single aggregation pipeline with proper grouping by status and sessionId
       const orderStats = await ordersCollection
         .aggregate([
           {
@@ -237,23 +237,32 @@ export async function GET(
             },
           },
           {
+            $unwind: "$items",
+          },
+          {
+            $match: {
+              "items.productId": productId,
+            },
+          },
+          {
             $group: {
-              _id: "$status",
-              sessionIds: { $addToSet: "$sessionId" },
-              totalQuantity: {
-                $sum: {
-                  $reduce: {
-                    input: {
-                      $filter: {
-                        input: "$items",
-                        cond: { $eq: ["$$this.productId", productId] },
-                      },
-                    },
-                    initialValue: 0,
-                    in: { $add: ["$$value", "$$this.quantity"] },
-                  },
+              _id: {
+                status: "$status",
+                sessionId: "$sessionId",
+              },
+              quantity: { $sum: "$items.quantity" },
+            },
+          },
+          {
+            $group: {
+              _id: "$_id.status",
+              sessionDetails: {
+                $push: {
+                  sessionId: "$_id.sessionId",
+                  quantity: "$quantity",
                 },
               },
+              totalQuantity: { $sum: "$quantity" },
             },
           },
         ])
@@ -268,16 +277,25 @@ export async function GET(
 
       if (pendingOrders) {
         pendingOrderDetails.push(
-          ...pendingOrders.sessionIds.map((sessionId: string) => ({
-            sessionId,
-            quantity:
-              pendingOrders.totalQuantity / pendingOrders.sessionIds.length,
-          }))
+          ...pendingOrders.sessionDetails.map(
+            (detail: { sessionId: string; quantity: number }) => ({
+              sessionId: detail.sessionId,
+              quantity: detail.quantity,
+            })
+          )
         );
       }
 
-      confirmedOrderSessionIds = new Set(confirmedOrders?.sessionIds || []);
-      canceledOrderSessionIds = new Set(canceledOrders?.sessionIds || []);
+      confirmedOrderSessionIds = new Set(
+        confirmedOrders?.sessionDetails?.map(
+          (detail: { sessionId: string; quantity: number }) => detail.sessionId
+        ) || []
+      );
+      canceledOrderSessionIds = new Set(
+        canceledOrders?.sessionDetails?.map(
+          (detail: { sessionId: string; quantity: number }) => detail.sessionId
+        ) || []
+      );
     } catch (error) {
       console.error("Failed to check pending orders:", error);
       // Ensure confirmedOrderSessionIds is initialized even if the query fails

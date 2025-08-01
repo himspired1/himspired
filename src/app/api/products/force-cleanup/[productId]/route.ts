@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
 import { forceCleanupProduct } from "@/lib/product-cleanup";
+import { SimpleRateLimiter } from "@/lib/rate-limiter";
+import { getClientIp } from "@/lib/request-utils";
 
-// Simple rate limiting for product cleanup operations
-const productCleanupAttempts = new Map<string, { count: number; firstAttempt: number }>();
-const MAX_CLEANUP_ATTEMPTS = 5;
-const WINDOW_MS = 60 * 1000; // 1 minute
-
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for") ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
+// Rate limiter for product cleanup operations (5 attempts per minute)
+const productCleanupRateLimiter = new SimpleRateLimiter(5, 60 * 1000, "product-cleanup");
 
 /**
  * Force Cleanup Reservations Endpoint
@@ -31,19 +23,10 @@ export async function POST(
   const { productId } = await context.params;
 
   try {
-    // Simple rate limiting for sensitive cleanup operations
+    // Rate limiting for sensitive cleanup operations
     const clientIp = getClientIp(req);
-    const now = Date.now();
-    let entry = productCleanupAttempts.get(clientIp);
     
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    
-    entry.count++;
-    productCleanupAttempts.set(clientIp, entry);
-    
-    if (entry.count > MAX_CLEANUP_ATTEMPTS) {
+    if (!(await productCleanupRateLimiter.checkLimit(clientIp))) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",

@@ -9,6 +9,19 @@ export class CacheService {
     this.cache = getCache();
   }
 
+  /**
+   * Sanitize cache keys to prevent collisions from special characters
+   * @param key - The key to sanitize
+   * @returns Sanitized key safe for cache storage
+   */
+  private sanitizeKey(key: string): string {
+    return key
+      .replace(/[:]/g, "_") // Replace colons with underscores
+      .replace(/[ ]/g, "_") // Replace spaces with underscores
+      .replace(/[\/\\]/g, "_") // Replace slashes with underscores
+      .replace(/[^\w\-_]/g, "_"); // Replace any other non-word chars with underscores
+  }
+
   static getInstance(): CacheService {
     if (!CacheService.instance) {
       CacheService.instance = new CacheService();
@@ -44,6 +57,7 @@ export class CacheService {
       set: async () => {},
       delete: async () => {},
       clear: async () => {},
+      destroy: () => {},
     };
   }
 
@@ -52,7 +66,11 @@ export class CacheService {
     productId: string,
     sessionId: string | null
   ): Promise<unknown | null> {
-    const cacheKey = `stock:${productId}:${sessionId || "anonymous"}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const sanitizedSessionId = sessionId
+      ? this.sanitizeKey(sessionId)
+      : "anonymous";
+    const cacheKey = `stock:${sanitizedProductId}:${sanitizedSessionId}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -62,13 +80,18 @@ export class CacheService {
     data: unknown,
     ttl: number = 50
   ): Promise<void> {
-    const cacheKey = `stock:${productId}:${sessionId || "anonymous"}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const sanitizedSessionId = sessionId
+      ? this.sanitizeKey(sessionId)
+      : "anonymous";
+    const cacheKey = `stock:${sanitizedProductId}:${sanitizedSessionId}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
   async clearStockCache(productId?: string): Promise<void> {
     if (productId) {
-      await this.cache.clear(`stock:${productId}`);
+      const sanitizedProductId = this.sanitizeKey(productId);
+      await this.cache.clear(`stock:${sanitizedProductId}`);
     } else {
       await this.cache.clear("stock");
     }
@@ -76,7 +99,8 @@ export class CacheService {
 
   // Session cache operations
   async getSessionCache(sessionId: string): Promise<unknown | null> {
-    const cacheKey = `session:${sessionId}`;
+    const sanitizedSessionId = this.sanitizeKey(sessionId);
+    const cacheKey = `session:${sanitizedSessionId}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -85,18 +109,21 @@ export class CacheService {
     data: unknown,
     ttl: number = 1800
   ): Promise<void> {
-    const cacheKey = `session:${sessionId}`;
+    const sanitizedSessionId = this.sanitizeKey(sessionId);
+    const cacheKey = `session:${sanitizedSessionId}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
   async clearSessionCache(sessionId: string): Promise<void> {
-    const cacheKey = `session:${sessionId}`;
+    const sanitizedSessionId = this.sanitizeKey(sessionId);
+    const cacheKey = `session:${sanitizedSessionId}`;
     await this.cache.delete(cacheKey);
   }
 
   // Reservation cache operations
   async getReservationCache(productId: string): Promise<unknown | null> {
-    const cacheKey = `reservation:${productId}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const cacheKey = `reservation:${sanitizedProductId}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -105,13 +132,15 @@ export class CacheService {
     data: unknown,
     ttl: number = 300
   ): Promise<void> {
-    const cacheKey = `reservation:${productId}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const cacheKey = `reservation:${sanitizedProductId}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
   async clearReservationCache(productId?: string): Promise<void> {
     if (productId) {
-      await this.cache.clear(`reservation:${productId}`);
+      const sanitizedProductId = this.sanitizeKey(productId);
+      await this.cache.clear(`reservation:${sanitizedProductId}`);
     } else {
       await this.cache.clear("reservation");
     }
@@ -119,7 +148,8 @@ export class CacheService {
 
   // Order cache operations
   async getOrderCache(orderId: string): Promise<unknown | null> {
-    const cacheKey = `order:${orderId}`;
+    const sanitizedOrderId = this.sanitizeKey(orderId);
+    const cacheKey = `order:${sanitizedOrderId}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -128,13 +158,15 @@ export class CacheService {
     data: unknown,
     ttl: number = 3600
   ): Promise<void> {
-    const cacheKey = `order:${orderId}`;
+    const sanitizedOrderId = this.sanitizeKey(orderId);
+    const cacheKey = `order:${sanitizedOrderId}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
   async clearOrderCache(orderId?: string): Promise<void> {
     if (orderId) {
-      await this.cache.clear(`order:${orderId}`);
+      const sanitizedOrderId = this.sanitizeKey(orderId);
+      await this.cache.clear(`order:${sanitizedOrderId}`);
     } else {
       await this.cache.clear("order");
     }
@@ -142,7 +174,8 @@ export class CacheService {
 
   // Product cache operations
   async getProductCache(productId: string): Promise<unknown | null> {
-    const cacheKey = `product:${productId}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const cacheKey = `product:${sanitizedProductId}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -151,13 +184,15 @@ export class CacheService {
     data: unknown,
     ttl: number = 1800
   ): Promise<void> {
-    const cacheKey = `product:${productId}`;
+    const sanitizedProductId = this.sanitizeKey(productId);
+    const cacheKey = `product:${sanitizedProductId}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
   async clearProductCache(productId?: string): Promise<void> {
     if (productId) {
-      await this.cache.clear(`product:${productId}`);
+      const sanitizedProductId = this.sanitizeKey(productId);
+      await this.cache.clear(`product:${sanitizedProductId}`);
     } else {
       await this.cache.clear("product");
     }
@@ -165,7 +200,8 @@ export class CacheService {
 
   // Rate limiting cache operations
   async getRateLimitCache(key: string): Promise<unknown | null> {
-    const cacheKey = `ratelimit:${key}`;
+    const sanitizedKey = this.sanitizeKey(key);
+    const cacheKey = `ratelimit:${sanitizedKey}`;
     return await this.cache.get(cacheKey);
   }
 
@@ -174,7 +210,8 @@ export class CacheService {
     data: unknown,
     ttl: number = 300
   ): Promise<void> {
-    const cacheKey = `ratelimit:${key}`;
+    const sanitizedKey = this.sanitizeKey(key);
+    const cacheKey = `ratelimit:${sanitizedKey}`;
     await this.cache.set(cacheKey, data, ttl);
   }
 
@@ -199,11 +236,15 @@ export class CacheService {
     ]);
   }
 
-  async invalidateOrderRelatedCaches(orderId: string): Promise<void> {
+  async invalidateOrderRelatedCaches(
+    orderId: string,
+    productIds?: string[]
+  ): Promise<void> {
     await Promise.all([
       this.clearOrderCache(orderId),
-      // Clear stock caches for all products in the order
-      this.clearStockCache(),
+      // Clear stock caches only for products in this specific order
+      ...(productIds?.map((productId) => this.clearStockCache(productId)) ||
+        []),
     ]);
   }
 }

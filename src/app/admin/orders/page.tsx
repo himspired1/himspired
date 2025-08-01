@@ -65,14 +65,7 @@ const AdminOrders = () => {
     null
   );
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [cancelAction, setCancelAction] = useState<"simple" | "with-release">(
-    "simple"
-  );
-  const [cancelingOrder, setCancelingOrder] = useState(false);
+
   const [refreshing, setRefreshing] = useState(false);
 
   const filterOrdersByStatus = useCallback(
@@ -182,30 +175,6 @@ const AdminOrders = () => {
       toast.error("Failed to refresh orders");
     } finally {
       setRefreshing(false);
-    }
-  };
-
-  const sendEmail = async (orderId: string) => {
-    try {
-      const response = await fetch("/api/orders/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      });
-
-      if (response.status === 401) {
-        router.push("/admin/login");
-        return;
-      }
-
-      if (response.ok) {
-        toast.success("Email sent successfully!");
-      } else {
-        toast.error("Failed to send email");
-      }
-    } catch (error) {
-      console.error("Email failed:", error);
-      toast.error("Failed to send email");
     }
   };
 
@@ -492,7 +461,7 @@ const AdminOrders = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {/* Only show the red payment issue email icon for orders that are not payment_confirmed, shipped, complete, or canceled */}
+                          {/* Only show the red custom mail icon for orders that are not payment_confirmed, shipped, complete, or canceled */}
                           {![
                             "payment_confirmed",
                             "shipped",
@@ -507,69 +476,6 @@ const AdminOrders = () => {
                               <Mail className="w-4 h-4" />
                             </button>
                           )}
-                          {order.status === "payment_pending" && (
-                            <button
-                              onClick={() => sendEmail(order.orderId)}
-                              className="p-1 text-blue-400 hover:text-blue-600"
-                              title="Send Payment Email"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                          )}
-                          {/* Cancel order button for orders with payment issues */}
-                          {/* {[
-                            "payment_pending",
-                            "payment_not_confirmed",
-                          ].includes(order.status) && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setOrderToCancel(order);
-                                  setCancelAction("simple");
-                                  setCancelModalOpen(true);
-                                }}
-                                className="p-1 text-red-500 hover:text-red-700"
-                                title="Cancel Order"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                  />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setOrderToCancel(order);
-                                  setCancelAction("with-release");
-                                  setCancelModalOpen(true);
-                                }}
-                                className="p-1 text-orange-500 hover:text-orange-700"
-                                title="Cancel Order & Release Stock"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M20 12H4M12 4l8 8-8 8"
-                                  />
-                                </svg>
-                              </button>
-                            </>
-                          )} */}
                         </div>
                       </td>
                     </tr>
@@ -688,143 +594,6 @@ const AdminOrders = () => {
                 disabled={sendingEmail || !emailText.trim()}
               >
                 {sendingEmail ? "Sending..." : "Send"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel Order Modal */}
-      {cancelModalOpen && orderToCancel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <P className="font-semibold">Confirm Cancelation</P>
-              <button
-                onClick={() => setCancelModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
-            </div>
-            <P className="text-gray-700 mb-4">
-              Are you sure you want to cancel order {orderToCancel.orderId}?
-            </P>
-            {cancelAction === "with-release" && (
-              <P className="text-sm text-orange-600 mb-4">
-                This will also release all reserved items back to stock for
-                other customers to purchase.
-              </P>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setCancelModalOpen(false)}
-                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  setCancelingOrder(true);
-                  try {
-                    let response;
-                    if (cancelAction === "simple") {
-                      response = await fetch(
-                        `/api/orders/${orderToCancel.orderId}`,
-                        {
-                          method: "PUT",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({
-                            status: "canceled",
-                          }),
-                        }
-                      );
-                    } else {
-                      // Cancel and release stock
-                      response = await fetch(
-                        `/api/orders/${orderToCancel.orderId}`,
-                        {
-                          method: "PUT",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({
-                            status: "canceled",
-                          }),
-                        }
-                      );
-
-                      if (response.ok) {
-                        // Generate a unique session ID for this operation
-                        const sessionId = `admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-                        try {
-                          // Release all stock items atomically using batch release
-                          const batchReleaseResponse = await fetch(
-                            `/api/products/batch-release`,
-                            {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                              },
-                              body: JSON.stringify({
-                                sessionId: sessionId,
-                                items: orderToCancel.items.map((item) => ({
-                                  productId: item.productId,
-                                  quantity: item.quantity,
-                                })),
-                              }),
-                            }
-                          );
-
-                          if (!batchReleaseResponse.ok) {
-                            const errorData = await batchReleaseResponse
-                              .json()
-                              .catch(() => ({}));
-                            throw new Error(
-                              `Failed to release products: ${errorData.message || batchReleaseResponse.statusText}`
-                            );
-                          }
-                        } catch (releaseError) {
-                          // Re-throw the error to be handled by the outer catch block
-                          const errorMessage =
-                            releaseError instanceof Error
-                              ? releaseError.message
-                              : "Unknown error occurred during stock release";
-                          throw new Error(
-                            `Stock release failed: ${errorMessage}`
-                          );
-                        }
-                      }
-                    }
-
-                    if (response.ok) {
-                      toast.success(
-                        cancelAction === "simple"
-                          ? "Order canceled successfully"
-                          : "Order canceled and products released back to stock"
-                      );
-                      setCancelModalOpen(false);
-                      fetchOrders(
-                        pagination.page,
-                        filter !== "all" ? filter : undefined
-                      );
-                    } else {
-                      toast.error("Failed to cancel order");
-                    }
-                  } catch (error) {
-                    console.error("Failed to cancel order:", error);
-                    toast.error("Failed to cancel order");
-                  } finally {
-                    setCancelingOrder(false);
-                  }
-                }}
-                className="px-4 py-2 rounded bg-[#68191E] text-white hover:bg-[#5a1519] disabled:opacity-50"
-                disabled={cancelingOrder}
-              >
-                {cancelingOrder ? "Cancelling..." : "Proceed to Cancel"}
               </button>
             </div>
           </div>
