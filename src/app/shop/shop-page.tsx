@@ -38,7 +38,7 @@ const ShopPage = () => {
             {!loading && error && (
               <div className="w-full flex-col items-center justify-center flex-1 flex">
                 <Network size={40} color="#68191E" />
-                <P className="mt-5 text-[68191E]" fontFamily="activo">
+                <P className="mt-5 text-[#68191E]" fontFamily="activo">
                   {error?.message || "Something went wrong"}{" "}
                 </P>
               </div>
