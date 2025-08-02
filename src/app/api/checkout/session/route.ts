@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RateLimiter } from "@/lib/rate-limiter";
-
-// Rate limiter for checkout sessions (10 attempts per minute)
-const checkoutRateLimiter = new RateLimiter(10, 60 * 1000, "checkout-sessions");
+import { rateLimiter } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -18,13 +15,27 @@ function getClientIp(req: NextRequest): string {
  * @returns NextResponse if rate limit exceeded, null otherwise
  */
 async function checkRateLimit(clientIp: string): Promise<NextResponse | null> {
-  if (!(await checkoutRateLimiter.isAllowed(clientIp))) {
+  const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+    maxAttempts: 10,
+    windowMs: 60 * 1000, // 1 minute
+    keyPrefix: "rate_limit:checkout_sessions",
+  });
+
+  if (!rateLimitResult.allowed) {
     return NextResponse.json(
       {
         error: "Rate limit exceeded",
         message: "Too many checkout attempts. Please try again later.",
+        resetTime: rateLimitResult.resetTime,
+        remaining: rateLimitResult.remaining,
       },
-      { status: 429 }
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+          "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+        },
+      }
     );
   }
   return null;
@@ -99,15 +110,16 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Simple session deactivation without external API calls
-    console.log(`✅ Checkout session deactivated for sessionId: ${sessionId}`);
+    // For now, just validate the session deletion without storing in database
+    console.log(`✅ Checkout session cleared for sessionId: ${sessionId}`);
 
     return NextResponse.json({
       success: true,
-      message: "Checkout session deactivated successfully",
+      message: "Checkout session cleared successfully",
+      sessionId,
     });
   } catch (error) {
-    console.error("Error deactivating checkout session:", error);
+    console.error("Error clearing checkout session:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

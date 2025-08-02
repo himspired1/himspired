@@ -22,6 +22,7 @@ export interface CustomerInfo {
   email: string;
   phone: string;
   address: string;
+  state: string;
 }
 
 export type OrderStatus =
