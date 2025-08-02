@@ -79,8 +79,7 @@ export class OrderService {
               orderId: 1,
               status: 1,
               createdAt: 1,
-              "customerInfo.name": 1,
-              "customerInfo.email": 1,
+              customerInfo: 1, // Include full customerInfo object for analytics
               total: 1,
               items: 1,
               paymentReceipt: 1, // Include payment receipt for admin display
