@@ -115,6 +115,34 @@ const NEWSLETTER_INDEXES: {
   },
 ];
 
+const STATE_DELIVERY_INDEXES: {
+  name: string;
+  key: { [key: string]: 1 | -1 };
+  options?: CreateIndexesOptions;
+}[] = [
+  {
+    name: "state_unique",
+    key: { state: 1 },
+    options: { unique: true },
+  },
+  {
+    name: "isActive_index",
+    key: { isActive: 1 },
+  },
+  {
+    name: "deliveryFee_index",
+    key: { deliveryFee: 1 },
+  },
+  {
+    name: "createdAt_desc",
+    key: { createdAt: -1 },
+  },
+  {
+    name: "updatedAt_desc",
+    key: { updatedAt: -1 },
+  },
+];
+
 export const createIndexes = async () => {
   let client: MongoClient | null = null;
 
@@ -153,6 +181,7 @@ export const createIndexes = async () => {
       { name: "orders", indexes: ORDER_INDEXES },
       { name: "contact_messages", indexes: CONTACT_MESSAGE_INDEXES },
       { name: "newsletter_subscribers", indexes: NEWSLETTER_INDEXES },
+      { name: "stateDeliveryFees", indexes: STATE_DELIVERY_INDEXES },
     ];
 
     let totalCreated = 0;
@@ -162,11 +191,43 @@ export const createIndexes = async () => {
       console.log(`\nProcessing collection: ${collectionInfo.name}`);
       const collection = db.collection(collectionInfo.name);
 
+      // Check if collection exists
+      const collections = await db
+        .listCollections({ name: collectionInfo.name })
+        .toArray();
+      if (collections.length === 0) {
+        console.log(
+          `  Collection '${collectionInfo.name}' does not exist yet - skipping`
+        );
+        continue;
+      }
+
       // Get existing indexes
-      const existingIndexes = await collection.listIndexes().toArray();
-      const existingIndexNames = new Set(
-        existingIndexes.map((idx) => idx.name)
-      );
+      let existingIndexes: unknown[] = [];
+      let existingIndexNames = new Set<string>();
+
+      try {
+        existingIndexes = await collection.listIndexes().toArray();
+        existingIndexNames = new Set(
+          (existingIndexes as { name: string }[]).map((idx) => idx.name)
+        );
+      } catch (error) {
+        // If collection doesn't exist or is empty, that's fine - we'll create indexes when data is inserted
+        if (
+          error instanceof Error &&
+          error.message.includes("ns does not exist")
+        ) {
+          console.log(
+            `  Collection '${collectionInfo.name}' does not exist yet - will create indexes when data is inserted`
+          );
+        } else {
+          console.log(
+            `  Could not list indexes for '${collectionInfo.name}' - collection may be empty`
+          );
+        }
+        existingIndexes = [];
+        existingIndexNames = new Set();
+      }
 
       let createdCount = 0;
       let skippedCount = 0;
@@ -188,7 +249,21 @@ export const createIndexes = async () => {
           console.log(`  Created index '${indexSpec.name}'`);
           createdCount++;
         } catch (error) {
-          console.error(`  Failed to create index '${indexSpec.name}':`, error);
+          // Check if it's a naming conflict - if so, skip it
+          if (
+            error instanceof Error &&
+            error.message.includes("already exists with a different name")
+          ) {
+            console.log(
+              `  Index '${indexSpec.name}' skipped (conflict with existing index)`
+            );
+            skippedCount++;
+          } else {
+            console.error(
+              `  Failed to create index '${indexSpec.name}':`,
+              error
+            );
+          }
         }
       }
 
@@ -205,11 +280,18 @@ export const createIndexes = async () => {
 
     // Show final stats for each collection
     for (const collectionInfo of collections) {
-      const collection = db.collection(collectionInfo.name);
-      const finalIndexes = await collection.listIndexes().toArray();
-      console.log(
-        `Total indexes on ${collectionInfo.name} collection: ${finalIndexes.length}`
-      );
+      try {
+        const collection = db.collection(collectionInfo.name);
+        const finalIndexes = await collection.listIndexes().toArray();
+        console.log(
+          `Total indexes on ${collectionInfo.name} collection: ${finalIndexes.length}`
+        );
+      } catch {
+        // Collection doesn't exist yet, that's fine
+        console.log(
+          `Total indexes on ${collectionInfo.name} collection: 0 (collection not created yet)`
+        );
+      }
     }
 
     return { success: true, created: totalCreated, skipped: totalSkipped };

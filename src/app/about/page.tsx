@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import AboutPage from "./about-page";
+import { getSiteUrl } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "About Us - Our Story & Mission",
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
     title: "About Us - Our Story & Mission | Himspired",
     description:
       "Learn about Himspired's journey from thrift to luxury fashion. Discover our mission to make premium fashion accessible to everyone.",
-    url: "https://himspired.vercel.app/about",
+    url: `${getSiteUrl()}/about`,
   },
   twitter: {
     title: "About Us - Our Story & Mission | Himspired",

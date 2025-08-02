@@ -45,7 +45,7 @@ const CheckoutIDDetails = () => {
   // Auto-save form data to localStorage
   useEffect(() => {
     const [name, email, phone, address, message] = watchedFields;
-    
+
     // Only save if at least one field has content
     if (name || email || phone || address || message) {
       const dataToSave: SavedFormData = {
@@ -55,8 +55,11 @@ const CheckoutIDDetails = () => {
         address: address || "",
         message: message || "",
       };
-      
-      localStorage.setItem("himspired_checkout_data", JSON.stringify(dataToSave));
+
+      localStorage.setItem(
+        "himspired_checkout_data",
+        JSON.stringify(dataToSave)
+      );
     }
   }, [watchedFields]);
 
@@ -65,9 +68,9 @@ const CheckoutIDDetails = () => {
     if (savedData) {
       Object.entries(savedData).forEach(([key, value]) => {
         if (value) {
-          setValue(key as keyof SavedFormData, value, { 
+          setValue(key as keyof SavedFormData, value, {
             shouldValidate: false,
-            shouldDirty: true 
+            shouldDirty: true,
           });
         }
       });
@@ -86,12 +89,13 @@ const CheckoutIDDetails = () => {
 
   // Quick error helper - handles the react-hook-form error format
   const showError = (error: unknown) => {
-    return error && typeof error === 'object' && 'message' in error 
-      ? (error as { message: string }).message 
+    return error && typeof error === "object" && "message" in error
+      ? (error as { message: string }).message
       : null;
   };
 
-  const inputClass = "border-b border-black py-4 w-full focus:outline-none placeholder:uppercase placeholder:text-sm uppercase";
+  const inputClass =
+    "border-b border-black py-4 w-full focus:outline-none placeholder:uppercase placeholder:text-sm uppercase";
 
   return (
     <div className="w-full py-4">
@@ -102,11 +106,13 @@ const CheckoutIDDetails = () => {
         >
           INPUT YOUR DETAILS FOR IDENTIFICATION
         </P>
-        
+
         {/* Show prompt if saved data exists */}
         {showSavedDataPrompt && savedData && (
           <div className="mt-4 p-4 bg-[#68191E]/10 rounded-lg border border-[#68191E]/20">
-            <P className="text-sm mb-3">We found your saved information. Would you like to use it?</P>
+            <P className="text-sm mb-3">
+              We found your saved information. Would you like to use it?
+            </P>
             <div className="flex gap-3">
               <button
                 type="button"
@@ -144,7 +150,9 @@ const CheckoutIDDetails = () => {
             autoComplete="name"
           />
           {showError(errors.name) && (
-            <p className="text-red-500 text-xs mt-1">{showError(errors.name)}</p>
+            <p className="text-red-500 text-xs mt-1">
+              {showError(errors.name)}
+            </p>
           )}
         </div>
 
@@ -157,7 +165,9 @@ const CheckoutIDDetails = () => {
             autoComplete="email"
           />
           {showError(errors.email) && (
-            <p className="text-red-500 text-xs mt-1">{showError(errors.email)}</p>
+            <p className="text-red-500 text-xs mt-1">
+              {showError(errors.email)}
+            </p>
           )}
         </div>
 
@@ -170,7 +180,9 @@ const CheckoutIDDetails = () => {
             autoComplete="tel"
           />
           {showError(errors.phone) && (
-            <p className="text-red-500 text-xs mt-1">{showError(errors.phone)}</p>
+            <p className="text-red-500 text-xs mt-1">
+              {showError(errors.phone)}
+            </p>
           )}
         </div>
 
@@ -183,9 +195,13 @@ const CheckoutIDDetails = () => {
             autoComplete="street-address"
           />
           {showError(errors.address) && (
-            <p className="text-red-500 text-xs mt-1">{showError(errors.address)}</p>
+            <p className="text-red-500 text-xs mt-1">
+              {showError(errors.address)}
+            </p>
           )}
         </div>
+
+
 
         <div>
           <textarea
@@ -195,7 +211,9 @@ const CheckoutIDDetails = () => {
             rows={3}
           />
           {showError(errors.message) && (
-            <p className="text-red-500 text-xs mt-1">{showError(errors.message)}</p>
+            <p className="text-red-500 text-xs mt-1">
+              {showError(errors.message)}
+            </p>
           )}
         </div>
       </div>

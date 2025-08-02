@@ -215,6 +215,70 @@ export class CacheService {
     await this.cache.set(cacheKey, data, ttl);
   }
 
+  // Delivery fee cache operations
+  async getDeliveryFeeCache(state: string): Promise<unknown | null> {
+    const sanitizedState = this.sanitizeKey(state);
+    const cacheKey = `delivery_fee:${sanitizedState}`;
+    return await this.cache.get(cacheKey);
+  }
+
+  async setDeliveryFeeCache(
+    state: string,
+    data: unknown,
+    ttl: number = 3600
+  ): Promise<void> {
+    const sanitizedState = this.sanitizeKey(state);
+    const cacheKey = `delivery_fee:${sanitizedState}`;
+    await this.cache.set(cacheKey, data, ttl);
+  }
+
+  async clearDeliveryFeeCache(state?: string): Promise<void> {
+    if (state) {
+      const sanitizedState = this.sanitizeKey(state);
+      await this.cache.clear(`delivery_fee:${sanitizedState}`);
+    } else {
+      await this.cache.clear("delivery_fee");
+    }
+  }
+
+  // Analytics cache operations
+  async getAnalyticsCache(
+    type: string,
+    range: string,
+    params?: Record<string, string | number | boolean>
+  ): Promise<unknown | null> {
+    const sanitizedType = this.sanitizeKey(type);
+    const sanitizedRange = this.sanitizeKey(range);
+    const paramString = params ? JSON.stringify(params) : "";
+    const sanitizedParams = this.sanitizeKey(paramString);
+    const cacheKey = `analytics:${sanitizedType}:${sanitizedRange}:${sanitizedParams}`;
+    return await this.cache.get(cacheKey);
+  }
+
+  async setAnalyticsCache(
+    type: string,
+    range: string,
+    data: unknown,
+    params?: Record<string, string | number | boolean>,
+    ttl: number = 300 // 5 minutes cache for analytics
+  ): Promise<void> {
+    const sanitizedType = this.sanitizeKey(type);
+    const sanitizedRange = this.sanitizeKey(range);
+    const paramString = params ? JSON.stringify(params) : "";
+    const sanitizedParams = this.sanitizeKey(paramString);
+    const cacheKey = `analytics:${sanitizedType}:${sanitizedRange}:${sanitizedParams}`;
+    await this.cache.set(cacheKey, data, ttl);
+  }
+
+  async clearAnalyticsCache(type?: string): Promise<void> {
+    if (type) {
+      const sanitizedType = this.sanitizeKey(type);
+      await this.cache.clear(`analytics:${sanitizedType}`);
+    } else {
+      await this.cache.clear("analytics");
+    }
+  }
+
   // Cache statistics
   async getCacheStats(): Promise<{ available: boolean; type: string }> {
     return {

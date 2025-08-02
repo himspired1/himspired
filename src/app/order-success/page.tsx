@@ -38,6 +38,7 @@ interface OrderData {
     email: string;
     phone: string;
     address: string;
+    state: string;
   };
   items: Array<{
     productId: string;
@@ -384,11 +385,19 @@ const OrderSuccess = () => {
                 <P className="font-medium">{orderData.customerInfo.name}</P>
               </div>
               <div>
-                <P className="text-gray-600">Total</P>
-                <P className="font-medium">
-                  ₦{orderData.total.toLocaleString()}
-                </P>
+                <P className="text-gray-600">Delivery State</P>
+                <P className="font-medium">{orderData.customerInfo.state}</P>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <P className="text-gray-600">Total Amount</P>
+              <P className="font-medium text-lg">
+                ₦{orderData.total.toLocaleString()}
+              </P>
+              <P className="text-xs text-gray-500 mt-1">
+                Includes delivery fee for {orderData.customerInfo.state}
+              </P>
             </div>
 
             <div className="mt-4">
