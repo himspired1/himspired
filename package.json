@@ -8,6 +8,8 @@
     "start": "next start",
     "db:init": "tsx src/scripts/init-db.ts",
     "db:indexes": "tsx src/scripts/create-indexes.ts",
+    "delivery:init": "tsx src/scripts/init-delivery-fees.ts",
+    "init:all": "tsx src/scripts/init-all.ts",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",

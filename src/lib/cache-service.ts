@@ -215,6 +215,32 @@ export class CacheService {
     await this.cache.set(cacheKey, data, ttl);
   }
 
+  // Delivery fee cache operations
+  async getDeliveryFeeCache(state: string): Promise<unknown | null> {
+    const sanitizedState = this.sanitizeKey(state);
+    const cacheKey = `delivery_fee:${sanitizedState}`;
+    return await this.cache.get(cacheKey);
+  }
+
+  async setDeliveryFeeCache(
+    state: string,
+    data: unknown,
+    ttl: number = 3600
+  ): Promise<void> {
+    const sanitizedState = this.sanitizeKey(state);
+    const cacheKey = `delivery_fee:${sanitizedState}`;
+    await this.cache.set(cacheKey, data, ttl);
+  }
+
+  async clearDeliveryFeeCache(state?: string): Promise<void> {
+    if (state) {
+      const sanitizedState = this.sanitizeKey(state);
+      await this.cache.clear(`delivery_fee:${sanitizedState}`);
+    } else {
+      await this.cache.clear("delivery_fee");
+    }
+  }
+
   // Cache statistics
   async getCacheStats(): Promise<{ available: boolean; type: string }> {
     return {
