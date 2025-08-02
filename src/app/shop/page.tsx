@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import ShopPage from "./shop-page";
+import { getSiteUrl } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Shop - Men's & Women's Fashion",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
     title: "Shop - Men's & Women's Fashion | Himspired",
     description:
       "Browse our curated collection of thrift, luxury, vintage, and modern fashion for men and women.",
-    url: "https://himspired.vercel.app/shop",
+    url: `${getSiteUrl()}/shop`,
   },
   twitter: {
     title: "Shop - Men's & Women's Fashion | Himspired",

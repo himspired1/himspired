@@ -1,7 +1,8 @@
 import { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/env";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://himspired.vercel.app";
+  const baseUrl = getSiteUrl();
 
   return [
     {

@@ -3,6 +3,7 @@ import { P } from "@/components/common/typography";
 import CheckoutAccountDetails from "@/components/pages/checkout/checkout-account-details.component";
 import CheckoutIDDetails from "@/components/pages/checkout/checkout-id-details.component";
 import CheckoutItems from "@/components/pages/checkout/checkout-items.component";
+import CheckoutSummary from "@/components/pages/checkout/checkout-summary.component";
 import { motion } from "framer-motion";
 import { useForm, FormProvider } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -18,6 +19,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckoutSessionManager } from "@/lib/checkout-session";
+import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 
 // Note: Cart items are typed through Redux slice
 // originalProductId is optional to handle legacy items without this field
@@ -43,6 +45,19 @@ const CheckoutPage = () => {
   const cartTotal = useAppSelector(selectCartTotal);
   const dispatch = useAppDispatch();
   const router = useRouter();
+
+  // Get selected state from localStorage
+  const selectedState =
+    typeof window !== "undefined"
+      ? localStorage.getItem("himspired_selected_state")
+      : null;
+
+  // Use custom hook to fetch delivery fee
+  const {
+    deliveryFee,
+    loading: deliveryFeeLoading,
+    error: deliveryFeeError,
+  } = useDeliveryFee(selectedState);
 
   const methods = useForm({
     resolver: yupResolver(schema),
@@ -130,6 +145,16 @@ const CheckoutPage = () => {
   };
 
   const onSubmit = async (data: FormData) => {
+    // Check if state is selected
+    const selectedState = localStorage.getItem("himspired_selected_state");
+    if (!selectedState) {
+      toast.error(
+        "Please select a state in the cart before proceeding to checkout"
+      );
+      router.push("/cart");
+      return;
+    }
+
     setSubmitting(true);
     setUploadProgress(0);
 
@@ -159,6 +184,10 @@ const CheckoutPage = () => {
       formData.append("email", data.email);
       formData.append("phone", data.phone);
       formData.append("address", data.address);
+      formData.append(
+        "state",
+        localStorage.getItem("himspired_selected_state") || ""
+      );
       formData.append("message", data.message);
 
       // Add cart data - transform cart items to order items
@@ -174,9 +203,8 @@ const CheckoutPage = () => {
 
       formData.append("items", JSON.stringify(orderItems));
 
-      // Calculate totals
+      // Calculate totals with pre-fetched delivery fee
       const subtotal = cartTotal;
-      const deliveryFee = 1000; // Standard delivery fee
       const finalTotal = subtotal + deliveryFee;
 
       formData.append("total", finalTotal.toString());
@@ -410,7 +438,17 @@ const CheckoutPage = () => {
                   Items: {cartItems.length}
                 </P>
                 <P className="text-lg font-bold">
-                  Total: ₦{(cartTotal + 1000).toLocaleString()}
+                  Total: ₦{(cartTotal + deliveryFee).toLocaleString()}
+                  {deliveryFeeLoading && (
+                    <span className="text-sm text-gray-500 ml-2">
+                      (loading delivery fee...)
+                    </span>
+                  )}
+                  {deliveryFeeError && (
+                    <span className="text-sm text-red-500 ml-2">
+                      (using default fee)
+                    </span>
+                  )}
                 </P>
               </div>
             </div>
@@ -435,27 +473,12 @@ const CheckoutPage = () => {
               >
                 <CheckoutIDDetails />
                 <motion.div
-                  className="bg-white rounded-lg p-6 shadow-sm mt-8 lg:mt-0 mx-auto"
+                  className="mt-8 lg:mt-0"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8, duration: 0.5 }}
                 >
-                  <P className="font-bold mb-4">Order Summary</P>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Subtotal ({cartItems.length} items)</span>
-                      <span>₦{cartTotal.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Delivery Fee</span>
-                      <span>₦1,000</span>
-                    </div>
-                    <hr className="my-2" />
-                    <div className="flex justify-between font-bold">
-                      <span>Total</span>
-                      <span>₦{(cartTotal + 1000).toLocaleString()}</span>
-                    </div>
-                  </div>
+                  <CheckoutSummary />
                 </motion.div>
               </motion.div>
 

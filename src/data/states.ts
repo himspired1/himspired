@@ -1,4 +1,5 @@
 export const states = [
+    "Abuja",
     "Abia",
     "Adamawa",
     "Akwa Ibom",

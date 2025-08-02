@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StockAuth } from "@/lib/stock-auth";
 import { forceCleanupProducts } from "@/lib/product-cleanup";
-import { RateLimiter } from "@/lib/rate-limiter";
-
-// Rate limiter for admin cleanup operations (5 attempts per minute)
-const adminCleanupRateLimiter = new RateLimiter(5, 60 * 1000, "admin-cleanup");
+import { rateLimiter } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -24,13 +21,27 @@ export async function POST(req: NextRequest) {
     // Rate limiting for sensitive cleanup operations
     const clientIp = getClientIp(req);
 
-    if (!(await adminCleanupRateLimiter.isAllowed(clientIp))) {
+    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+      maxAttempts: 5,
+      windowMs: 60 * 1000, // 1 minute
+      keyPrefix: "rate_limit:admin_cleanup",
+    });
+
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",
           message: "Too many cleanup attempts. Please try again later.",
+          resetTime: rateLimitResult.resetTime,
+          remaining: rateLimitResult.remaining,
         },
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        }
       );
     }
 

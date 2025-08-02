@@ -68,3 +68,33 @@ export function isProduction() {
 export function isDevelopment() {
   return process.env.NODE_ENV === "development";
 }
+
+// Get the site URL for metadata and other uses
+export function getSiteUrl(): string {
+  const url =
+    process.env.NEXT_PUBLIC_URL ||
+    process.env.BASE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.SITE_URL ||
+    process.env.VERCEL_URL;
+
+  if (url) {
+    // Ensure the URL has a protocol
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    // Add https:// for Vercel URLs or other URLs without protocol
+    return `https://${url}`;
+  }
+
+  // Fallback based on environment
+  if (isDevelopment()) {
+    return "http://localhost:3000";
+  }
+
+  // For production, require an environment variable
+  throw new Error(
+    "SITE_URL environment variable is required in production. " +
+      "Please set NEXT_PUBLIC_URL, BASE_URL, NEXT_PUBLIC_BASE_URL, SITE_URL, or VERCEL_URL."
+  );
+}

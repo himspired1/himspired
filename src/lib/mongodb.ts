@@ -16,7 +16,6 @@ const options: MongoClientOptions = {
   socketTimeoutMS: 60000,
   connectTimeoutMS: 30000,
   family: 4,
-  retryWrites: true,
   retryReads: true,
   // OPTIMIZATION: Add connection pool monitoring
   monitorCommands: process.env.NODE_ENV === "development",

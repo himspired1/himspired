@@ -4,10 +4,11 @@ import { GeistSans } from "geist/font";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { LoadingProvider } from "@/context/LoadingContext";
-import AppShell from "@/components/AppShell";
+import AppShell from "@/components/app-shell";
 import { ReduxProvider } from "@/components/providers/ReduxProvider";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
+import { getSiteUrl } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: {
@@ -35,14 +36,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://himspired.vercel.app"),
+  metadataBase: new URL(getSiteUrl()),
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://himspired.vercel.app",
+    url: getSiteUrl(),
     title: "Himspired - Where Thrift Meets Luxury",
     description:
       "Discover premium thrifted fashion at accessible prices. Quality, luxury and vintage thrifts for men and women",
@@ -95,8 +96,8 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "Himspired",
-              url: "https://himspired.vercel.app",
-              logo: "https://himspired.vercel.app/images/logos/logo-white.png",
+              url: getSiteUrl(),
+              logo: `${getSiteUrl()}/images/logos/logo-white.png`,
               description:
                 "Where thrift meets luxury - Premium fashion at accessible prices",
               sameAs: [

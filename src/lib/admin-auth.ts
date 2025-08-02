@@ -74,4 +74,24 @@ export class AdminAuth {
       path: "/",
     });
   }
+
+  static async verifyAdminAuth(
+    request: NextRequest
+  ): Promise<{ success: boolean; user?: AdminUser }> {
+    try {
+      const token = request.cookies.get("admin-token")?.value;
+      if (!token) {
+        return { success: false };
+      }
+
+      const user = await this.verifyToken(token);
+      if (!user) {
+        return { success: false };
+      }
+
+      return { success: true, user };
+    } catch {
+      return { success: false };
+    }
+  }
 }

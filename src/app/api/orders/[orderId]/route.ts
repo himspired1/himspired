@@ -4,15 +4,7 @@ import { decrementStockForOrder } from "@/lib/stock-update-utils";
 import { cleanupOrderReservations } from "@/lib/order-cleanup";
 import { orderService } from "@/lib/order";
 import { cacheService } from "@/lib/cache-service";
-import { RateLimiter } from "@/lib/rate-limiter";
-
-// Separate rate limiters for GET and PUT operations
-const orderRetrievalRateLimiter = new RateLimiter(
-  20,
-  60 * 1000,
-  "order-retrieval"
-); // 20 attempts per minute
-const orderUpdateRateLimiter = new RateLimiter(10, 60 * 1000, "order-updates"); // 10 attempts per minute
+import { rateLimiter } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -41,13 +33,27 @@ export async function GET(
     // Rate limiting for order retrieval
     const clientIp = getClientIp(req);
 
-    if (!(await orderRetrievalRateLimiter.isAllowed(clientIp))) {
+    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+      maxAttempts: 20,
+      windowMs: 60 * 1000, // 1 minute
+      keyPrefix: "rate_limit:order_retrieval",
+    });
+
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",
           message: "Too many order retrieval attempts. Please try again later.",
+          resetTime: rateLimitResult.resetTime,
+          remaining: rateLimitResult.remaining,
         },
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        }
       );
     }
 
@@ -93,16 +99,30 @@ export async function PUT(
   const { orderId } = await context.params;
 
   try {
-        // Rate limiting for order updates
+    // Rate limiting for order updates
     const clientIp = getClientIp(req);
-    
-    if (!(await orderUpdateRateLimiter.isAllowed(clientIp))) {
+
+    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+      maxAttempts: 10,
+      windowMs: 60 * 1000, // 1 minute
+      keyPrefix: "rate_limit:order_updates",
+    });
+
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded",
           message: "Too many order update attempts. Please try again later.",
+          resetTime: rateLimitResult.resetTime,
+          remaining: rateLimitResult.remaining,
         },
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        }
       );
     }
 
@@ -225,7 +245,10 @@ export async function PUT(
         );
         console.log(`✅ Payment confirmation email sent for order ${orderId}`);
       } catch (emailError) {
-        console.error(`❌ Failed to send payment confirmation email for order ${orderId}:`, emailError);
+        console.error(
+          `❌ Failed to send payment confirmation email for order ${orderId}:`,
+          emailError
+        );
         // Don't fail the status update if email fails
       }
     }
@@ -241,7 +264,10 @@ export async function PUT(
         );
         console.log(`✅ Order shipped email sent for order ${orderId}`);
       } catch (emailError) {
-        console.error(`❌ Failed to send order shipped email for order ${orderId}:`, emailError);
+        console.error(
+          `❌ Failed to send order shipped email for order ${orderId}:`,
+          emailError
+        );
         // Don't fail the status update if email fails
       }
     }
@@ -259,7 +285,10 @@ export async function PUT(
         );
         console.log(`✅ Order completion email sent for order ${orderId}`);
       } catch (emailError) {
-        console.error(`❌ Failed to send order completion email for order ${orderId}:`, emailError);
+        console.error(
+          `❌ Failed to send order completion email for order ${orderId}:`,
+          emailError
+        );
         // Don't fail the status update if email fails
       }
     }
