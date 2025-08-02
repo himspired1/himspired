@@ -1,27 +1,22 @@
 "use client";
 import { P } from "@/components/common/typography";
 import { states } from "@/data/states";
-import { useDeliveryFee } from "@/hooks/useDeliveryFee";
-
 import { RefreshCw } from "lucide-react";
 
 interface StateSelectionProps {
   onStateChange: (state: string) => void;
   selectedState: string;
+  onRefresh: () => void;
 }
 
 const StateSelection = ({
   onStateChange,
   selectedState,
+  onRefresh,
 }: StateSelectionProps) => {
-  const { loading, error, setSelectedState } = useDeliveryFee();
-
   const handleRefresh = () => {
-    // Force refresh by clearing and re-setting the state
-    setSelectedState("");
-    setTimeout(() => {
-      setSelectedState(selectedState);
-    }, 100);
+    // Direct refresh call without unreliable setTimeout
+    onRefresh();
   };
 
   return (
@@ -38,7 +33,6 @@ const StateSelection = ({
           value={selectedState}
           onChange={(e) => onStateChange(e.target.value)}
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#68191E] focus:border-transparent"
-          disabled={loading}
         >
           <option value="">Select your state</option>
           {states.map((state) => (
@@ -48,22 +42,10 @@ const StateSelection = ({
           ))}
         </select>
 
-        {loading && (
-          <P className="text-sm text-blue-600 mt-2">
-            Calculating delivery fee...
-          </P>
-        )}
-
-        {error && (
-          <P className="text-sm text-red-600 mt-2">
-            Error loading delivery fees. Please try again.
-          </P>
-        )}
-
-        {selectedState && !loading && !error && (
+        {selectedState && (
           <div className="flex items-center justify-between mt-2">
             <P className="text-sm text-green-600">
-              ✓ Delivery fee calculated for {selectedState}
+              ✓ State selected: {selectedState}
             </P>
             <button
               onClick={handleRefresh}

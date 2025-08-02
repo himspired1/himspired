@@ -12,17 +12,33 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const range = searchParams.get("range") || "30";
+    const rangeParam = searchParams.get("range") || "30";
+
+    // Validate range parameter
+    const range = parseInt(rangeParam);
+    if (isNaN(range) || range <= 0 || range > 365) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid range parameter. Must be a positive integer between 1 and 365.",
+          validRange: "1-365 days",
+        },
+        { status: 400 }
+      );
+    }
 
     // Check cache first
-    const cachedData = await cacheService.getAnalyticsCache("customers", range);
+    const cachedData = await cacheService.getAnalyticsCache(
+      "customers",
+      range.toString()
+    );
     if (cachedData) {
       return NextResponse.json(cachedData);
     }
 
     const end = new Date();
     const start = new Date();
-    const days = parseInt(range);
+    const days = range;
     start.setDate(start.getDate() - days);
 
     const client = await getClientWithRetry();
@@ -192,7 +208,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Cache the result
-    await cacheService.setAnalyticsCache("customers", range, result);
+    await cacheService.setAnalyticsCache("customers", range.toString(), result);
 
     return NextResponse.json(result);
   } catch (error) {

@@ -20,7 +20,7 @@ const OrderStatusChart = ({ data }: OrderStatusChartProps) => {
     shipped: "#2563eb", // Blue-600 - Shipped
     complete: "#9333ea", // Purple-600 - Complete
     payment_not_confirmed: "#dc2626", // Red-600 - Not Confirmed
-    canceled: "#dc2626", // Red-600 - Canceled
+    canceled: "#4b5563", // Gray-600 - Canceled
   };
 
   // Define readable status names (matching admin panel labels)

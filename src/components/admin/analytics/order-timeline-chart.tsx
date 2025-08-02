@@ -14,10 +14,21 @@ interface OrderTimelineChartProps {
 }
 
 const OrderTimelineChart = ({ data }: OrderTimelineChartProps) => {
-  const chartData = data.map((item) => ({
-    ...item,
-    count: Number(item.count),
-  }));
+  // Filter and validate data to ensure only valid numeric counts are processed
+  const chartData = data
+    .map((item) => ({
+      ...item,
+      count: Number(item.count),
+    }))
+    .filter((item) => {
+      // Validate that count is a valid number and not NaN
+      return (
+        !isNaN(item.count) &&
+        typeof item.count === "number" &&
+        isFinite(item.count) &&
+        item.count >= 0
+      );
+    });
 
   const formatCount = (value: number) => {
     return value.toString();

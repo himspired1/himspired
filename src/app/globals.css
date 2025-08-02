@@ -4,34 +4,44 @@
 
 @font-face {
   font-family: "moon";
-  src: url("/fonts/Moon-Walk.otf");
+  src:
+    url("/fonts/Moon-Walk.woff2") format("woff2"),
+    url("/fonts/Moon-Walk.otf") format("opentype");
   font-display: swap;
 }
 
 @font-face {
   font-family: "activo";
-  src: url("/fonts/Archivo_Condensed-Regular.ttf");
+  src:
+    url("/fonts/Archivo_Condensed-Regular.woff2") format("woff2"),
+    url("/fonts/Archivo_Condensed-Regular.ttf") format("truetype");
   font-weight: normal;
   font-display: swap;
 }
 
 @font-face {
   font-family: "activo";
-  src: url("/fonts/Archivo_Condensed-Bold.ttf");
+  src:
+    url("/fonts/Archivo_Condensed-Bold.woff2") format("woff2"),
+    url("/fonts/Archivo_Condensed-Bold.ttf") format("truetype");
   font-weight: bold;
   font-display: swap;
 }
 
 @font-face {
   font-family: "activo";
-  src: url("/fonts/Archivo_Condensed-Medium.ttf");
+  src:
+    url("/fonts/Archivo_Condensed-Medium.woff2") format("woff2"),
+    url("/fonts/Archivo_Condensed-Medium.ttf") format("truetype");
   font-weight: 500;
   font-display: swap;
 }
 
 @font-face {
   font-family: "activo";
-  src: url("/fonts/Archivo_Condensed-SemiBold.ttf");
+  src:
+    url("/fonts/Archivo_Condensed-SemiBold.woff2") format("woff2"),
+    url("/fonts/Archivo_Condensed-SemiBold.ttf") format("truetype");
   font-weight: 600;
   font-display: swap;
 }

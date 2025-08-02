@@ -166,7 +166,7 @@ const ProductDetails = () => {
   if (!item) {
     return (
       <div className="w-full flex flex-1 items-center justify-center flex-col">
-        <Frown size={50} color="68191E" />
+        <Frown size={50} color="#68191E" />
         <p className="text-center mt-32 text-sm">Product not found.</p>
       </div>
     );
