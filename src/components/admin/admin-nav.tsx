@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Package, MessageCircle, LogOut, Menu } from "lucide-react";
+import { Package, MessageCircle, LogOut, Menu, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -14,6 +14,7 @@ const AdminNav = () => {
     { href: "/admin/orders", label: "Orders", icon: Package },
     { href: "/admin/messages", label: "Messages", icon: MessageCircle },
     { href: "/admin/delivery-fees", label: "Delivery Fees", icon: Package },
+    { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
   ];
 
   const logout = async () => {

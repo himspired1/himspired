@@ -4,7 +4,7 @@ import { GeistSans } from "geist/font";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { LoadingProvider } from "@/context/LoadingContext";
-import AppShell from "@/components/AppShell";
+import AppShell from "@/components/app-shell";
 import { ReduxProvider } from "@/components/providers/ReduxProvider";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
