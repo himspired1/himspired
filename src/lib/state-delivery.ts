@@ -49,7 +49,9 @@ export class StateDeliveryService {
       return deliveryFee;
     } catch (error) {
       console.error("Error getting delivery fee for state:", state, error);
-      return 0; // Default to 0 if error
+      throw new Error(
+        `Failed to get delivery fee for state '${state}': ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
   }
 
@@ -227,8 +229,17 @@ export class StateDeliveryService {
       return { fee: 0, isValid: false };
     }
 
-    const fee = await this.getDeliveryFee(state);
-    return { fee, isValid: true };
+    try {
+      const fee = await this.getDeliveryFee(state);
+      return { fee, isValid: true };
+    } catch (error) {
+      console.error(
+        "Error getting validated delivery fee for state:",
+        state,
+        error
+      );
+      return { fee: 0, isValid: false };
+    }
   }
 }
 

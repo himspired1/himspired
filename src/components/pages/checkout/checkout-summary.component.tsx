@@ -6,9 +6,25 @@ import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 
 const CheckoutSummary = () => {
   const subTotal = useAppSelector(selectCartTotal);
-  const { deliveryFee, formatCurrency } = useDeliveryFee();
+  const selectedState =
+    typeof window !== "undefined"
+      ? localStorage.getItem("himspired_selected_state")
+      : null;
+  const {
+    deliveryFee,
+    loading: deliveryFeeLoading,
+    error: deliveryFeeError,
+  } = useDeliveryFee(selectedState);
   const total = subTotal + deliveryFee;
-  const selectedState = localStorage.getItem("himspired_selected_state");
+
+  // Format currency helper function
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
 
   return (
     <div className="w-full bg-white rounded-lg p-6 shadow-sm">
@@ -31,7 +47,13 @@ const CheckoutSummary = () => {
             Delivery Fee
           </P>
           <P fontFamily="activo" className="text-sm font-semibold">
-            {selectedState ? formatCurrency(deliveryFee) : "Select state"}
+            {selectedState
+              ? deliveryFeeLoading
+                ? "Loading..."
+                : deliveryFeeError
+                  ? "Error loading fee"
+                  : formatCurrency(deliveryFee)
+              : "Select state"}
           </P>
         </div>
 
@@ -53,7 +75,13 @@ const CheckoutSummary = () => {
             Total
           </P>
           <P fontFamily="activo" className="text-base font-semibold">
-            {selectedState ? formatCurrency(total) : "Select state"}
+            {selectedState
+              ? deliveryFeeLoading
+                ? "Loading..."
+                : deliveryFeeError
+                  ? "Error loading total"
+                  : formatCurrency(total)
+              : "Select state"}
           </P>
         </div>
       </div>

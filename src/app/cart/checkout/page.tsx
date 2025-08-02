@@ -19,6 +19,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckoutSessionManager } from "@/lib/checkout-session";
+import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 
 // Note: Cart items are typed through Redux slice
 // originalProductId is optional to handle legacy items without this field
@@ -44,6 +45,19 @@ const CheckoutPage = () => {
   const cartTotal = useAppSelector(selectCartTotal);
   const dispatch = useAppDispatch();
   const router = useRouter();
+
+  // Get selected state from localStorage
+  const selectedState =
+    typeof window !== "undefined"
+      ? localStorage.getItem("himspired_selected_state")
+      : null;
+
+  // Use custom hook to fetch delivery fee
+  const {
+    deliveryFee,
+    loading: deliveryFeeLoading,
+    error: deliveryFeeError,
+  } = useDeliveryFee(selectedState);
 
   const methods = useForm({
     resolver: yupResolver(schema),
@@ -189,26 +203,8 @@ const CheckoutPage = () => {
 
       formData.append("items", JSON.stringify(orderItems));
 
-      // Calculate totals with actual delivery fee
+      // Calculate totals with pre-fetched delivery fee
       const subtotal = cartTotal;
-      const selectedState = localStorage.getItem("himspired_selected_state");
-      
-      // Get delivery fee for selected state
-      let deliveryFee = 0;
-      if (selectedState) {
-        try {
-          const response = await fetch(`/api/delivery-fees/${encodeURIComponent(selectedState)}`);
-          if (response.ok) {
-            const data = await response.json();
-            deliveryFee = data.data.deliveryFee;
-          }
-        } catch (error) {
-          console.error("Error fetching delivery fee:", error);
-          // Fallback to default fee
-          deliveryFee = 1000;
-        }
-      }
-      
       const finalTotal = subtotal + deliveryFee;
 
       formData.append("total", finalTotal.toString());
@@ -442,7 +438,17 @@ const CheckoutPage = () => {
                   Items: {cartItems.length}
                 </P>
                 <P className="text-lg font-bold">
-                  Total: ₦{(cartTotal + 1000).toLocaleString()}
+                  Total: ₦{(cartTotal + deliveryFee).toLocaleString()}
+                  {deliveryFeeLoading && (
+                    <span className="text-sm text-gray-500 ml-2">
+                      (loading delivery fee...)
+                    </span>
+                  )}
+                  {deliveryFeeError && (
+                    <span className="text-sm text-red-500 ml-2">
+                      (using default fee)
+                    </span>
+                  )}
                 </P>
               </div>
             </div>

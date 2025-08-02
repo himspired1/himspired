@@ -5,27 +5,44 @@ import { selectCartTotal } from "@/redux/slices/cartSlice";
 import { useRouter } from "next/navigation";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import StateSelection from "./state-selection.component";
-import { useState } from "react";
 
 const CartSummary = () => {
   const router = useRouter();
   const subTotal = useAppSelector(selectCartTotal);
-  const { deliveryFee, formatCurrency, setSelectedState } = useDeliveryFee();
+
+  // Get selected state from localStorage
+  const selectedState =
+    typeof window !== "undefined"
+      ? localStorage.getItem("himspired_selected_state")
+      : null;
+  const {
+    deliveryFee,
+    loading: deliveryFeeLoading,
+    error: deliveryFeeError,
+    refreshDeliveryFee,
+  } = useDeliveryFee(selectedState);
+
   const total = subTotal + deliveryFee;
-  const [localSelectedState, setLocalSelectedState] = useState("");
 
   const handleStateChange = (state: string) => {
-    setLocalSelectedState(state);
-    setSelectedState(state);
+    localStorage.setItem("himspired_selected_state", state);
   };
 
   const handleCheckout = () => {
-    if (localSelectedState) {
-      // Store selected state in localStorage for checkout
-      localStorage.setItem("himspired_selected_state", localSelectedState);
+    if (selectedState) {
       router.push("/cart/checkout");
     }
   };
+
+  // Format currency helper function
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
     <>
       <div className="w-full">
@@ -37,9 +54,10 @@ const CartSummary = () => {
         </P>
 
         {/* State Selection */}
-        <StateSelection 
+        <StateSelection
           onStateChange={handleStateChange}
-          selectedState={localSelectedState}
+          selectedState={selectedState || ""}
+          onRefresh={refreshDeliveryFee}
         />
 
         <div className="w-full mt-6">
@@ -62,7 +80,13 @@ const CartSummary = () => {
               Delivery fee
             </P>
             <P fontFamily={"activo"} className=" text-sm font-semibold">
-              {localSelectedState ? formatCurrency(deliveryFee) : "Select state"}
+              {selectedState
+                ? deliveryFeeLoading
+                  ? "Loading..."
+                  : deliveryFeeError
+                    ? "Error loading fee"
+                    : formatCurrency(deliveryFee)
+                : "Select state"}
             </P>
           </div>
         </div>
@@ -79,7 +103,11 @@ const CartSummary = () => {
               fontFamily={"activo"}
               className="  text-base font-medium uppercase"
             >
-              {localSelectedState ? formatCurrency(total) : "Select state"}
+              {selectedState
+                ? deliveryFeeLoading
+                  ? "Loading..."
+                  : formatCurrency(total)
+                : "Select state"}
             </P>
           </div>
           <div className="w-full flex items-center justify-between mt-11 lg:flex-row-reverse lg:justify-end gap-2">
@@ -95,11 +123,13 @@ const CartSummary = () => {
             />
             <Button
               onClick={handleCheckout}
-              disabled={!localSelectedState}
-              btnTitle={localSelectedState ? "Proceed to Checkout" : "Select State First"}
+              disabled={!selectedState}
+              btnTitle={
+                selectedState ? "Proceed to Checkout" : "Select State First"
+              }
               className={`w-auto rounded-full lg:w-40 ${
-                localSelectedState 
-                  ? "bg-red-950 text-white" 
+                selectedState
+                  ? "bg-red-950 text-white"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
               textClassName="text-sm font-activo font-medium font-activo"

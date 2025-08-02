@@ -12,17 +12,33 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const range = searchParams.get("range") || "30";
+    const rangeParam = searchParams.get("range") || "30";
+
+    // Validate range parameter
+    const range = parseInt(rangeParam);
+    if (isNaN(range) || range <= 0 || range > 365) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid range parameter. Must be a positive integer between 1 and 365.",
+          validRange: "1-365 days",
+        },
+        { status: 400 }
+      );
+    }
 
     // Check cache first
-    const cachedData = await cacheService.getAnalyticsCache("revenue", range);
+    const cachedData = await cacheService.getAnalyticsCache(
+      "revenue",
+      range.toString()
+    );
     if (cachedData) {
       return NextResponse.json(cachedData);
     }
 
     const end = new Date();
     const start = new Date();
-    const days = parseInt(range);
+    const days = range;
     start.setDate(start.getDate() - days);
 
     const client = await getClientWithRetry();
@@ -144,42 +160,100 @@ export async function GET(request: NextRequest) {
       [key: string]: number | string;
     }
 
-    const fillMissingDates = (
+    type IntervalType = "daily" | "weekly" | "monthly";
+
+    const fillMissingIntervals = (
       data: RevenueData[],
       dateField: string,
-      valueField: string
+      valueField: string,
+      interval: IntervalType
     ) => {
       const result = [];
       const currentDate = new Date(start);
 
       while (currentDate <= end) {
-        const dateStr = currentDate.toISOString().split("T")[0];
-        const existingData = data.find((item) => item._id === dateStr);
+        let dateStr: string;
+        let existingData: RevenueData | undefined;
 
-        result.push({
-          date: dateStr,
-          amount: existingData ? (existingData[valueField] as number) : 0,
-        });
+        switch (interval) {
+          case "daily":
+            dateStr = currentDate.toISOString().split("T")[0];
+            existingData = data.find((item) => item._id === dateStr);
+            result.push({
+              date: dateStr,
+              amount: existingData ? (existingData[valueField] as number) : 0,
+            });
+            currentDate.setDate(currentDate.getDate() + 1);
+            break;
 
-        currentDate.setDate(currentDate.getDate() + 1);
+          case "weekly":
+            // Get week number in ISO format (YYYY-Www)
+            const year = currentDate.getFullYear();
+            const week = getISOWeek(currentDate);
+            dateStr = `${year}-W${week.toString().padStart(2, "0")}`;
+            existingData = data.find((item) => item._id === dateStr);
+            result.push({
+              week: dateStr,
+              amount: existingData ? (existingData[valueField] as number) : 0,
+            });
+            currentDate.setDate(currentDate.getDate() + 7);
+            break;
+
+          case "monthly":
+            // Get month in YYYY-MM format
+            const month = currentDate.getMonth() + 1;
+            dateStr = `${currentDate.getFullYear()}-${month.toString().padStart(2, "0")}`;
+            existingData = data.find((item) => item._id === dateStr);
+            result.push({
+              month: dateStr,
+              amount: existingData ? (existingData[valueField] as number) : 0,
+            });
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            break;
+        }
       }
 
       return result;
     };
 
-    const dailyData = fillMissingDates(
+    // Helper function to get ISO week number
+    const getISOWeek = (date: Date): number => {
+      const d = new Date(date.getTime());
+      d.setHours(0, 0, 0, 0);
+      // Thursday in current week decides the year
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+      // January 4 is always in week 1
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      // Adjust to Thursday in week 1 and count number of weeks from date to week1
+      return (
+        1 +
+        Math.round(
+          ((d.getTime() - week1.getTime()) / 86400000 -
+            3 +
+            ((week1.getDay() + 6) % 7)) /
+            7
+        )
+      );
+    };
+
+    const dailyData = fillMissingIntervals(
       dailyRevenue as RevenueData[],
       "_id",
-      "dailyRevenue"
+      "dailyRevenue",
+      "daily"
     );
-    const weeklyData = weeklyRevenue.map((item) => ({
-      week: item._id,
-      amount: item.weeklyRevenue,
-    }));
-    const monthlyData = monthlyRevenue.map((item) => ({
-      month: item._id,
-      amount: item.monthlyRevenue,
-    }));
+    const weeklyData = fillMissingIntervals(
+      weeklyRevenue as RevenueData[],
+      "_id",
+      "weeklyRevenue",
+      "weekly"
+    );
+    const monthlyData = fillMissingIntervals(
+      monthlyRevenue as RevenueData[],
+      "_id",
+      "monthlyRevenue",
+      "monthly"
+    );
 
     const result = {
       total: totalRevenue,
@@ -190,7 +264,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Cache the result
-    await cacheService.setAnalyticsCache("revenue", range, result);
+    await cacheService.setAnalyticsCache("revenue", range.toString(), result);
 
     return NextResponse.json(result);
   } catch (error) {

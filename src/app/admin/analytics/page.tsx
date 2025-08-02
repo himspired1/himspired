@@ -21,7 +21,7 @@ import OrdersByStateChart from "@/components/admin/analytics/orders-by-state";
 import OrderStatusChart from "@/components/admin/analytics/order-status-chart";
 import DeliveryFeesChart from "@/components/admin/analytics/delivery-fees-chart";
 import OrderTimelineChart from "@/components/admin/analytics/order-timeline-chart";
-import CustomerMetricsChart from "@/components/admin/analytics/customer-metrics-chat";
+import CustomerMetricsChart from "@/components/admin/analytics/customer-metrics-chart";
 import AnalyticsStats from "@/components/admin/analytics/analytics-stats";
 
 interface AnalyticsData {
@@ -44,6 +44,7 @@ interface AnalyticsData {
     totalFees: number;
     byState: Array<{ state: string; fees: number }>;
     performance: Array<{ state: string; avgTime: number }>;
+    ordersWithoutDeliveryTime: Array<{ state: string; count: number }>;
   };
   customers: {
     total: number;
@@ -187,7 +188,7 @@ const AnalyticsDashboard = () => {
     };
 
     checkAuth();
-  }, [router, dateRange, customRange, loadAnalyticsData]);
+  }, [router, dateRange, customRange]);
 
   if (loading) {
     return (

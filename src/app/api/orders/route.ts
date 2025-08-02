@@ -4,6 +4,7 @@ import { orderService } from "@/lib/order";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { validateFile } from "@/lib/file-upload";
 import { OrderStatus } from "@/models/order";
+import { states } from "@/data/states";
 
 // In-memory rate limiting per session or IP
 const orderAttempts = new Map(); // key: sessionId or IP, value: { count, firstAttempt }
@@ -74,6 +75,17 @@ export async function POST(req: NextRequest) {
     if (!name || !phone || !items || !total) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Validate state field
+    if (!state || !states.includes(state)) {
+      return NextResponse.json(
+        {
+          error: "Invalid state. Please provide a valid Nigerian state.",
+          validStates: states,
+        },
         { status: 400 }
       );
     }

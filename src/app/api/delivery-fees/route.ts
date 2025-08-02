@@ -1,15 +1,9 @@
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { stateDeliveryService } from "@/lib/state-delivery";
-import {
-  CreateStateDeliveryFeeRequest,
-} from "@/models/state-delivery";
+import { CreateStateDeliveryFeeRequest } from "@/models/state-delivery";
 import { states } from "@/data/states";
-
-// Rate limiting for delivery fee operations
-const deliveryFeeAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_ATTEMPTS = 50;
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+import { rateLimiter } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest) {
   return (
@@ -19,24 +13,47 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+/**
+ * Check rate limit for delivery fee operations
+ * @param req - The NextRequest object
+ * @returns NextResponse with 429 status if rate limit exceeded, null otherwise
+ */
+async function checkRateLimit(req: NextRequest): Promise<NextResponse | null> {
+  const ip = getClientIp(req);
+
+  // Rate limiting using Redis-based rate limiter
+  const rateLimitResult = await rateLimiter.checkRateLimit(ip, {
+    maxAttempts: 50,
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    keyPrefix: "rate_limit:delivery_fees_bulk",
+  });
+
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: "Too many requests. Please try again later.",
+        resetTime: rateLimitResult.resetTime,
+        remaining: rateLimitResult.remaining,
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+          "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+        },
+      }
+    );
+  }
+
+  return null;
+}
+
 // GET - Get all state delivery fees
 export async function GET(req: NextRequest) {
-  const ip = getClientIp(req);
-  const now = Date.now();
-
-  // Rate limiting
-  let entry = deliveryFeeAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
-  }
-  entry.count++;
-  deliveryFeeAttempts.set(ip, entry);
-
-  if (entry.count > MAX_ATTEMPTS) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 }
-    );
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(req);
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   try {
@@ -58,22 +75,10 @@ export async function GET(req: NextRequest) {
 
 // POST - Create or update state delivery fee
 export async function POST(req: NextRequest) {
-  const ip = getClientIp(req);
-  const now = Date.now();
-
-  // Rate limiting
-  let entry = deliveryFeeAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
-  }
-  entry.count++;
-  deliveryFeeAttempts.set(ip, entry);
-
-  if (entry.count > MAX_ATTEMPTS) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 }
-    );
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(req);
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   try {
