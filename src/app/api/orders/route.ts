@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     const name = formData.get("name") as string;
     const phone = formData.get("phone") as string;
     const address = formData.get("address") as string;
+    const state = formData.get("state") as string;
     const message = formData.get("message") as string;
     const items = JSON.parse(formData.get("items") as string);
     const total = parseFloat(formData.get("total") as string);
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
 
     const order = await orderService.createOrder({
-      customerInfo: { name, email, phone, address },
+      customerInfo: { name, email, phone, address, state },
       items,
       total,
       message,
@@ -143,10 +144,10 @@ export async function POST(req: NextRequest) {
 
     // Validate email before sending confirmation
     const isValidEmail = (email: string): boolean => {
-      if (!email || typeof email !== 'string' || email.trim() === '') {
+      if (!email || typeof email !== "string" || email.trim() === "") {
         return false;
       }
-      
+
       // Basic email format validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return emailRegex.test(email.trim());
@@ -163,13 +164,20 @@ export async function POST(req: NextRequest) {
           items,
           total
         );
-        console.log(`✅ Order confirmation email sent for order ${order.orderId}`);
+        console.log(
+          `✅ Order confirmation email sent for order ${order.orderId}`
+        );
       } catch (emailError) {
-        console.error(`❌ Failed to send order confirmation email for order ${order.orderId}:`, emailError);
+        console.error(
+          `❌ Failed to send order confirmation email for order ${order.orderId}:`,
+          emailError
+        );
         // Don't fail the order creation if email fails
       }
     } else {
-      console.warn(`⚠️ Skipping order confirmation email for order ${order.orderId}: Invalid or missing email address (${email})`);
+      console.warn(
+        `⚠️ Skipping order confirmation email for order ${order.orderId}: Invalid or missing email address (${email})`
+      );
     }
 
     return NextResponse.json({ success: true, orderId: order.orderId });
