@@ -146,14 +146,14 @@ const Navbar = () => {
       >
         <div className="py-3.5">
           <Wrapper className="md:flex hidden items-center">
-            <div className="flex xl:space-x-5 uppercase flex-1">
+            <div className="flex xl:space-x-5 uppercase flex-1 text-sm  lg:text-lg">
               {navLinks.map((link) => (
                 <div key={link.href} className="relative group">
                   <Link
                     href={link.href}
                     className={`px-4 py-2 transition-colors duration-200 relative block ${
                       isActive(link.href)
-                        ? "text-[#68191E]"
+                        ? "text-[#68191E] "
                         : "text-gray-850 hover:text-[#68191E]"
                     }`}
                   >
