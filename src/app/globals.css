@@ -4,13 +4,14 @@
 
 @font-face {
   font-family: "moon";
-  src: url("/fonts/moon-walk-futuristic-modern-fonts-2023-06-21-09-48-50-utc/Moon Walk.otf");
+  src: url("/fonts/Moon-Walk.otf");
   font-display: swap;
 }
 
 @font-face {
   font-family: "activo";
   src: url("/fonts/Archivo_Condensed-Regular.ttf");
+  font-weight: normal;
   font-display: swap;
 }
 
