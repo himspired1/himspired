@@ -1,26 +1,31 @@
-import Empowering from "@/components/pages/about-us/empower.component";
-import aboutUsImage from "../../../public/images/about-us.svg"
-import Image from "next/image";
-import  VisionStatement from "@/components/pages/about-us/vision-statement.component"
-import TheTeam from "@/components/pages/about-us/the-team.component"
-import JoinTheTeam from "@/components/pages/about-us/join-team.component";
-const AboutUs = () => {
-    return (
-        <>
-            <div className="w-full  min-h-screen lg:mt-[13em] mt-[7em] pb-[120.93px]" >
-                <Empowering />
+import { Metadata } from "next";
+import AboutPage from "./about-page";
 
-                <div className="w-full mt-[80px]" >
-                    <Image src={aboutUsImage} className="w-full object-contain" alt="about-us" />
-                </div> 
+export const metadata: Metadata = {
+  title: "About Us - Our Story & Mission",
+  description:
+    "Learn about Himspired's journey from thrift to luxury fashion. Discover our mission to make premium fashion accessible to everyone through curated collections.",
+  keywords: [
+    "about us",
+    "our story",
+    "mission",
+    "fashion brand",
+    "thrift luxury",
+    "premium fashion",
+  ],
+  openGraph: {
+    title: "About Us - Our Story & Mission | Himspired",
+    description:
+      "Learn about Himspired's journey from thrift to luxury fashion. Discover our mission to make premium fashion accessible to everyone.",
+    url: "https://himspired.vercel.app/about",
+  },
+  twitter: {
+    title: "About Us - Our Story & Mission | Himspired",
+    description:
+      "Learn about Himspired's journey from thrift to luxury fashion. Discover our mission to make premium fashion accessible to everyone.",
+  },
+};
 
-                <VisionStatement/>
-
-                <TheTeam/>
-                <JoinTheTeam/>
-            </div>
-        </>
-    );
+export default function About() {
+  return <AboutPage />;
 }
-
-export default AboutUs;

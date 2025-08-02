@@ -2,6 +2,146 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "moon";
+  src: url("/fonts/Moon-Walk.otf");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Regular.ttf");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Bold.ttf");
+  font-weight: bold;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Medium.ttf");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-SemiBold.ttf");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Light.ttf");
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-ExtraLight.ttf");
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Thin.ttf");
+  font-weight: 100;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Black.ttf");
+  font-weight: 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-ExtraBold.ttf");
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-Italic.ttf");
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-BoldItalic.ttf");
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-MediumItalic.ttf");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-SemiBoldItalic.ttf");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-LightItalic.ttf");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-ExtraLightItalic.ttf");
+  font-weight: 200;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-ThinItalic.ttf");
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-BlackItalic.ttf");
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "activo";
+  src: url("/fonts/Archivo_Condensed-ExtraBoldItalic.ttf");
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
