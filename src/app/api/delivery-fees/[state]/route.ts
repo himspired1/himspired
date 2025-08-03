@@ -4,6 +4,10 @@ import { stateDeliveryService } from "@/lib/state-delivery";
 import { UpdateStateDeliveryFeeRequest } from "@/models/state-delivery";
 import { states } from "@/data/states";
 import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
+import { AdminAuth } from "@/lib/admin-auth";
+
+// Normalize states to lowercase for case-insensitive comparison
+const normalizedStates = states.map((state) => state.toLowerCase());
 
 function getClientIp(req: NextRequest) {
   return (
@@ -52,6 +56,15 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
+  // Check admin authentication
+  const authResult = await AdminAuth.verifyAdminAuth(req);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
+  }
+
   // Check rate limit
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
@@ -60,8 +73,9 @@ export async function GET(
 
   try {
     const { state } = await params;
+    const stateName = state.toLowerCase();
 
-    if (!state || !states.includes(state)) {
+    if (!state || !normalizedStates.includes(stateName)) {
       return NextResponse.json(
         { error: "Invalid state. Please provide a valid Nigerian state." },
         { status: 400 }
@@ -100,6 +114,15 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
+  // Check admin authentication
+  const authResult = await AdminAuth.verifyAdminAuth(req);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
+  }
+
   // Check rate limit
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
@@ -108,9 +131,10 @@ export async function PATCH(
 
   try {
     const { state } = await params;
+    const stateName = state.toLowerCase();
     const body: UpdateStateDeliveryFeeRequest = await req.json();
 
-    if (!state || !states.includes(state)) {
+    if (!state || !normalizedStates.includes(stateName)) {
       return NextResponse.json(
         { error: "Invalid state. Please provide a valid Nigerian state." },
         { status: 400 }
@@ -160,6 +184,15 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
+  // Check admin authentication
+  const authResult = await AdminAuth.verifyAdminAuth(req);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
+  }
+
   // Check rate limit
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
@@ -168,8 +201,9 @@ export async function DELETE(
 
   try {
     const { state } = await params;
+    const stateName = state.toLowerCase();
 
-    if (!state || !states.includes(state)) {
+    if (!state || !normalizedStates.includes(stateName)) {
       return NextResponse.json(
         { error: "Invalid state. Please provide a valid Nigerian state." },
         { status: 400 }

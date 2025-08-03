@@ -25,41 +25,76 @@ export class RateLimiter {
   ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
     const now = Date.now();
     const cacheKey = `${config.keyPrefix}:${key}`;
+    const countKey = `${cacheKey}:count`;
+    const firstAttemptKey = `${cacheKey}:first`;
 
     try {
-      // Get current rate limit data
-      const currentData = await this.cache.get(cacheKey);
-      let rateLimitData: { count: number; firstAttempt: number } | null = null;
+      // Use atomic operations to prevent race conditions
+      const [countResult, firstAttemptResult] = await Promise.all([
+        this.cache.get(countKey),
+        this.cache.get(firstAttemptKey),
+      ]);
 
-      if (currentData && typeof currentData === "string") {
+      let count = 0;
+      let firstAttempt = now;
+
+      // Parse current count
+      if (countResult && typeof countResult === "string") {
         try {
-          rateLimitData = JSON.parse(currentData);
+          count = parseInt(countResult, 10);
         } catch (parseError) {
-          console.error("Failed to parse rate limit data:", parseError);
-          rateLimitData = null;
+          console.error("Failed to parse count:", parseError);
+          count = 0;
+        }
+      }
+
+      // Parse first attempt time
+      if (firstAttemptResult && typeof firstAttemptResult === "string") {
+        try {
+          firstAttempt = parseInt(firstAttemptResult, 10);
+        } catch (parseError) {
+          console.error("Failed to parse first attempt:", parseError);
+          firstAttempt = now;
         }
       }
 
       // Check if window has expired
-      if (
-        !rateLimitData ||
-        now - rateLimitData.firstAttempt > config.windowMs
-      ) {
-        // Reset rate limit for new window
-        rateLimitData = { count: 0, firstAttempt: now };
+      if (now - firstAttempt > config.windowMs) {
+        // Reset for new window - atomic operations
+        await Promise.all([
+          this.cache.set(countKey, "1", Math.ceil(config.windowMs / 1000)),
+          this.cache.set(
+            firstAttemptKey,
+            now.toString(),
+            Math.ceil(config.windowMs / 1000)
+          ),
+        ]);
+
+        return {
+          allowed: true,
+          remaining: config.maxAttempts - 1,
+          resetTime: now + config.windowMs,
+        };
       }
 
-      // Increment attempt count
-      rateLimitData.count++;
+      // Atomic increment of count
+      const newCount = count + 1;
+      const ttlSeconds = Math.ceil(config.windowMs / 1000);
+
+      // Set count with TTL (only set TTL on first attempt)
+      if (count === 0) {
+        await Promise.all([
+          this.cache.set(countKey, newCount.toString(), ttlSeconds),
+          this.cache.set(firstAttemptKey, firstAttempt.toString(), ttlSeconds),
+        ]);
+      } else {
+        await this.cache.set(countKey, newCount.toString(), ttlSeconds);
+      }
 
       // Check if limit exceeded
-      const allowed = rateLimitData.count <= config.maxAttempts;
-      const remaining = Math.max(0, config.maxAttempts - rateLimitData.count);
-      const resetTime = rateLimitData.firstAttempt + config.windowMs;
-
-      // Store updated data with TTL to auto-expire
-      const ttlSeconds = Math.ceil(config.windowMs / 1000);
-      await this.cache.set(cacheKey, JSON.stringify(rateLimitData), ttlSeconds);
+      const allowed = newCount <= config.maxAttempts;
+      const remaining = Math.max(0, config.maxAttempts - newCount);
+      const resetTime = firstAttempt + config.windowMs;
 
       return {
         allowed,
@@ -89,11 +124,40 @@ export class RateLimiter {
   ): Promise<{ remaining: number; resetTime: number; totalAttempts: number }> {
     const now = Date.now();
     const cacheKey = `${config.keyPrefix}:${key}`;
+    const countKey = `${cacheKey}:count`;
+    const firstAttemptKey = `${cacheKey}:first`;
 
     try {
-      const currentData = await this.cache.get(cacheKey);
+      const [countResult, firstAttemptResult] = await Promise.all([
+        this.cache.get(countKey),
+        this.cache.get(firstAttemptKey),
+      ]);
 
-      if (!currentData || typeof currentData !== "string") {
+      let count = 0;
+      let firstAttempt = now;
+
+      // Parse current count
+      if (countResult && typeof countResult === "string") {
+        try {
+          count = parseInt(countResult, 10);
+        } catch (parseError) {
+          console.error("Failed to parse count:", parseError);
+          count = 0;
+        }
+      }
+
+      // Parse first attempt time
+      if (firstAttemptResult && typeof firstAttemptResult === "string") {
+        try {
+          firstAttempt = parseInt(firstAttemptResult, 10);
+        } catch (parseError) {
+          console.error("Failed to parse first attempt:", parseError);
+          firstAttempt = now;
+        }
+      }
+
+      // Check if window has expired
+      if (now - firstAttempt > config.windowMs) {
         return {
           remaining: config.maxAttempts,
           resetTime: now + config.windowMs,
@@ -101,24 +165,14 @@ export class RateLimiter {
         };
       }
 
-      try {
-        const rateLimitData = JSON.parse(currentData);
-        const remaining = Math.max(0, config.maxAttempts - rateLimitData.count);
-        const resetTime = rateLimitData.firstAttempt + config.windowMs;
+      const remaining = Math.max(0, config.maxAttempts - count);
+      const resetTime = firstAttempt + config.windowMs;
 
-        return {
-          remaining,
-          resetTime,
-          totalAttempts: rateLimitData.count,
-        };
-      } catch (parseError) {
-        console.error("Failed to parse rate limit info:", parseError);
-        return {
-          remaining: config.maxAttempts,
-          resetTime: now + config.windowMs,
-          totalAttempts: 0,
-        };
-      }
+      return {
+        remaining,
+        resetTime,
+        totalAttempts: count,
+      };
     } catch (error) {
       console.error("Rate limit info error:", error);
       return {
@@ -136,9 +190,15 @@ export class RateLimiter {
    */
   async resetRateLimit(key: string, config: RateLimitConfig): Promise<void> {
     const cacheKey = `${config.keyPrefix}:${key}`;
+    const countKey = `${cacheKey}:count`;
+    const firstAttemptKey = `${cacheKey}:first`;
 
     try {
-      await this.cache.delete(cacheKey);
+      // Delete both count and first attempt keys atomically
+      await Promise.all([
+        this.cache.delete(countKey),
+        this.cache.delete(firstAttemptKey),
+      ]);
     } catch (error) {
       console.error("Rate limit reset error:", error);
     }
