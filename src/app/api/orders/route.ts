@@ -5,9 +5,9 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { validateFile } from "@/lib/file-upload";
 import { OrderStatus } from "@/models/order";
 import { states } from "@/data/states";
+import { cacheService } from "@/lib/cache-service";
 
-// In-memory rate limiting per session or IP
-const orderAttempts = new Map(); // key: sessionId or IP, value: { count, firstAttempt }
+// Redis-based rate limiting per session or IP
 const MAX_ORDERS_PER_SESSION = 3;
 const MAX_ORDERS_PER_IP = 100;
 const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
@@ -20,25 +20,85 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+// Rate limiting helper functions
+async function checkSessionRateLimit(
+  sessionId: string
+): Promise<{ allowed: boolean; remaining: number }> {
+  const now = Date.now();
+  const rateLimitKey = `order_session:${sessionId}`;
+
+  try {
+    const cached = await cacheService.getRateLimitCache(rateLimitKey);
+    let entry = cached as { count: number; firstAttempt: number } | null;
+
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+
+    entry.count++;
+    const remaining = Math.max(0, MAX_ORDERS_PER_SESSION - entry.count);
+    const allowed = entry.count <= MAX_ORDERS_PER_SESSION;
+
+    // Store updated entry in Redis
+    await cacheService.setRateLimitCache(
+      rateLimitKey,
+      entry,
+      Math.ceil(WINDOW_MS / 1000)
+    );
+
+    return { allowed, remaining };
+  } catch (error) {
+    console.warn("Session rate limit check failed, allowing request:", error);
+    return { allowed: true, remaining: MAX_ORDERS_PER_SESSION };
+  }
+}
+
+async function checkIpRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number }> {
+  const now = Date.now();
+  const rateLimitKey = `order_ip:${ip}`;
+
+  try {
+    const cached = await cacheService.getRateLimitCache(rateLimitKey);
+    let entry = cached as { count: number; firstAttempt: number } | null;
+
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+
+    entry.count++;
+    const remaining = Math.max(0, MAX_ORDERS_PER_IP - entry.count);
+    const allowed = entry.count <= MAX_ORDERS_PER_IP;
+
+    // Store updated entry in Redis
+    await cacheService.setRateLimitCache(
+      rateLimitKey,
+      entry,
+      Math.ceil(WINDOW_MS / 1000)
+    );
+
+    return { allowed, remaining };
+  } catch (error) {
+    console.warn("IP rate limit check failed, allowing request:", error);
+    return { allowed: true, remaining: MAX_ORDERS_PER_IP };
+  }
+}
+
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const sessionId = formData.get("sessionId") as string;
   const ip = getClientIp(req);
-  const now = Date.now();
 
   // Per-session rate limiting
   if (sessionId) {
-    let entry = orderAttempts.get(sessionId);
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    entry.count++;
-    orderAttempts.set(sessionId, entry);
-    if (entry.count > MAX_ORDERS_PER_SESSION) {
+    const sessionRateLimit = await checkSessionRateLimit(sessionId);
+    if (!sessionRateLimit.allowed) {
       return NextResponse.json(
         {
           error:
             "Too many orders submitted from this session. Please try again later.",
+          remainingTime: Math.ceil(WINDOW_MS / 1000 / 60), // minutes
         },
         { status: 429 }
       );
@@ -46,17 +106,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Per-IP rate limiting (much higher limit)
-  let ipEntry = orderAttempts.get(ip);
-  if (!ipEntry || now - ipEntry.firstAttempt > WINDOW_MS) {
-    ipEntry = { count: 0, firstAttempt: now };
-  }
-  ipEntry.count++;
-  orderAttempts.set(ip, ipEntry);
-  if (ipEntry.count > MAX_ORDERS_PER_IP) {
+  const ipRateLimit = await checkIpRateLimit(ip);
+  if (!ipRateLimit.allowed) {
     return NextResponse.json(
       {
         error:
           "Too many orders submitted from this network. Please try again later.",
+        remainingTime: Math.ceil(WINDOW_MS / 1000 / 60), // minutes
       },
       { status: 429 }
     );
