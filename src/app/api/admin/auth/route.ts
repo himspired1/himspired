@@ -2,9 +2,9 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 import { z } from "zod";
+import { cacheService } from "@/lib/cache-service";
 
-// Simple in-memory rate limiting (per IP)
-const loginAttempts = new Map(); // key: IP, value: { count, firstAttempt }
+// Redis-based rate limiting (per IP)
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -16,18 +16,59 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+// Rate limiting helper functions
+async function checkRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number }> {
+  const now = Date.now();
+  const rateLimitKey = `admin_auth:${ip}`;
+
+  try {
+    const cached = await cacheService.getRateLimitCache(rateLimitKey);
+    let entry = cached as { count: number; firstAttempt: number } | null;
+
+    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
+      entry = { count: 0, firstAttempt: now };
+    }
+
+    entry.count++;
+    const remaining = Math.max(0, MAX_ATTEMPTS - entry.count);
+    const allowed = entry.count <= MAX_ATTEMPTS;
+
+    // Store updated entry in Redis
+    await cacheService.setRateLimitCache(
+      rateLimitKey,
+      entry,
+      Math.ceil(WINDOW_MS / 1000)
+    );
+
+    return { allowed, remaining };
+  } catch (error) {
+    console.warn("Rate limit check failed, allowing request:", error);
+    return { allowed: true, remaining: MAX_ATTEMPTS };
+  }
+}
+
+async function resetRateLimit(ip: string): Promise<void> {
+  const rateLimitKey = `admin_auth:${ip}`;
+  try {
+    await cacheService.setRateLimitCache(rateLimitKey, null, 1); // Delete by setting short TTL
+  } catch (error) {
+    console.warn("Failed to reset rate limit:", error);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const now = Date.now();
-  let entry = loginAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
-  }
-  entry.count++;
-  loginAttempts.set(ip, entry);
-  if (entry.count > MAX_ATTEMPTS) {
+
+  // Check rate limit
+  const rateLimit = await checkRateLimit(ip);
+  if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "Too many login attempts. Please try again later." },
+      {
+        error: "Too many login attempts. Please try again later.",
+        remainingTime: Math.ceil(WINDOW_MS / 1000 / 60), // minutes
+      },
       { status: 429 }
     );
   }
@@ -71,7 +112,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Reset attempts on successful login
-    loginAttempts.delete(ip);
+    await resetRateLimit(ip);
 
     return response;
   } catch (error) {

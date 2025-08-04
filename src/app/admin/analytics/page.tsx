@@ -172,6 +172,29 @@ const AnalyticsDashboard = () => {
     }
   };
 
+  const forceClearAllCache = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetch("/api/admin/force-cleanup", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("All caches cleared successfully");
+        setCacheStatus("fresh");
+        // Reload data after cache refresh
+        await loadAnalyticsData();
+      } else {
+        toast.error("Failed to clear all caches");
+      }
+    } catch (error) {
+      console.error("Force cache clear error:", error);
+      toast.error("Failed to clear all caches");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -188,7 +211,7 @@ const AnalyticsDashboard = () => {
     };
 
     checkAuth();
-  }, [router, dateRange, customRange]);
+  }, [router, loadAnalyticsData]);
 
   if (loading) {
     return (
@@ -202,7 +225,7 @@ const AnalyticsDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden ">
       <AdminNav />
 
       <div className="w-full px-2 sm:px-4 py-4 sm:py-8">
@@ -251,16 +274,29 @@ const AnalyticsDashboard = () => {
                         : "Loading..."}
                   </span>
                 </div>
-                <button
-                  onClick={refreshCache}
-                  disabled={refreshing}
-                  className="flex items-center space-x-1 px-3 py-1 bg-[#68191E] text-white rounded-md text-sm hover:bg-[#4a1216] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <RefreshCw
-                    className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`}
-                  />
-                  <span>{refreshing ? "Refreshing..." : "Refresh Cache"}</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={refreshCache}
+                    disabled={refreshing}
+                    className="flex items-center space-x-1 px-3 py-1 bg-[#68191E] text-white rounded-md text-sm hover:bg-[#4a1216] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <RefreshCw
+                      className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`}
+                    />
+                    <span>
+                      {refreshing ? "Refreshing..." : "Refresh Cache"}
+                    </span>
+                  </button>
+                  <button
+                    onClick={forceClearAllCache}
+                    disabled={refreshing}
+                    className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Clear all caches (analytics, stock, orders, etc.)"
+                  >
+                    <Database className="w-3 h-3" />
+                    <span>{refreshing ? "Clearing..." : "Clear All"}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
