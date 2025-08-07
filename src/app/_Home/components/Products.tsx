@@ -12,37 +12,37 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/constants/colors";
 import {
-  thriftsProducts,
-  luxuryProducts,
-  vintageProducts,
-  modernProducts,
+  polosProducts,
+  tshirtsProducts,
+  jeansProducts,
+  shirtsProducts,
 } from "@/data/products";
 import { useClothesByCategory } from "@/sanity/queries";
 import React from "react";
 import ProductCardSkeleton from "@/components/common/skeleton/product-card-skeleton.component";
 import ProductCard from "@/components/product/product-card.component";
 
-// Define our sections with their components and data
+// Define our sections with their components and data - updated to product-type categories
 const SECTIONS = [
   {
-    id: "thrifts",
-    label: { number: "1", name: "THRIFTS" },
-    products: thriftsProducts,
+    id: "polos",
+    label: { number: "1", name: "POLOS" },
+    products: polosProducts,
   },
   {
-    id: "luxury",
-    label: { number: "2", name: "LUXURY" },
-    products: luxuryProducts,
+    id: "t-shirts",
+    label: { number: "2", name: "T-SHIRTS" },
+    products: tshirtsProducts,
   },
   {
-    id: "vintage",
-    label: { number: "3", name: "VINTAGE" },
-    products: vintageProducts,
+    id: "jeans",
+    label: { number: "3", name: "JEANS" },
+    products: jeansProducts,
   },
   {
-    id: "modern",
-    label: { number: "4", name: "MODERN" },
-    products: modernProducts,
+    id: "shirts",
+    label: { number: "4", name: "SHIRTS" },
+    products: shirtsProducts,
   },
 ];
 
