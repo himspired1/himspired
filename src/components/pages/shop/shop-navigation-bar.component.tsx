@@ -16,16 +16,20 @@ const ShopNavigationBar = ({ activeTab, setActiveTab }: Props) => {
       value: "all"
     },
     {
-      name: "THRIFT",
-      value: "thrift"
+      name: "POLOS",
+      value: "polos"
     },
     {
-      name: "LUXURY",
-      value: "luxury"
+      name: "T-SHIRTS",
+      value: "t-shirts"
     },
     {
-      name: "SENATORS",
-      value: "senetors"
+      name: "JEANS",
+      value: "jeans"
+    },
+    {
+      name: "SHIRTS",
+      value: "shirts"
     },
   ], []);
 
