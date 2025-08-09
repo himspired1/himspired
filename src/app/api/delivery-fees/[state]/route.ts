@@ -56,15 +56,6 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
-  // Check admin authentication
-  const authResult = await AdminAuth.verifyAdminAuth(req);
-  if (!authResult.success) {
-    return NextResponse.json(
-      { error: "Unauthorized. Admin access required." },
-      { status: 401 }
-    );
-  }
-
   // Check rate limit
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
