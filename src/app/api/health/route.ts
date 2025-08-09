@@ -28,7 +28,8 @@ export async function GET() {
   try {
     // Check database connectivity
     try {
-      healthChecks.checks.database = await checkDatabaseConnection();
+      const dbHealth = await checkDatabaseConnection();
+      healthChecks.checks.database = dbHealth.healthy;
     } catch (error) {
       console.error("Database health check failed:", error);
       healthChecks.checks.database = false;
