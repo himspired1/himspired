@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
         let existingData: RevenueData | undefined;
 
         switch (interval) {
-          case "daily":
+          case "daily": {
             dateStr = currentDate.toISOString().split("T")[0];
             existingData = data.find((item) => item._id === dateStr);
             result.push({
@@ -185,8 +185,9 @@ export async function GET(request: NextRequest) {
             });
             currentDate.setDate(currentDate.getDate() + 1);
             break;
+          }
 
-          case "weekly":
+          case "weekly": {
             // Get week number in ISO format (YYYY-Www)
             const year = currentDate.getFullYear();
             const week = getISOWeek(currentDate);
@@ -198,8 +199,9 @@ export async function GET(request: NextRequest) {
             });
             currentDate.setDate(currentDate.getDate() + 7);
             break;
+          }
 
-          case "monthly":
+          case "monthly": {
             // Get month in YYYY-MM format
             const month = currentDate.getMonth() + 1;
             dateStr = `${currentDate.getFullYear()}-${month.toString().padStart(2, "0")}`;
@@ -210,6 +212,7 @@ export async function GET(request: NextRequest) {
             });
             currentDate.setMonth(currentDate.getMonth() + 1);
             break;
+          }
         }
       }
 

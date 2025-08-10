@@ -1,102 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StockAuth } from "@/lib/stock-auth";
-import { forceCleanupProducts } from "@/lib/product-cleanup";
-import { rateLimiter } from "@/lib/rate-limiter";
+import { AdminAuth } from "@/lib/admin-auth";
+import { cacheService } from "@/lib/cache-service";
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for") ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
-interface ForceCleanupRequest {
-  productIds: string[];
-  clearAll?: boolean;
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    // Rate limiting for sensitive cleanup operations
-    const clientIp = getClientIp(req);
+    // Verify admin authentication
+    const authResult = await AdminAuth.verifyAdminAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
-      maxAttempts: 5,
-      windowMs: 60 * 1000, // 1 minute
-      keyPrefix: "rate_limit:admin_cleanup",
-    });
+    // Check rate limit
+    const clientIp =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+
+    const rateLimitResult = await rateLimiter.checkRateLimit(
+      clientIp,
+      RATE_LIMIT_CONFIGS.API_GENERAL
+    );
 
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         {
-          error: "Rate limit exceeded",
-          message: "Too many cleanup attempts. Please try again later.",
+          error: "Too many requests. Please try again later.",
           resetTime: rateLimitResult.resetTime,
           remaining: rateLimitResult.remaining,
         },
-        {
-          status: 429,
-          headers: {
-            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
-            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
-          },
-        }
+        { status: 429 }
       );
     }
 
-    // Validate environment variables
-    StockAuth.validateEnvironmentVariables();
+    // Clear all caches
+    await cacheService.invalidateAllCaches();
 
-    // Use timing-safe authentication
-    const isAuthorized = await StockAuth.isAuthorized(req);
-    if (!isAuthorized) {
-      return NextResponse.json(
-        {
-          error: "Unauthorized",
-          message: "Valid token required to perform force cleanup",
-        },
-        { status: 401 }
-      );
-    }
-
-    const { productIds, clearAll = true }: ForceCleanupRequest =
-      await req.json();
-
-    if (!Array.isArray(productIds) || productIds.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Invalid request",
-          message: "productIds array is required and must not be empty",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate all product IDs
-    for (const productId of productIds) {
-      if (typeof productId !== "string" || productId.trim().length === 0) {
-        return NextResponse.json(
-          {
-            error: "Invalid product ID",
-            message: "All product IDs must be non-empty strings",
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Use the shared function instead of making HTTP requests
-    const result = await forceCleanupProducts(productIds, clearAll);
-
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      message: "All caches cleared successfully",
+      cleared: [
+        "analytics",
+        "stock",
+        "orders",
+        "products",
+        "delivery_fees",
+        "rate_limits",
+        "sessions",
+        "reservations",
+      ],
+    });
   } catch (error) {
-    console.error("Force cleanup API error:", error);
+    console.error("Force cleanup error:", error);
     return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: "Failed to perform force cleanup",
-      },
+      { error: "Failed to clear caches" },
       { status: 500 }
     );
   }

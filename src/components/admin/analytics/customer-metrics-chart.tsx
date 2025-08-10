@@ -27,14 +27,20 @@ const CustomerMetricsChart = ({ data }: CustomerMetricsChartProps) => {
 
   // Customer type data for pie chart
   const customerTypeData = [
-    { name: "New Customers", value: data.new },
-    { name: "Returning Customers", value: data.returning },
+    {
+      name: "New Customers",
+      value: typeof data.new === "number" ? data.new : 0,
+    },
+    {
+      name: "Returning Customers",
+      value: typeof data.returning === "number" ? data.returning : 0,
+    },
   ];
 
   // Top states data for bar chart
-  const topStatesData = data.byState
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  const topStatesData = Array.isArray(data.byState)
+    ? [...data.byState].sort((a, b) => b.count - a.count).slice(0, 8)
+    : [];
 
   const formatCount = (value: number) => {
     return value.toString();
@@ -43,6 +49,9 @@ const CustomerMetricsChart = ({ data }: CustomerMetricsChartProps) => {
   const formatState = (state: string) => {
     return state.length > 10 ? state.substring(0, 10) + "..." : state;
   };
+
+  // Check if we have valid data to display
+  const hasValidData = Array.isArray(data.byState) && data.byState.length > 0;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -95,42 +104,48 @@ const CustomerMetricsChart = ({ data }: CustomerMetricsChartProps) => {
           Customers by State
         </h3>
         <div className="w-full h-40 sm:h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={topStatesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="state"
-                tickFormatter={formatState}
-                tick={{ fontSize: 8 }}
-                stroke="#666"
-                angle={-45}
-                textAnchor="end"
-                height={60}
-              />
-              <YAxis
-                tickFormatter={formatCount}
-                tick={{ fontSize: 8 }}
-                stroke="#666"
-              />
-              <Tooltip
-                formatter={(value: number) => [value, "Customers"]}
-                labelFormatter={(label) => label}
-                contentStyle={{
-                  backgroundColor: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                }}
-              />
-              <Bar
-                dataKey="count"
-                fill="#06b6d4"
-                stroke="#0891b2"
-                strokeWidth={2}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasValidData ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topStatesData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="state"
+                  tickFormatter={formatState}
+                  tick={{ fontSize: 8 }}
+                  stroke="#666"
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis
+                  tickFormatter={formatCount}
+                  tick={{ fontSize: 8 }}
+                  stroke="#666"
+                />
+                <Tooltip
+                  formatter={(value: number) => [value, "Customers"]}
+                  labelFormatter={(label) => label}
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                  }}
+                />
+                <Bar
+                  dataKey="count"
+                  fill="#06b6d4"
+                  stroke="#0891b2"
+                  strokeWidth={2}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+              No customer data available
+            </div>
+          )}
         </div>
       </div>
     </div>

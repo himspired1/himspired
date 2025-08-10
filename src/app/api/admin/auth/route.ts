@@ -2,11 +2,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 import { z } from "zod";
-
-// Simple in-memory rate limiting (per IP)
-const loginAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest) {
   return (
@@ -18,18 +14,33 @@ function getClientIp(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const now = Date.now();
-  let entry = loginAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
-  }
-  entry.count++;
-  loginAttempts.set(ip, entry);
-  if (entry.count > MAX_ATTEMPTS) {
-    return NextResponse.json(
-      { error: "Too many login attempts. Please try again later." },
+
+  // Check rate limit using the existing rateLimiter utility
+  const rateLimit = await rateLimiter.checkRateLimit(
+    ip,
+    RATE_LIMIT_CONFIGS.AUTH
+  );
+  if (!rateLimit.allowed) {
+    const now = Date.now();
+    const remainingMs = rateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
+      {
+        error: "Too many login attempts. Please try again later.",
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(rateLimit.resetTime).toISOString(),
+      },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {
@@ -70,8 +81,15 @@ export async function POST(req: NextRequest) {
       maxAge: 24 * 60 * 60, // 24 hours
     });
 
-    // Reset attempts on successful login
-    loginAttempts.delete(ip);
+    // Reset rate limit on successful login
+    // rateLimiter.resetRateLimit properly deletes cache entries using cache.delete()
+    // instead of setting values to null, ensuring clean cache management
+    try {
+      await rateLimiter.resetRateLimit(ip, RATE_LIMIT_CONFIGS.AUTH);
+    } catch (error) {
+      // Log the error but don't fail the authentication
+      console.warn("Failed to reset rate limit for IP:", ip, error);
+    }
 
     return response;
   } catch (error) {

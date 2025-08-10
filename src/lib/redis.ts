@@ -71,6 +71,9 @@ export interface CacheInterface {
   clear(pattern?: string): Promise<void>;
   isAvailable(): boolean;
   destroy(): void;
+  // Atomic Redis operations for rate limiting
+  incr(key: string): Promise<number>;
+  setnx(key: string, value: unknown, ttl?: number): Promise<boolean>;
 }
 
 // Redis-based cache implementation
@@ -235,6 +238,34 @@ class RedisCache implements CacheInterface {
   isAvailable(): boolean {
     return isRedisAvailable;
   }
+
+  // Atomic Redis operations for rate limiting
+  async incr(key: string): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new Error("Redis client not available");
+    }
+    return await this.client.incr(`${CACHE_NAMESPACE}:${key}`);
+  }
+
+  async setnx(key: string, value: unknown, ttl?: number): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new Error("Redis client not available");
+    }
+
+    // Use Redis SET with NX (only if key doesn't exist) and EX (expiration)
+    const result = await this.client.set(
+      `${CACHE_NAMESPACE}:${key}`,
+      String(value),
+      "EX",
+      ttl || CACHE_TTL,
+      "NX"
+    );
+
+    // SET with NX returns 'OK' if key was set, null if key already exists
+    return result === "OK";
+  }
 }
 
 // In-memory fallback cache implementation
@@ -364,6 +395,38 @@ class InMemoryCache implements CacheInterface {
   }
 
   isAvailable(): boolean {
+    return true;
+  }
+
+  // Atomic operations for rate limiting (in-memory fallback)
+  async incr(key: string): Promise<number> {
+    const entry = this.cache.get(key);
+    const currentValue = entry ? Number(entry.value) || 0 : 0;
+    const newValue = currentValue + 1;
+
+    // Update the cache with new value
+    this.cache.set(key, {
+      value: newValue,
+      timestamp: Date.now(),
+      ttl: entry?.ttl || CACHE_TTL,
+    });
+
+    return newValue;
+  }
+
+  async setnx(key: string, value: unknown, ttl?: number): Promise<boolean> {
+    // Check if key already exists
+    if (this.cache.has(key)) {
+      return false;
+    }
+
+    // Set the key only if it doesn't exist
+    this.cache.set(key, {
+      value,
+      timestamp: Date.now(),
+      ttl: ttl || CACHE_TTL,
+    });
+
     return true;
   }
 }

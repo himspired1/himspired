@@ -5,12 +5,7 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { validateFile } from "@/lib/file-upload";
 import { OrderStatus } from "@/models/order";
 import { states } from "@/data/states";
-
-// In-memory rate limiting per session or IP
-const orderAttempts = new Map(); // key: sessionId or IP, value: { count, firstAttempt }
-const MAX_ORDERS_PER_SESSION = 3;
-const MAX_ORDERS_PER_IP = 100;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest) {
   return (
@@ -20,46 +15,99 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+// Rate limiting helper functions using shared utility
+async function checkSessionRateLimit(
+  sessionId: string
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  try {
+    return await rateLimiter.checkRateLimit(
+      sessionId,
+      RATE_LIMIT_CONFIGS.ORDERS_SESSION
+    );
+  } catch (error) {
+    console.warn("Session rate limit check failed, allowing request:", error);
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.ORDERS_SESSION.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.ORDERS_SESSION.windowMs,
+    };
+  }
+}
+
+async function checkIpRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  try {
+    return await rateLimiter.checkRateLimit(ip, RATE_LIMIT_CONFIGS.ORDERS_IP);
+  } catch (error) {
+    console.warn("IP rate limit check failed, allowing request:", error);
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.ORDERS_IP.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.ORDERS_IP.windowMs,
+    };
+  }
+}
+
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const sessionId = formData.get("sessionId") as string;
   const ip = getClientIp(req);
-  const now = Date.now();
 
   // Per-session rate limiting
   if (sessionId) {
-    let entry = orderAttempts.get(sessionId);
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-    entry.count++;
-    orderAttempts.set(sessionId, entry);
-    if (entry.count > MAX_ORDERS_PER_SESSION) {
-      return NextResponse.json(
+    const sessionRateLimit = await checkSessionRateLimit(sessionId);
+    if (!sessionRateLimit.allowed) {
+      const now = Date.now();
+      const remainingMs = sessionRateLimit.resetTime - now;
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+      // Create response with proper headers
+      const response = NextResponse.json(
         {
           error:
             "Too many orders submitted from this session. Please try again later.",
+          remainingTime: remainingMinutes,
+          remainingSeconds: remainingSeconds,
+          resetTime: new Date(sessionRateLimit.resetTime).toISOString(),
         },
         { status: 429 }
       );
+
+      // Add Retry-After header with remaining time in seconds (HTTP standard)
+      response.headers.set("Retry-After", remainingSeconds.toString());
+
+      return response;
     }
   }
 
   // Per-IP rate limiting (much higher limit)
-  let ipEntry = orderAttempts.get(ip);
-  if (!ipEntry || now - ipEntry.firstAttempt > WINDOW_MS) {
-    ipEntry = { count: 0, firstAttempt: now };
-  }
-  ipEntry.count++;
-  orderAttempts.set(ip, ipEntry);
-  if (ipEntry.count > MAX_ORDERS_PER_IP) {
-    return NextResponse.json(
+  const ipRateLimit = await checkIpRateLimit(ip);
+  if (!ipRateLimit.allowed) {
+    const now = Date.now();
+    const remainingMs = ipRateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
       {
         error:
           "Too many orders submitted from this network. Please try again later.",
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(ipRateLimit.resetTime).toISOString(),
       },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {

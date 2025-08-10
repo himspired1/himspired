@@ -4,6 +4,63 @@ import { stateDeliveryService } from "@/lib/state-delivery";
 import { UpdateStateDeliveryFeeRequest } from "@/models/state-delivery";
 import { states } from "@/data/states";
 import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
+import { AdminAuth } from "@/lib/admin-auth";
+
+// Normalize states to lowercase for case-insensitive comparison
+const normalizedStates = states.map((state) => state.toLowerCase());
+
+// Create a mapping from lowercase states to canonical casing
+const stateCanonicalMap = new Map<string, string>();
+states.forEach((state) => {
+  stateCanonicalMap.set(state.toLowerCase(), state);
+});
+
+/**
+ * Validates and normalizes a state parameter
+ * @param state - The raw state parameter from the URL
+ * @returns Object with validation result and canonical state
+ */
+function validateAndNormalizeState(state: string | undefined): {
+  isValid: boolean;
+  canonicalState: string | null;
+  error?: string;
+} {
+  // Guard: Check if state is defined and non-empty
+  if (!state || typeof state !== "string" || state.trim().length === 0) {
+    return {
+      isValid: false,
+      canonicalState: null,
+      error: "State parameter is required and must be a non-empty string",
+    };
+  }
+
+  const stateName = state.toLowerCase();
+
+  // Check if the normalized state exists in our valid states
+  if (!normalizedStates.includes(stateName)) {
+    return {
+      isValid: false,
+      canonicalState: null,
+      error: "Invalid state. Please provide a valid Nigerian state.",
+    };
+  }
+
+  // Get the canonical casing from our mapping
+  const canonicalState = stateCanonicalMap.get(stateName);
+
+  if (!canonicalState) {
+    return {
+      isValid: false,
+      canonicalState: null,
+      error: "Failed to resolve canonical state name",
+    };
+  }
+
+  return {
+    isValid: true,
+    canonicalState,
+  };
+}
 
 function getClientIp(req: NextRequest) {
   return (
@@ -61,20 +118,20 @@ export async function GET(
   try {
     const { state } = await params;
 
-    if (!state || !states.includes(state)) {
-      return NextResponse.json(
-        { error: "Invalid state. Please provide a valid Nigerian state." },
-        { status: 400 }
-      );
+    // Validate and normalize the state parameter
+    const validation = validateAndNormalizeState(state);
+    if (!validation.isValid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const fee = await stateDeliveryService.getDeliveryFee(state);
+    const canonicalState = validation.canonicalState!;
+    const fee = await stateDeliveryService.getDeliveryFee(canonicalState);
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          state,
+          state: canonicalState,
           deliveryFee: fee,
         },
       },
@@ -100,22 +157,32 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
-  // Check rate limit
+  // Check rate limit FIRST - before any authentication or processing
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
     return rateLimitResponse;
+  }
+
+  // Check admin authentication
+  const authResult = await AdminAuth.verifyAdminAuth(req);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
   }
 
   try {
     const { state } = await params;
     const body: UpdateStateDeliveryFeeRequest = await req.json();
 
-    if (!state || !states.includes(state)) {
-      return NextResponse.json(
-        { error: "Invalid state. Please provide a valid Nigerian state." },
-        { status: 400 }
-      );
+    // Validate and normalize the state parameter
+    const validation = validateAndNormalizeState(state);
+    if (!validation.isValid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    const canonicalState = validation.canonicalState!;
 
     if (
       body.deliveryFee !== undefined &&
@@ -130,7 +197,7 @@ export async function PATCH(
     }
 
     const result = await stateDeliveryService.updateStateDeliveryFee(
-      state,
+      canonicalState,
       body
     );
 
@@ -160,23 +227,33 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ state: string }> }
 ) {
-  // Check rate limit
+  // Check rate limit FIRST - before any authentication or processing
   const rateLimitResponse = await checkRateLimit(req);
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
 
+  // Check admin authentication
+  const authResult = await AdminAuth.verifyAdminAuth(req);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: "Unauthorized. Admin access required." },
+      { status: 401 }
+    );
+  }
+
   try {
     const { state } = await params;
 
-    if (!state || !states.includes(state)) {
-      return NextResponse.json(
-        { error: "Invalid state. Please provide a valid Nigerian state." },
-        { status: 400 }
-      );
+    // Validate and normalize the state parameter
+    const validation = validateAndNormalizeState(state);
+    if (!validation.isValid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const deleted = await stateDeliveryService.deleteStateDeliveryFee(state);
+    const canonicalState = validation.canonicalState!;
+    const deleted =
+      await stateDeliveryService.deleteStateDeliveryFee(canonicalState);
 
     if (!deleted) {
       return NextResponse.json(
