@@ -2,11 +2,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { newsletterService } from "@/lib/newsletter";
-import { cacheService } from "@/lib/cache-service";
-
-// Redis-based rate limiting per IP
-const MAX_SUBSCRIPTIONS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -24,39 +20,23 @@ function getClientIp(req: NextRequest) {
   );
 }
 
-// Rate limiting helper function
+// Rate limiting helper function using shared utility
 async function checkNewsletterRateLimit(
   ip: string
-): Promise<{ allowed: boolean; remaining: number }> {
-  const now = Date.now();
-  const rateLimitKey = `newsletter:${ip}`;
-
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
   try {
-    const cached = await cacheService.getRateLimitCache(rateLimitKey);
-    let entry = cached as { count: number; firstAttempt: number } | null;
-
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-
-    entry.count++;
-    const remaining = Math.max(0, MAX_SUBSCRIPTIONS - entry.count);
-    const allowed = entry.count <= MAX_SUBSCRIPTIONS;
-
-    // Store updated entry in Redis
-    await cacheService.setRateLimitCache(
-      rateLimitKey,
-      entry,
-      Math.ceil(WINDOW_MS / 1000)
-    );
-
-    return { allowed, remaining };
+    return await rateLimiter.checkRateLimit(ip, RATE_LIMIT_CONFIGS.NEWSLETTER);
   } catch (error) {
     console.warn(
       "Newsletter rate limit check failed, allowing request:",
       error
     );
-    return { allowed: true, remaining: MAX_SUBSCRIPTIONS };
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.NEWSLETTER.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.NEWSLETTER.windowMs,
+    };
   }
 }
 
@@ -66,13 +46,26 @@ export async function POST(req: NextRequest) {
 
   const rateLimit = await checkNewsletterRateLimit(ip);
   if (!rateLimit.allowed) {
-    return NextResponse.json(
+    const now = Date.now();
+    const remainingMs = rateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
       {
         error: "Too many newsletter subscriptions. Please try again later.",
-        remainingTime: Math.ceil(WINDOW_MS / 1000 / 60), // minutes
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(rateLimit.resetTime).toISOString(),
       },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {

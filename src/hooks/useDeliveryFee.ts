@@ -15,6 +15,7 @@ export const useDeliveryFee = (selectedState: string | null) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState<boolean>(false);
+  const [currentState, setCurrentState] = useState<string | null>(null);
 
   const fetchDeliveryFee = useCallback(async () => {
     if (!selectedState) {
@@ -23,7 +24,7 @@ export const useDeliveryFee = (selectedState: string | null) => {
       return;
     }
 
-    if (deliveryFee > 0) {
+    if (deliveryFee > 0 && currentState === selectedState) {
       return;
     }
 
@@ -34,13 +35,27 @@ export const useDeliveryFee = (selectedState: string | null) => {
       const response = await fetch(
         `/api/delivery-fees/${encodeURIComponent(selectedState)}`
       );
-      const data: DeliveryFeeResponse = await response.json();
 
-      if (response.ok) {
-        setDeliveryFee(data.data.deliveryFee);
-      } else {
+      // First check if the HTTP response is successful
+      if (!response.ok) {
         throw new Error(`Failed to fetch delivery fee: ${response.status}`);
       }
+
+      // Only parse JSON if response is ok
+      const data: DeliveryFeeResponse = await response.json();
+
+      // Verify the API response indicates success
+      if (!data.success) {
+        throw new Error(data.message || 'API returned unsuccessful response');
+      }
+
+      // Validate the data structure
+      if (!data.data || typeof data.data.deliveryFee !== 'number') {
+        throw new Error('Invalid delivery fee data structure');
+      }
+
+      setDeliveryFee(data.data.deliveryFee);
+      setCurrentState(selectedState);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Failed to fetch delivery fee"
@@ -49,7 +64,7 @@ export const useDeliveryFee = (selectedState: string | null) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedState, deliveryFee]);
+  }, [selectedState, deliveryFee, currentState]);
 
   const refreshDeliveryFee = useCallback(() => {
     fetchDeliveryFee();

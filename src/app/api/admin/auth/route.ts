@@ -2,11 +2,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { AdminAuth } from "@/lib/admin-auth";
 import { z } from "zod";
-import { cacheService } from "@/lib/cache-service";
-
-// Redis-based rate limiting (per IP)
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest) {
   return (
@@ -16,61 +12,35 @@ function getClientIp(req: NextRequest) {
   );
 }
 
-// Rate limiting helper functions
-async function checkRateLimit(
-  ip: string
-): Promise<{ allowed: boolean; remaining: number }> {
-  const now = Date.now();
-  const rateLimitKey = `admin_auth:${ip}`;
-
-  try {
-    const cached = await cacheService.getRateLimitCache(rateLimitKey);
-    let entry = cached as { count: number; firstAttempt: number } | null;
-
-    if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-      entry = { count: 0, firstAttempt: now };
-    }
-
-    entry.count++;
-    const remaining = Math.max(0, MAX_ATTEMPTS - entry.count);
-    const allowed = entry.count <= MAX_ATTEMPTS;
-
-    // Store updated entry in Redis
-    await cacheService.setRateLimitCache(
-      rateLimitKey,
-      entry,
-      Math.ceil(WINDOW_MS / 1000)
-    );
-
-    return { allowed, remaining };
-  } catch (error) {
-    console.warn("Rate limit check failed, allowing request:", error);
-    return { allowed: true, remaining: MAX_ATTEMPTS };
-  }
-}
-
-async function resetRateLimit(ip: string): Promise<void> {
-  const rateLimitKey = `admin_auth:${ip}`;
-  try {
-    await cacheService.setRateLimitCache(rateLimitKey, null, 1); // Delete by setting short TTL
-  } catch (error) {
-    console.warn("Failed to reset rate limit:", error);
-  }
-}
-
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
 
-  // Check rate limit
-  const rateLimit = await checkRateLimit(ip);
+  // Check rate limit using the existing rateLimiter utility
+  const rateLimit = await rateLimiter.checkRateLimit(
+    ip,
+    RATE_LIMIT_CONFIGS.AUTH
+  );
   if (!rateLimit.allowed) {
-    return NextResponse.json(
+    const now = Date.now();
+    const remainingMs = rateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
       {
         error: "Too many login attempts. Please try again later.",
-        remainingTime: Math.ceil(WINDOW_MS / 1000 / 60), // minutes
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(rateLimit.resetTime).toISOString(),
       },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {
@@ -111,8 +81,15 @@ export async function POST(req: NextRequest) {
       maxAge: 24 * 60 * 60, // 24 hours
     });
 
-    // Reset attempts on successful login
-    await resetRateLimit(ip);
+    // Reset rate limit on successful login
+    // rateLimiter.resetRateLimit properly deletes cache entries using cache.delete()
+    // instead of setting values to null, ensuring clean cache management
+    try {
+      await rateLimiter.resetRateLimit(ip, RATE_LIMIT_CONFIGS.AUTH);
+    } catch (error) {
+      // Log the error but don't fail the authentication
+      console.warn("Failed to reset rate limit for IP:", ip, error);
+    }
 
     return response;
   } catch (error) {

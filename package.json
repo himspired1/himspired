@@ -11,7 +11,7 @@
     "delivery:init": "tsx src/scripts/init-delivery-fees.ts",
     "init:all": "tsx src/scripts/init-all.ts",
     "lint": "next lint",
-    "clear-cache": "node scripts/clear-analytics-cache.js",
+    "clear-cache": "tsx scripts/clear-analytics-cache.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

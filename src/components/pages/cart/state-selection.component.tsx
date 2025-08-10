@@ -84,13 +84,18 @@ const StateSelection = ({
   }, []);
 
   useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("mousedown", handleClickOutside);
+    // Only attach event listeners when dropdown is open
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    // Cleanup function to remove event listeners
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [handleKeyDown, handleClickOutside]);
+  }, [isOpen, handleKeyDown, handleClickOutside]);
 
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
@@ -120,6 +125,8 @@ const StateSelection = ({
         <button
           type="button"
           onClick={toggleDropdown}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#68191E] focus:border-transparent bg-white text-left flex items-center justify-between hover:border-gray-400 transition-colors"
         >
           <span className={selectedState ? "text-gray-900" : "text-gray-500"}>
@@ -162,11 +169,22 @@ const StateSelection = ({
             </div>
 
             {/* States List */}
-            <div className="max-h-60 overflow-y-auto">
+            <div
+              role="listbox"
+              aria-activedescendant={
+                highlightedIndex >= 0 && filteredStates[highlightedIndex]
+                  ? `state-option-${filteredStates[highlightedIndex]}`
+                  : undefined
+              }
+              className="max-h-60 overflow-y-auto"
+            >
               {filteredStates.length > 0 ? (
                 filteredStates.map((state, index) => (
                   <button
                     key={state}
+                    id={`state-option-${state}`}
+                    role="option"
+                    aria-selected={state === selectedState}
                     type="button"
                     onClick={() => handleStateSelect(state)}
                     className={`w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none focus:bg-gray-50 transition-colors ${

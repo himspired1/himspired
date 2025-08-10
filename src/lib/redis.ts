@@ -71,6 +71,9 @@ export interface CacheInterface {
   clear(pattern?: string): Promise<void>;
   isAvailable(): boolean;
   destroy(): void;
+  // Atomic Redis operations for rate limiting
+  incr(key: string): Promise<number>;
+  setnx(key: string, value: unknown, ttl?: number): Promise<boolean>;
 }
 
 // Redis-based cache implementation
@@ -234,6 +237,34 @@ class RedisCache implements CacheInterface {
 
   isAvailable(): boolean {
     return isRedisAvailable;
+  }
+
+  // Atomic Redis operations for rate limiting
+  async incr(key: string): Promise<number> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new Error("Redis client not available");
+    }
+    return await this.client.incr(key);
+  }
+
+  async setnx(key: string, value: unknown, ttl?: number): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new Error("Redis client not available");
+    }
+    
+    // Use Redis SET with NX (only if key doesn't exist) and EX (expiration)
+    const result = await this.client.set(
+      key,
+      String(value),
+      'EX',
+      ttl || CACHE_TTL,
+      'NX'
+    );
+    
+    // SET with NX returns 'OK' if key was set, null if key already exists
+    return result === 'OK';
   }
 }
 

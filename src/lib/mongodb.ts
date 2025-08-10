@@ -12,7 +12,26 @@ const uri = process.env.MONGODB_URI;
 const calculateOptimalPoolSize = () => {
   const envPoolSize = process.env.MONGODB_MAX_POOL_SIZE;
   if (envPoolSize) {
-    return parseInt(envPoolSize, 10);
+    const parsedSize = parseInt(envPoolSize, 10);
+
+    // Validate the parsed value is a finite number
+    if (Number.isFinite(parsedSize)) {
+      // Clamp the value within reasonable bounds (10 to 10000)
+      const clampedSize = Math.max(10, Math.min(10000, parsedSize));
+
+      // Log if the value was clamped for debugging
+      if (clampedSize !== parsedSize) {
+        console.warn(
+          `⚠️  MONGODB_MAX_POOL_SIZE ${parsedSize} was clamped to ${clampedSize} (valid range: 10-10000)`
+        );
+      }
+
+      return clampedSize;
+    } else {
+      console.warn(
+        `⚠️  Invalid MONGODB_MAX_POOL_SIZE "${envPoolSize}", falling back to default 500`
+      );
+    }
   }
 
   // Default to 500 for high concurrency (200+ users)
@@ -83,22 +102,46 @@ export async function checkDatabaseConnection(): Promise<{
     const client = await clientPromise;
     await client.db("admin").command({ ping: 1 });
 
-    // Get connection pool statistics
-    const poolStats = await client.db("admin").command({
-      serverStatus: 1,
-      connections: 1,
-    });
+    try {
+      // Get connection pool statistics
+      const poolStats = await client.db("admin").command({
+        serverStatus: 1,
+        connections: 1,
+      });
 
-    console.log("✅ MongoDB connection healthy");
-    console.log(
-      `📊 Connection pool: ${options.maxPoolSize} max, ${options.minPoolSize} min`
-    );
+      console.log("✅ MongoDB connection healthy");
+      console.log(
+        `📊 Connection pool: ${options.maxPoolSize} max, ${options.minPoolSize} min`
+      );
 
-    return {
-      healthy: true,
-      poolSize: options.maxPoolSize,
-      availableConnections: poolStats.connections?.available || 0,
-    };
+      return {
+        healthy: true,
+        poolSize: options.maxPoolSize,
+        availableConnections: poolStats.connections?.available || 0,
+      };
+    } catch (poolError: any) {
+      // Handle authorization errors from serverStatus command
+      if (
+        poolError.code === 13 ||
+        poolError.codeName === "Unauthorized" ||
+        poolError.message?.includes("not authorized") ||
+        poolError.message?.includes("insufficient privileges")
+      ) {
+        console.log("✅ MongoDB connection healthy (ping successful)");
+        console.log(
+          "⚠️  Connection pool stats unavailable due to insufficient privileges"
+        );
+
+        return {
+          healthy: true,
+          poolSize: options.maxPoolSize,
+          // availableConnections will be undefined since we can't access pool stats
+        };
+      }
+
+      // Re-throw other errors that aren't authorization-related
+      throw poolError;
+    }
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
     return { healthy: false };
@@ -134,6 +177,7 @@ export async function getClientWithRetry(maxRetries = 3): Promise<MongoClient> {
 
 // NEW: Connection pool monitoring and alerting
 export async function monitorConnectionPool(): Promise<void> {
+  const startTime = Date.now();
   try {
     const client = await clientPromise;
     const db = client.db("admin");
@@ -210,6 +254,9 @@ export async function monitorConnectionPool(): Promise<void> {
     const updates = operations.update || 0;
     const deletes = operations.delete || 0;
 
+    // Measure response time for the serverStatus command
+    const responseTime = Date.now() - startTime;
+
     console.log(`📈 Database Operations:`);
     console.log(`   Queries: ${queries}`);
     console.log(`   Inserts: ${inserts}`);
@@ -218,12 +265,14 @@ export async function monitorConnectionPool(): Promise<void> {
 
     // Memory monitoring
     const mem = serverStatus.mem || {};
-    const residentMB = Math.round((mem.resident || 0) / 1024 / 1024);
-    const virtualMB = Math.round((mem.virtual || 0) / 1024 / 1024);
+    const residentMB = Math.round(mem.resident || 0);
+    const virtualMB = Math.round(mem.virtual || 0);
 
     console.log(`💾 Memory Usage:`);
     console.log(`   Resident: ${residentMB}MB`);
     console.log(`   Virtual: ${virtualMB}MB`);
+
+    console.log(`⏱️  Response Time: ${responseTime}ms`);
 
     // Store metrics for trending
     await storeDatabaseMetrics({
@@ -238,6 +287,7 @@ export async function monitorConnectionPool(): Promise<void> {
       deletes,
       residentMB,
       virtualMB,
+      responseTime,
     });
   } catch (error) {
     console.error("Failed to monitor connection pool:", error);
@@ -298,6 +348,7 @@ async function storeDatabaseMetrics(metrics: {
   deletes: number;
   residentMB: number;
   virtualMB: number;
+  responseTime: number;
 }): Promise<void> {
   try {
     const client = await clientPromise;
@@ -496,7 +547,7 @@ export async function getDatabaseTrends(hours: number = 24): Promise<{
       metrics.reduce((sum, m) => sum + (m.responseTime || 0), 0) /
       metrics.length;
     const peakConnections = Math.max(
-      ...metrics.map((m) => m.activeConnections)
+      ...metrics.map((m) => m.activeConnections || 0)
     );
     const totalOperations = metrics.reduce(
       (sum, m) => sum + m.queries + m.inserts + m.updates + m.deletes,

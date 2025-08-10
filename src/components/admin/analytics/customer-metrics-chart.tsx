@@ -27,13 +27,19 @@ const CustomerMetricsChart = ({ data }: CustomerMetricsChartProps) => {
 
   // Customer type data for pie chart
   const customerTypeData = [
-    { name: "New Customers", value: typeof data.new === 'number' ? data.new : 0 },
-    { name: "Returning Customers", value: typeof data.returning === 'number' ? data.returning : 0 },
+    {
+      name: "New Customers",
+      value: typeof data.new === "number" ? data.new : 0,
+    },
+    {
+      name: "Returning Customers",
+      value: typeof data.returning === "number" ? data.returning : 0,
+    },
   ];
 
   // Top states data for bar chart
   const topStatesData = Array.isArray(data.byState)
-    ? data.byState.sort((a, b) => b.count - a.count).slice(0, 8)
+    ? [...data.byState].sort((a, b) => b.count - a.count).slice(0, 8)
     : [];
 
   const formatCount = (value: number) => {
@@ -101,40 +107,40 @@ const CustomerMetricsChart = ({ data }: CustomerMetricsChartProps) => {
           {hasValidData ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topStatesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="state"
-                tickFormatter={formatState}
-                tick={{ fontSize: 8 }}
-                stroke="#666"
-                angle={-45}
-                textAnchor="end"
-                height={60}
-              />
-              <YAxis
-                tickFormatter={formatCount}
-                tick={{ fontSize: 8 }}
-                stroke="#666"
-              />
-              <Tooltip
-                formatter={(value: number) => [value, "Customers"]}
-                labelFormatter={(label) => label}
-                contentStyle={{
-                  backgroundColor: "white",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                }}
-              />
-              <Bar
-                dataKey="count"
-                fill="#06b6d4"
-                stroke="#0891b2"
-                strokeWidth={2}
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="state"
+                  tickFormatter={formatState}
+                  tick={{ fontSize: 8 }}
+                  stroke="#666"
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis
+                  tickFormatter={formatCount}
+                  tick={{ fontSize: 8 }}
+                  stroke="#666"
+                />
+                <Tooltip
+                  formatter={(value: number) => [value, "Customers"]}
+                  labelFormatter={(label) => label}
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                  }}
+                />
+                <Bar
+                  dataKey="count"
+                  fill="#06b6d4"
+                  stroke="#0891b2"
+                  strokeWidth={2}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
               No customer data available

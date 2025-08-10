@@ -40,21 +40,17 @@ export class RateLimiter {
 
       // Parse current count
       if (countResult && typeof countResult === "string") {
-        try {
-          count = parseInt(countResult, 10);
-        } catch (parseError) {
-          console.error("Failed to parse count:", parseError);
-          count = 0;
+        const parsedCount = parseInt(countResult, 10);
+        if (!isNaN(parsedCount)) {
+          count = parsedCount;
         }
       }
 
       // Parse first attempt time
       if (firstAttemptResult && typeof firstAttemptResult === "string") {
-        try {
-          firstAttempt = parseInt(firstAttemptResult, 10);
-        } catch (parseError) {
-          console.error("Failed to parse first attempt:", parseError);
-          firstAttempt = now;
+        const parsedFirstAttempt = parseInt(firstAttemptResult, 10);
+        if (!isNaN(parsedFirstAttempt)) {
+          firstAttempt = parsedFirstAttempt;
         }
       }
 
@@ -88,7 +84,7 @@ export class RateLimiter {
           this.cache.set(firstAttemptKey, firstAttempt.toString(), ttlSeconds),
         ]);
       } else {
-        await this.cache.set(countKey, newCount.toString(), ttlSeconds);
+        await this.cache.set(countKey, newCount.toString());
       }
 
       // Check if limit exceeded
@@ -230,6 +226,21 @@ export const RATE_LIMIT_CONFIGS = {
     maxAttempts: 5,
     windowMs: 15 * 60 * 1000, // 15 minutes
     keyPrefix: "rate_limit:auth",
+  },
+  NEWSLETTER: {
+    maxAttempts: 3,
+    windowMs: 30 * 60 * 1000, // 30 minutes
+    keyPrefix: "rate_limit:newsletter",
+  },
+  ORDERS_SESSION: {
+    maxAttempts: 3,
+    windowMs: 30 * 60 * 1000, // 30 minutes
+    keyPrefix: "rate_limit:orders_session",
+  },
+  ORDERS_IP: {
+    maxAttempts: 100,
+    windowMs: 30 * 60 * 1000, // 30 minutes
+    keyPrefix: "rate_limit:orders_ip",
   },
 } as const;
 

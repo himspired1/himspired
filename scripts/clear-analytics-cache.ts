@@ -2,10 +2,10 @@
 
 /**
  * Script to clear analytics cache
- * Run with: node scripts/clear-analytics-cache.js
+ * Run with: npm run clear-cache
  */
 
-const { cacheService } = require("../src/lib/cache-service");
+import { cacheService } from "../src/lib/cache-service";
 
 async function clearAnalyticsCache() {
   try {
