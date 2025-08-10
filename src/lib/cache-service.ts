@@ -58,6 +58,8 @@ export class CacheService {
       delete: async () => {},
       clear: async () => {},
       destroy: () => {},
+      incr: async () => 1,
+      setnx: async () => true,
     };
   }
 

@@ -119,13 +119,18 @@ export async function checkDatabaseConnection(): Promise<{
         poolSize: options.maxPoolSize,
         availableConnections: poolStats.connections?.available || 0,
       };
-    } catch (poolError: any) {
+    } catch (poolError: unknown) {
       // Handle authorization errors from serverStatus command
+      const error = poolError as {
+        code?: number;
+        codeName?: string;
+        message?: string;
+      };
       if (
-        poolError.code === 13 ||
-        poolError.codeName === "Unauthorized" ||
-        poolError.message?.includes("not authorized") ||
-        poolError.message?.includes("insufficient privileges")
+        error.code === 13 ||
+        error.codeName === "Unauthorized" ||
+        error.message?.includes("not authorized") ||
+        error.message?.includes("insufficient privileges")
       ) {
         console.log("✅ MongoDB connection healthy (ping successful)");
         console.log(

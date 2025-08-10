@@ -46,12 +46,12 @@ export const useDeliveryFee = (selectedState: string | null) => {
 
       // Verify the API response indicates success
       if (!data.success) {
-        throw new Error(data.message || 'API returned unsuccessful response');
+        throw new Error(data.message || "API returned unsuccessful response");
       }
 
       // Validate the data structure
-      if (!data.data || typeof data.data.deliveryFee !== 'number') {
-        throw new Error('Invalid delivery fee data structure');
+      if (!data.data || typeof data.data.deliveryFee !== "number") {
+        throw new Error("Invalid delivery fee data structure");
       }
 
       setDeliveryFee(data.data.deliveryFee);
