@@ -187,119 +187,177 @@ export async function monitorConnectionPool(): Promise<void> {
     const client = await clientPromise;
     const db = client.db("admin");
 
-    // Get detailed connection pool statistics
-    const serverStatus = await db.command({ serverStatus: 1 });
-    const connections = serverStatus.connections || {};
+    // First, test basic connectivity
+    await client.db("admin").command({ ping: 1 });
 
-    const totalConnections = connections.current || 0;
-    const availableConnections = connections.available || 0;
-    const activeConnections = totalConnections - availableConnections;
-    const maxPoolSize = options.maxPoolSize || 500;
+    try {
+      // Get detailed connection pool statistics
+      const serverStatus = await db.command({ serverStatus: 1 });
+      const connections = serverStatus.connections || {};
 
-    // Calculate key metrics
-    const utilization = (activeConnections / maxPoolSize) * 100;
-    const availablePercentage = (availableConnections / maxPoolSize) * 100;
+      const totalConnections = connections.current || 0;
+      const availableConnections = connections.available || 0;
+      const activeConnections = totalConnections - availableConnections;
+      const maxPoolSize = options.maxPoolSize || 500;
 
-    // Log pool statistics
-    console.log(`📊 MongoDB Pool Status:`);
-    console.log(`   Total Connections: ${totalConnections}`);
-    console.log(`   Available Connections: ${availableConnections}`);
-    console.log(`   Active Connections: ${activeConnections}`);
-    console.log(`   Max Pool Size: ${maxPoolSize}`);
-    console.log(`   Utilization: ${utilization.toFixed(1)}%`);
-    console.log(`   Available: ${availablePercentage.toFixed(1)}%`);
+      // Calculate key metrics
+      const utilization = (activeConnections / maxPoolSize) * 100;
+      const availablePercentage = (availableConnections / maxPoolSize) * 100;
 
-    // CRITICAL ALERTS: Connection pool health
-    if (utilization > 90) {
-      console.error(
-        `🚨 CRITICAL: MongoDB connection pool utilization: ${utilization.toFixed(1)}%`
-      );
-      console.error(`   Pool is nearly exhausted. Immediate action required.`);
-      await sendDatabaseAlert(
-        "CRITICAL",
-        `MongoDB pool utilization: ${utilization.toFixed(1)}%`
-      );
-    } else if (utilization > 80) {
-      console.warn(
-        `⚠️ WARNING: MongoDB connection pool utilization: ${utilization.toFixed(1)}%`
-      );
-      console.warn(
-        `   Consider increasing MONGODB_MAX_POOL_SIZE environment variable`
-      );
-      await sendDatabaseAlert(
-        "WARNING",
-        `MongoDB pool utilization: ${utilization.toFixed(1)}%`
-      );
+      // Log pool statistics
+      console.log(`📊 MongoDB Pool Status:`);
+      console.log(`   Total Connections: ${totalConnections}`);
+      console.log(`   Available Connections: ${availableConnections}`);
+      console.log(`   Active Connections: ${activeConnections}`);
+      console.log(`   Max Pool Size: ${maxPoolSize}`);
+      console.log(`   Utilization: ${utilization.toFixed(1)}%`);
+      console.log(`   Available: ${availablePercentage.toFixed(1)}%`);
+
+      // NOTE: These are server-wide metrics, not client-specific pool metrics
+      // Use reduced alert severity and add context about metric limitations
+      if (utilization > 90) {
+        console.warn(
+          `⚠️  HIGH: Server-wide MongoDB connection utilization: ${utilization.toFixed(1)}%`
+        );
+        console.warn(
+          `   Note: This reflects server-wide usage, not this client's pool`
+        );
+        // Reduced from CRITICAL to WARNING since these are server-wide metrics
+        await sendDatabaseAlert(
+          "WARNING",
+          `Server-wide MongoDB connection utilization: ${utilization.toFixed(1)}% (not client-specific)`
+        );
+      } else if (utilization > 80) {
+        console.log(
+          `ℹ️  INFO: Server-wide MongoDB connection utilization: ${utilization.toFixed(1)}%`
+        );
+        console.log(
+          `   Note: This reflects server-wide usage, not this client's pool`
+        );
+        // Reduced from WARNING to INFO level
+      }
+
+      // Reduced alert severity for available connections since these are server-wide
+      if (availableConnections < 5) {
+        console.warn(
+          `⚠️  WARNING: Server-wide low available connections: ${availableConnections}`
+        );
+        console.warn(
+          `   Note: This reflects server-wide usage, not this client's pool`
+        );
+        await sendDatabaseAlert(
+          "WARNING",
+          `Server-wide low available connections: ${availableConnections} (not client-specific)`
+        );
+      } else if (availableConnections < 10) {
+        console.log(
+          `ℹ️  INFO: Server-wide low available connections: ${availableConnections}`
+        );
+        console.log(
+          `   Note: This reflects server-wide usage, not this client's pool`
+        );
+      }
+
+      // Performance monitoring
+      const operations = serverStatus.opcounters || {};
+      const queries = operations.query || 0;
+      const inserts = operations.insert || 0;
+      const updates = operations.update || 0;
+      const deletes = operations.delete || 0;
+
+      // Measure response time for the serverStatus command
+      const responseTime = Date.now() - startTime;
+
+      console.log(`📈 Database Operations:`);
+      console.log(`   Queries: ${queries}`);
+      console.log(`   Inserts: ${inserts}`);
+      console.log(`   Updates: ${updates}`);
+      console.log(`   Deletes: ${deletes}`);
+
+      // Memory monitoring
+      const mem = serverStatus.mem || {};
+      const residentMB = Math.round(mem.resident || 0);
+      const virtualMB = Math.round(mem.virtual || 0);
+
+      console.log(`💾 Memory Usage:`);
+      console.log(`   Resident: ${residentMB}MB`);
+      console.log(`   Virtual: ${virtualMB}MB`);
+
+      console.log(`⏱️  Response Time: ${responseTime}ms`);
+
+      // Store metrics for trending
+      await storeDatabaseMetrics({
+        timestamp: Date.now(),
+        totalConnections,
+        availableConnections,
+        activeConnections,
+        utilization,
+        queries,
+        inserts,
+        updates,
+        deletes,
+        residentMB,
+        virtualMB,
+        responseTime,
+      });
+    } catch (poolError: unknown) {
+      // Handle authorization errors from serverStatus command gracefully
+      const error = poolError as {
+        code?: number;
+        codeName?: string;
+        message?: string;
+      };
+
+      if (
+        error.code === 13 ||
+        error.codeName === "Unauthorized" ||
+        error.message?.includes("not authorized") ||
+        error.message?.includes("insufficient privileges")
+      ) {
+        console.log("✅ MongoDB connection healthy (ping successful)");
+        console.log(
+          "⚠️  Connection pool stats unavailable due to insufficient privileges"
+        );
+        console.log(
+          "   Monitoring will continue with basic connectivity checks only"
+        );
+
+        // Store basic metrics without pool statistics
+        const responseTime = Date.now() - startTime;
+        await storeDatabaseMetrics({
+          timestamp: Date.now(),
+          totalConnections: 0,
+          availableConnections: 0,
+          activeConnections: 0,
+          utilization: 0,
+          queries: 0,
+          inserts: 0,
+          updates: 0,
+          deletes: 0,
+          residentMB: 0,
+          virtualMB: 0,
+          responseTime,
+        });
+
+        return; // Exit gracefully without sending alerts
+      }
+
+      // Re-throw other errors that aren't authorization-related
+      throw poolError;
     }
-
-    // CRITICAL ALERTS: Available connections
-    if (availableConnections < 5) {
-      console.error(
-        `🚨 CRITICAL: Very low available connections: ${availableConnections}`
-      );
-      console.error(`   System may become unresponsive soon.`);
-      await sendDatabaseAlert(
-        "CRITICAL",
-        `Low available connections: ${availableConnections}`
-      );
-    } else if (availableConnections < 10) {
-      console.warn(
-        `⚠️ WARNING: Low available connections: ${availableConnections}`
-      );
-      await sendDatabaseAlert(
-        "WARNING",
-        `Low available connections: ${availableConnections}`
-      );
-    }
-
-    // Performance monitoring
-    const operations = serverStatus.opcounters || {};
-    const queries = operations.query || 0;
-    const inserts = operations.insert || 0;
-    const updates = operations.update || 0;
-    const deletes = operations.delete || 0;
-
-    // Measure response time for the serverStatus command
-    const responseTime = Date.now() - startTime;
-
-    console.log(`📈 Database Operations:`);
-    console.log(`   Queries: ${queries}`);
-    console.log(`   Inserts: ${inserts}`);
-    console.log(`   Updates: ${updates}`);
-    console.log(`   Deletes: ${deletes}`);
-
-    // Memory monitoring
-    const mem = serverStatus.mem || {};
-    const residentMB = Math.round(mem.resident || 0);
-    const virtualMB = Math.round(mem.virtual || 0);
-
-    console.log(`💾 Memory Usage:`);
-    console.log(`   Resident: ${residentMB}MB`);
-    console.log(`   Virtual: ${virtualMB}MB`);
-
-    console.log(`⏱️  Response Time: ${responseTime}ms`);
-
-    // Store metrics for trending
-    await storeDatabaseMetrics({
-      timestamp: Date.now(),
-      totalConnections,
-      availableConnections,
-      activeConnections,
-      utilization,
-      queries,
-      inserts,
-      updates,
-      deletes,
-      residentMB,
-      virtualMB,
-      responseTime,
-    });
   } catch (error) {
     console.error("Failed to monitor connection pool:", error);
-    await sendDatabaseAlert(
-      "ERROR",
-      `Database monitoring failed: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    // Only send alerts for non-authorization errors
+    if (
+      error instanceof Error &&
+      !error.message.includes("not authorized") &&
+      !error.message.includes("insufficient privileges")
+    ) {
+      await sendDatabaseAlert(
+        "ERROR",
+        `Database monitoring failed: ${error.message}`
+      );
+    }
   }
 }
 
@@ -322,7 +380,8 @@ async function sendDatabaseAlert(
 
     // Store alert in database for tracking
     const client = await clientPromise;
-    const db = client.db("himspired");
+    const dbName = process.env.MONGODB_DATABASE || "himspired";
+    const db = client.db(dbName);
     const alertsCollection = db.collection("database_alerts");
 
     await alertsCollection.insertOne({
@@ -357,19 +416,42 @@ async function storeDatabaseMetrics(metrics: {
 }): Promise<void> {
   try {
     const client = await clientPromise;
-    const db = client.db("himspired");
+    const dbName = process.env.MONGODB_DATABASE || "himspired";
+    const db = client.db(dbName);
     const metricsCollection = db.collection("database_metrics");
+
+    // Ensure TTL index exists for automatic cleanup (7 days)
+    try {
+      await metricsCollection.createIndex(
+        { createdAt: 1 },
+        {
+          expireAfterSeconds: 7 * 24 * 60 * 60, // 7 days
+          background: true,
+        }
+      );
+      console.log(
+        "✅ TTL index created/verified for database_metrics collection"
+      );
+    } catch (indexError) {
+      // Index might already exist, which is fine
+      if (
+        indexError instanceof Error &&
+        !indexError.message.includes("already exists")
+      ) {
+        console.warn(
+          "⚠️  Failed to create TTL index for metrics:",
+          indexError.message
+        );
+      }
+    }
 
     await metricsCollection.insertOne({
       ...metrics,
       createdAt: new Date(),
     });
 
-    // Clean up old metrics (keep last 7 days)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    await metricsCollection.deleteMany({
-      createdAt: { $lt: sevenDaysAgo },
-    });
+    // Note: TTL index automatically removes documents older than 7 days
+    // No manual cleanup needed - MongoDB handles this automatically
   } catch (error) {
     console.error("Failed to store database metrics:", error);
   }
@@ -527,7 +609,8 @@ export async function getDatabaseTrends(hours: number = 24): Promise<{
 }> {
   try {
     const client = await clientPromise;
-    const db = client.db("himspired");
+    const dbName = process.env.MONGODB_DATABASE || "himspired";
+    const db = client.db(dbName);
     const metricsCollection = db.collection("database_metrics");
 
     const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
@@ -576,19 +659,65 @@ export async function getDatabaseTrends(hours: number = 24): Promise<{
   }
 }
 
-// NEW: Initialize comprehensive monitoring
-if (process.env.NODE_ENV === "production") {
+/**
+ * MongoDB Monitoring Configuration
+ *
+ * The monitoring system uses setInterval and setTimeout which are not suitable
+ * for serverless environments. Set MONGODB_ENABLE_MONITORING=true only in
+ * environments that support long-running processes (e.g., traditional servers,
+ * containers, or dedicated workers).
+ *
+ * Environment Variables:
+ * - MONGODB_ENABLE_MONITORING: Set to "true" to enable background monitoring
+ *   (default: "false" for serverless compatibility)
+ * - MONGODB_DATABASE: Database name for storing metrics and alerts
+ *   (default: "himspired")
+ *
+ * For serverless deployments, consider:
+ * 1. Moving monitoring to a dedicated worker/cron job
+ * 2. Using external monitoring services (e.g., MongoDB Atlas, DataDog)
+ * 3. Implementing event-driven monitoring on database operations
+ */
+const ENABLE_MONITORING = process.env.MONGODB_ENABLE_MONITORING === "true";
+
+// Initialize comprehensive monitoring only when explicitly enabled
+if (ENABLE_MONITORING && process.env.NODE_ENV === "production") {
+  console.log("🚀 MongoDB monitoring enabled - starting background monitoring");
+
   // Monitor connection pool every 5 minutes
-  setInterval(monitorConnectionPool, 5 * 60 * 1000);
+  const poolMonitorInterval = setInterval(monitorConnectionPool, 5 * 60 * 1000);
 
   // Perform comprehensive health check every 10 minutes
-  setInterval(performDatabaseHealthCheck, 10 * 60 * 1000);
+  const healthCheckInterval = setInterval(
+    performDatabaseHealthCheck,
+    10 * 60 * 1000
+  );
 
   // Initial monitoring after 30 seconds
-  setTimeout(() => {
+  const initialMonitoringTimeout = setTimeout(() => {
     monitorConnectionPool();
     performDatabaseHealthCheck();
   }, 30000);
+
+  // Graceful cleanup function for monitoring timers
+  const cleanupMonitoring = () => {
+    clearInterval(poolMonitorInterval);
+    clearInterval(healthCheckInterval);
+    clearTimeout(initialMonitoringTimeout);
+    console.log("🧹 MongoDB monitoring timers cleaned up");
+  };
+
+  // Handle process termination gracefully
+  process.on("SIGTERM", cleanupMonitoring);
+  process.on("SIGINT", cleanupMonitoring);
+  process.on("exit", cleanupMonitoring);
+} else if (process.env.NODE_ENV === "production") {
+  console.log(
+    "ℹ️  MongoDB monitoring disabled - set MONGODB_ENABLE_MONITORING=true to enable"
+  );
+  console.log(
+    "   Consider using external monitoring or dedicated workers for serverless environments"
+  );
 }
 
 // Export a module-scoped MongoClient promise. By doing this in a
