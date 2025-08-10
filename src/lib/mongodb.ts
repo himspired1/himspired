@@ -472,7 +472,6 @@ export async function performDatabaseHealthCheck(): Promise<{
     responseTime: number;
   };
 }> {
-  const startTime = Date.now();
   const healthCheck = {
     healthy: true,
     details: {
@@ -490,7 +489,8 @@ export async function performDatabaseHealthCheck(): Promise<{
 
   try {
     const client = await clientPromise;
-    const db = client.db("admin");
+    const dbName = process.env.MONGODB_DATABASE || "himspired";
+    const db = client.db(dbName);
 
     // 1. Connection health check
     try {
@@ -521,9 +521,36 @@ export async function performDatabaseHealthCheck(): Promise<{
         healthCheck.healthy = false;
       }
     } catch (error) {
-      healthCheck.healthy = false;
-      healthCheck.details.pool = false;
-      console.error("Database pool health check failed:", error);
+      // Handle authorization errors gracefully - don't mark health as failed
+      const poolError = error as {
+        code?: number;
+        codeName?: string;
+        message?: string;
+      };
+
+      if (
+        poolError.code === 13 ||
+        poolError.codeName === "Unauthorized" ||
+        poolError.message?.includes("not authorized") ||
+        poolError.message?.includes("insufficient privileges")
+      ) {
+        console.log(
+          "⚠️  Pool health check: serverStatus unavailable due to insufficient privileges"
+        );
+        console.log(
+          "   Connection is healthy, but detailed pool metrics unavailable"
+        );
+
+        // Mark pool as healthy since connection works, just no detailed stats
+        healthCheck.details.pool = true;
+        healthCheck.metrics.utilization = 0; // Unknown utilization
+        healthCheck.metrics.availableConnections = 0; // Unknown available connections
+      } else {
+        // For non-authorization errors, mark health as failed
+        healthCheck.healthy = false;
+        healthCheck.details.pool = false;
+        console.error("Database pool health check failed:", error);
+      }
     }
 
     // 3. Performance health check
@@ -557,12 +584,35 @@ export async function performDatabaseHealthCheck(): Promise<{
         healthCheck.healthy = false;
       }
     } catch (error) {
-      healthCheck.healthy = false;
-      healthCheck.details.memory = false;
-      console.error("Database memory health check failed:", error);
-    }
+      // Handle authorization errors gracefully - don't mark health as failed
+      const memError = error as {
+        code?: number;
+        codeName?: string;
+        message?: string;
+      };
 
-    healthCheck.metrics.responseTime = Date.now() - startTime;
+      if (
+        memError.code === 13 ||
+        memError.codeName === "Unauthorized" ||
+        memError.message?.includes("not authorized") ||
+        memError.message?.includes("insufficient privileges")
+      ) {
+        console.log(
+          "⚠️  Memory health check: serverStatus unavailable due to insufficient privileges"
+        );
+        console.log(
+          "   Connection is healthy, but detailed memory metrics unavailable"
+        );
+
+        // Mark memory as healthy since connection works, just no detailed stats
+        healthCheck.details.memory = true;
+      } else {
+        // For non-authorization errors, mark health as failed
+        healthCheck.healthy = false;
+        healthCheck.details.memory = false;
+        console.error("Database memory health check failed:", error);
+      }
+    }
 
     // Log health check results
     if (healthCheck.healthy) {
