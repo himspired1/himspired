@@ -1,3 +1,4 @@
+"use client";
 import Button from "@/components/common/button/button.component";
 import { P } from "@/components/common/typography";
 import { useAppSelector } from "@/redux/hooks";
@@ -5,6 +6,7 @@ import { selectCartTotal } from "@/redux/slices/cartSlice";
 import { useRouter } from "next/navigation";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import StateSelection from "./state-selection.component";
+import { useEffect } from "react";
 
 const CartSummary = () => {
   const router = useRouter();
@@ -15,12 +17,31 @@ const CartSummary = () => {
     typeof window !== "undefined"
       ? localStorage.getItem("himspired_selected_state")
       : null;
+
   const {
     deliveryFee,
     loading: deliveryFeeLoading,
     error: deliveryFeeError,
     refreshDeliveryFee,
   } = useDeliveryFee(selectedState);
+
+  // Ensure delivery fee is fetched when there's a default state
+  useEffect(() => {
+    if (
+      selectedState &&
+      deliveryFee === 0 &&
+      !deliveryFeeLoading &&
+      !deliveryFeeError
+    ) {
+      refreshDeliveryFee();
+    }
+  }, [
+    selectedState,
+    deliveryFee,
+    deliveryFeeLoading,
+    deliveryFeeError,
+    refreshDeliveryFee,
+  ]);
 
   const total = subTotal + deliveryFee;
 
@@ -34,112 +55,73 @@ const CartSummary = () => {
     }
   };
 
-  // Format currency helper function
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   return (
-    <>
-      <div className="w-full">
-        <P
-          fontFamily="activo"
-          className=" font-medium text-base uppercase lg:text-lg"
-        >
-          Summary
-        </P>
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <P className="text-xl font-semibold mb-6 text-center text-[#1E1E1E]">
+        Summary
+      </P>
 
-        {/* State Selection */}
-        <StateSelection
-          onStateChange={handleStateChange}
-          selectedState={selectedState || ""}
-          onRefresh={refreshDeliveryFee}
-        />
+      {/* State Selection */}
+      <StateSelection
+        onStateChange={handleStateChange}
+        selectedState={selectedState || ""}
+        onRefresh={refreshDeliveryFee}
+      />
 
-        <div className="w-full mt-6">
-          <div className="w-full flex items-center justify-between my-3 ">
-            <P
-              fontFamily={"activo"}
-              className=" text-[#1E1E1E99] text-sm font-normal"
-            >
-              Subtotal
-            </P>
-            <P fontFamily={"activo"} className=" text-sm font-semibold">
-              NGN {subTotal.toLocaleString()}
-            </P>
-          </div>
-          <div className="w-full flex items-center justify-between my-3 ">
-            <P
-              fontFamily={"activo"}
-              className=" text-[#1E1E1E99] text-sm font-normal"
-            >
-              Delivery fee
-            </P>
-            <P fontFamily={"activo"} className=" text-sm font-semibold">
-              {selectedState
-                ? deliveryFeeLoading
-                  ? "Loading..."
-                  : deliveryFeeError
-                    ? "Error loading fee"
-                    : formatCurrency(deliveryFee)
-                : "Select state"}
-            </P>
+      {/* Delivery Fee Display */}
+      {selectedState && (
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600">Delivery Fee:</span>
+            <span className="font-semibold">
+              {deliveryFeeLoading ? (
+                <span className="text-gray-400">Loading...</span>
+              ) : deliveryFeeError ? (
+                <span className="text-red-500">Error</span>
+              ) : (
+                `N${deliveryFee.toLocaleString()}`
+              )}
+            </span>
           </div>
         </div>
-        <hr className="w-full h-[0.1px] bg-[#0000004D]" />
-        <div className="w-full mt-6">
-          <div className="w-full flex items-center justify-between">
-            <P
-              fontFamily={"activo"}
-              className="  text-sm font-medium uppercase"
-            >
-              Total
-            </P>
-            <P
-              fontFamily={"activo"}
-              className="  text-base font-medium uppercase"
-            >
-              {selectedState
-                ? deliveryFeeLoading
-                  ? "Loading..."
-                  : formatCurrency(total)
-                : "Select state"}
-            </P>
-          </div>
-          <div className="w-full flex items-center justify-between mt-11 lg:flex-row-reverse lg:justify-end gap-2">
-            <Button
-              onClick={() => {
-                router.replace("/shop");
-              }}
-              btnTitle="Continue Shopping"
-              className="bg-[#F4F4F4] w-auto  rounded-full lg:w-40 "
-              textClassName="text-sm font-activo font-medium font-activo"
-              textColor="#E1E1E1"
-              type={undefined}
-            />
-            <Button
-              onClick={handleCheckout}
-              disabled={!selectedState}
-              btnTitle={
-                selectedState ? "Proceed to Checkout" : "Select State First"
-              }
-              className={`w-auto rounded-full lg:w-40 ${
-                selectedState
-                  ? "bg-red-950 text-white"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
-              textClassName="text-sm font-activo font-medium font-activo"
-              textColor="#E1E1E1"
-              type={undefined}
-            />
-          </div>
+      )}
+
+      {/* Subtotal */}
+      <div className="mt-6 border-t pt-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-gray-600">Subtotal:</span>
+          <span className="font-semibold">N{subTotal.toLocaleString()}</span>
+        </div>
+
+        {/* Total */}
+        <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
+          <span>Total:</span>
+          <span>N{total.toLocaleString()}</span>
         </div>
       </div>
-    </>
+
+      {/* Action Buttons */}
+      <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+        <Button
+          onClick={() => {
+            router.replace("/shop");
+          }}
+          btnTitle="Continue Shopping"
+          className="bg-[#F4F4F4] w-full sm:w-auto rounded-full lg:w-40"
+          textClassName="text-sm font-activo font-medium text-center break-words sm:break-normal sm:whitespace-nowrap"
+          textColor="text-[#1E1E1E]"
+          type="button"
+        />
+        <Button
+          onClick={handleCheckout}
+          btnTitle="Checkout"
+          className="bg-[#68191E] w-full sm:w-auto rounded-full lg:w-40"
+          textColor="text-white"
+          disabled={!selectedState || deliveryFeeLoading}
+          type="button"
+        />
+      </div>
+    </div>
   );
 };
 

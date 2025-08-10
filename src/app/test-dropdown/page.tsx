@@ -1,13 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StateSelection from "@/components/pages/cart/state-selection.component";
 
 export default function TestDropdownPage() {
   const [selectedState, setSelectedState] = useState("");
   const [deliveryFee, setDeliveryFee] = useState(0);
 
+  // Check localStorage on mount
+  useEffect(() => {
+    const storedState = localStorage.getItem("himspired_selected_state");
+    if (storedState) {
+      setSelectedState(storedState);
+      // Auto-fetch delivery fee for stored state
+      handleStateChange(storedState);
+    }
+  }, []);
+
   const handleStateChange = (state: string) => {
     setSelectedState(state);
+    localStorage.setItem("himspired_selected_state", state);
+
     // Simulate fetching delivery fee
     if (state) {
       fetch(`/api/delivery-fees/${encodeURIComponent(state)}`)
@@ -32,6 +44,12 @@ export default function TestDropdownPage() {
     }
   };
 
+  const clearLocalStorage = () => {
+    localStorage.removeItem("himspired_selected_state");
+    setSelectedState("");
+    setDeliveryFee(0);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto">
@@ -39,37 +57,38 @@ export default function TestDropdownPage() {
           Custom Dropdown Test
         </h1>
 
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h3 className="font-semibold text-gray-800 mb-4">Current State</h3>
+          <div className="text-sm text-gray-700 space-y-2">
+            <p>
+              <strong>Selected State:</strong>{" "}
+              {selectedState || "None selected"}
+            </p>
+            <p>
+              <strong>Delivery Fee:</strong> N{deliveryFee.toLocaleString()}
+            </p>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={clearLocalStorage}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Clear localStorage
+            </button>
+          </div>
+        </div>
+
         <StateSelection
           onStateChange={handleStateChange}
           selectedState={selectedState}
           onRefresh={handleRefresh}
         />
-
-        {selectedState && deliveryFee > 0 && (
-          <div className="bg-white rounded-lg p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">Delivery Fee Details</h2>
-            <div className="space-y-2">
-              <p>
-                <strong>State:</strong> {selectedState}
-              </p>
-              <p>
-                <strong>Delivery Fee:</strong> ₦
-                {(deliveryFee / 1000).toFixed(1)}k
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>Test the dropdown functionality:</p>
-          <ul className="mt-2 space-y-1">
-            <li>• Click to open/close</li>
-            <li>• Type to search states</li>
-            <li>• Use arrow keys to navigate</li>
-            <li>• Press Enter to select</li>
-            <li>• Press Escape to close</li>
-          </ul>
-        </div>
       </div>
     </div>
   );

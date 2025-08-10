@@ -3,6 +3,7 @@ import { P } from "@/components/common/typography";
 import { useAppSelector } from "@/redux/hooks";
 import { selectCartTotal } from "@/redux/slices/cartSlice";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
+import { useEffect } from "react";
 
 const CheckoutSummary = () => {
   const subTotal = useAppSelector(selectCartTotal);
@@ -14,16 +15,32 @@ const CheckoutSummary = () => {
     deliveryFee,
     loading: deliveryFeeLoading,
     error: deliveryFeeError,
+    refreshDeliveryFee,
   } = useDeliveryFee(selectedState);
+
+  // Ensure delivery fee is fetched when there's a default state
+  useEffect(() => {
+    if (
+      selectedState &&
+      deliveryFee === 0 &&
+      !deliveryFeeLoading &&
+      !deliveryFeeError
+    ) {
+      refreshDeliveryFee();
+    }
+  }, [
+    selectedState,
+    deliveryFee,
+    deliveryFeeLoading,
+    deliveryFeeError,
+    refreshDeliveryFee,
+  ]);
+
   const total = subTotal + deliveryFee;
 
   // Format currency helper function
   const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-      minimumFractionDigits: 0,
-    }).format(amount);
+    return `N${amount.toLocaleString()}`;
   };
 
   return (
