@@ -245,7 +245,7 @@ class RedisCache implements CacheInterface {
     if (!this.client) {
       throw new Error("Redis client not available");
     }
-    return await this.client.incr(key);
+    return await this.client.incr(`${CACHE_NAMESPACE}:${key}`);
   }
 
   async setnx(key: string, value: unknown, ttl?: number): Promise<boolean> {
@@ -256,7 +256,7 @@ class RedisCache implements CacheInterface {
 
     // Use Redis SET with NX (only if key doesn't exist) and EX (expiration)
     const result = await this.client.set(
-      key,
+      `${CACHE_NAMESPACE}:${key}`,
       String(value),
       "EX",
       ttl || CACHE_TTL,

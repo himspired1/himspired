@@ -21,6 +21,15 @@ const StateSelection = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Sanitize state names for HTML ID attributes
+  const sanitizeStateForId = (state: string): string => {
+    return state
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-") // Replace non-alphanumeric chars with hyphens
+      .replace(/-+/g, "-") // Replace multiple consecutive hyphens with single hyphen
+      .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  };
+
   const handleRefresh = () => {
     onRefresh();
   };
@@ -173,7 +182,7 @@ const StateSelection = ({
               role="listbox"
               aria-activedescendant={
                 highlightedIndex >= 0 && filteredStates[highlightedIndex]
-                  ? `state-option-${filteredStates[highlightedIndex]}`
+                  ? `state-option-${sanitizeStateForId(filteredStates[highlightedIndex])}`
                   : undefined
               }
               className="max-h-60 overflow-y-auto"
@@ -182,7 +191,7 @@ const StateSelection = ({
                 filteredStates.map((state, index) => (
                   <button
                     key={state}
-                    id={`state-option-${state}`}
+                    id={`state-option-${sanitizeStateForId(state)}`}
                     role="option"
                     aria-selected={state === selectedState}
                     type="button"
