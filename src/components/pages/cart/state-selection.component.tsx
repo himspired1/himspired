@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 interface StateSelectionProps {
   onStateChange: (state: string) => void;
-  selectedState: string;
+  selectedState: string | null;
   onRefresh: () => void;
 }
 

@@ -6,17 +6,19 @@ import { selectCartTotal } from "@/redux/slices/cartSlice";
 import { useRouter } from "next/navigation";
 import { useDeliveryFee } from "@/hooks/useDeliveryFee";
 import StateSelection from "./state-selection.component";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const CartSummary = () => {
   const router = useRouter();
   const subTotal = useAppSelector(selectCartTotal);
 
-  // Get selected state from localStorage
-  const selectedState =
-    typeof window !== "undefined"
-      ? localStorage.getItem("himspired_selected_state")
-      : null;
+  // Use React state to track selected state, synced with localStorage
+  const [selectedState, setSelectedState] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("himspired_selected_state");
+    }
+    return null;
+  });
 
   const {
     deliveryFee,
@@ -46,7 +48,8 @@ const CartSummary = () => {
   const total = subTotal + deliveryFee;
 
   const handleStateChange = (state: string) => {
-    localStorage.setItem("himspired_selected_state", state);
+    setSelectedState(state); // Update React state first
+    localStorage.setItem("himspired_selected_state", state); // Then sync to localStorage
   };
 
   const handleCheckout = () => {
@@ -64,7 +67,7 @@ const CartSummary = () => {
       {/* State Selection */}
       <StateSelection
         onStateChange={handleStateChange}
-        selectedState={selectedState || ""}
+        selectedState={selectedState || null}
         onRefresh={refreshDeliveryFee}
       />
 

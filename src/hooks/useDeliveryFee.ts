@@ -15,16 +15,11 @@ export const useDeliveryFee = (selectedState: string | null) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState<boolean>(false);
-  const [currentState, setCurrentState] = useState<string | null>(null);
 
   const fetchDeliveryFee = useCallback(async () => {
     if (!selectedState) {
       setDeliveryFee(0);
       setError(null);
-      return;
-    }
-
-    if (deliveryFee > 0 && currentState === selectedState) {
       return;
     }
 
@@ -55,7 +50,6 @@ export const useDeliveryFee = (selectedState: string | null) => {
       }
 
       setDeliveryFee(data.data.deliveryFee);
-      setCurrentState(selectedState);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Failed to fetch delivery fee"
@@ -64,7 +58,7 @@ export const useDeliveryFee = (selectedState: string | null) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedState, deliveryFee, currentState]);
+  }, [selectedState]);
 
   const refreshDeliveryFee = useCallback(() => {
     fetchDeliveryFee();
