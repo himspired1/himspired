@@ -151,6 +151,7 @@ const Navbar = () => {
                 <div key={link.href} className="relative group">
                   <Link
                     href={link.href}
+                    onClick={() => (window as any).startPageLoading?.()}
                     className={`px-4 py-2 transition-colors duration-200 relative block ${
                       isActive(link.href)
                         ? "text-[#68191E] "
@@ -191,6 +192,7 @@ const Navbar = () => {
                 <div key={link.href} className="relative group">
                   <Link
                     href={link.href}
+                    onClick={() => (window as any).startPageLoading?.()}
                     className={`px-4 py-2 transition-colors duration-200 relative block ${
                       isActive(link.href)
                         ? "text-[#68191E]"
@@ -241,7 +243,7 @@ const Navbar = () => {
               <Image src={Logo} alt="Logo" className="h-5" />
             </Link>
             <div className="flex gap-x-4">
-              <Link className="relative" href="/cart" onClick={handleCartClick}>
+              <Link className="relative" href="/cart" onClick={() => { handleCartClick(); (window as any).startPageLoading?.(); }}>
                 <motion.div
                   animate={
                     cartClickAnimation
@@ -344,6 +346,7 @@ const Navbar = () => {
                         onClick={() => {
                           closeSidebar();
                           handleLinkClick(link.href);
+                          (window as any).startPageLoading?.();
                         }}
                         className={`text-lg uppercase font-sm transition-colors duration-200 relative ${
                           isActive(link.href)

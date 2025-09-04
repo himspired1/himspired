@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import Loader from "@/components/Loader"
+import LoadingBar from "@/components/LoadingBar"
 import { useLoading } from "@/context/LoadingContext"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -17,6 +18,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <LoadingBar />
       {showLoader && <Loader />}
 
       <AnimatePresence>
