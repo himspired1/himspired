@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Heart, Users } from "lucide-react";
 import { Instagram, Tiktok } from "../../../public/images";
 import Image from "next/image";
-import { P, H } from "@/components/common/typography";
 
 interface SocialMediaFollowModalProps {
   isOpen: boolean;
@@ -16,18 +15,24 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
   onClose,
 }) => {
   useEffect(() => {
+    if (!isOpen) return;
+
+    // Capture the current overflow value before modifying it
+    const originalOverflow = document.body.style.overflow;
+    
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
 
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
-    }
+    // Set overflow to hidden and add event listener only when modal is open
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleEscape);
 
+    // Cleanup function only runs when modal closes or component unmounts
     return () => {
       document.removeEventListener("keydown", handleEscape);
-      document.body.style.overflow = "auto";
+      // Restore the original overflow value
+      document.body.style.overflow = originalOverflow;
     };
   }, [isOpen, onClose]);
 
@@ -131,6 +136,10 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.3, type: "spring", damping: 25 }}
               className="w-full max-w-md max-h-[90vh] overflow-y-auto"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="social-modal-title"
+              aria-describedby="social-modal-desc"
             >
               <div className="bg-white rounded-lg shadow-xl overflow-hidden">
                 {/* Header */}
@@ -138,6 +147,7 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
                   <button
                     onClick={onClose}
                     className="absolute right-3 md:right-4 top-3 md:top-4 text-white/80 hover:text-white transition-colors"
+                    aria-label="Close dialog"
                   >
                     <X size={20} className="md:w-6 md:h-6" />
                   </button>
@@ -145,12 +155,12 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
                   <div className="flex items-center gap-3">
                     <Users size={24} className="md:w-8 md:h-8" />
                     <div>
-                      <H className="text-lg md:text-xl text-white font-moon">
+                      <h2 id="social-modal-title" className="text-lg md:text-xl text-white font-moon">
                         Stay Connected!
-                      </H>
-                      <P className="text-xs md:text-sm text-white/80 font-activo">
+                      </h2>
+                      <p id="social-modal-desc" className="text-xs md:text-sm text-white/80 font-activo">
                         Follow us for the latest updates
-                      </P>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -170,14 +180,14 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
                       </motion.div>
 
                       <div>
-                        <H className="text-lg md:text-xl text-gray-800 font-moon mb-2">
+                        <h3 className="text-lg md:text-xl text-gray-800 font-moon mb-2">
                           Don&apos;t Miss Out!
-                        </H>
-                        <P className="text-sm md:text-base text-gray-600 font-activo leading-relaxed">
+                        </h3>
+                        <p className="text-sm md:text-base text-gray-600 font-activo leading-relaxed">
                           Follow us on social media to get the latest fashion
                           updates, exclusive deals, new arrivals, and
                           behind-the-scenes content.
-                        </P>
+                        </p>
                       </div>
                     </div>
 
@@ -202,16 +212,16 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
                                 <Image
                                   src={social.icon}
                                   alt={social.name}
-                                  className="w-full h-full\"
+                                  className="w-full h-full"
                                 />
                               </div>
                               <div className="flex-1 text-left">
-                                <P className="font-bold text-base font-moon">
+                                <span className="font-bold text-base font-moon block">
                                   Follow us on {social.name}
-                                </P>
-                                <P className="text-sm opacity-90 font-activo">
+                                </span>
+                                <span className="text-sm opacity-90 font-activo block">
                                   {social.handle}
-                                </P>
+                                </span>
                               </div>
                               <motion.div
                                 className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -241,27 +251,27 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
 
                     {/* Benefits */}
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <H className="text-sm font-bold text-gray-800 font-moon mb-2">
+                      <h4 className="text-sm font-bold text-gray-800 font-moon mb-2">
                         What you&apos;ll get:
-                      </H>
+                      </h4>
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 bg-[#68191E] rounded-full"></div>
-                          <P className="text-xs text-gray-700 font-activo">
+                          <span className="text-xs text-gray-700 font-activo">
                             First access to new collections
-                          </P>
+                          </span>
                         </li>
                         <li className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 bg-[#68191E] rounded-full"></div>
-                          <P className="text-xs text-gray-700 font-activo">
+                          <span className="text-xs text-gray-700 font-activo">
                             Exclusive promotional offers
-                          </P>
+                          </span>
                         </li>
                         <li className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 bg-[#68191E] rounded-full"></div>
-                          <P className="text-xs text-gray-700 font-activo">
+                          <span className="text-xs text-gray-700 font-activo">
                             Style tips and fashion inspiration
-                          </P>
+                          </span>
                         </li>
                       </ul>
                     </div>
@@ -280,9 +290,9 @@ const SocialMediaFollowModal: React.FC<SocialMediaFollowModalProps> = ({
 
                 {/* Footer */}
                 <div className="bg-gray-50 px-4 md:px-6 py-3 border-t">
-                  <P className="text-xs text-gray-600 text-center font-activo">
+                  <p className="text-xs text-gray-600 text-center font-activo">
                     Stay updated with Himspired - Where thrift meets luxury
-                  </P>
+                  </p>
                 </div>
               </div>
             </motion.div>
