@@ -5,16 +5,26 @@ import { cacheService } from "@/lib/cache-service";
 import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 function normalizeIP(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) {
-    const ip = forwarded.split(',')[0].trim();
-    return ip || 'unknown-ip';
+  // Only use X-Forwarded-For if TRUSTED_PROXY is enabled
+  if (process.env.TRUSTED_PROXY === 'true') {
+    const forwarded = req.headers.get('x-forwarded-for');
+    if (forwarded) {
+      const ip = forwarded.split(',')[0].trim();
+      return ip || 'unknown-ip';
+    }
+    const realIP = req.headers.get('x-real-ip');
+    if (realIP) {
+      return realIP.trim();
+    }
   }
-  const realIP = req.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP.trim();
-  }
-  return 'unknown-ip';
+  
+  // For serverless platforms, try to get client IP from request
+  // This is platform-specific and may need adjustment based on deployment
+  const clientIP = req.headers.get('cf-connecting-ip') || // Cloudflare
+                   req.headers.get('x-client-ip') ||       // General
+                   req.headers.get('x-cluster-client-ip'); // Cluster
+  
+  return clientIP?.trim() || 'unknown-ip';
 }
 
 function validateSessionId(sessionId: string | null): boolean {
