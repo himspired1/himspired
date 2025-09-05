@@ -2,6 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
 import clientPromise from "@/lib/mongodb";
 
+function normalizeIP(req: NextRequest): string {
+  // Only use X-Forwarded-For if TRUSTED_PROXY is enabled
+  if (process.env.TRUSTED_PROXY === 'true') {
+    const forwarded = req.headers.get('x-forwarded-for');
+    if (forwarded) {
+      const ip = forwarded.split(',')[0].trim();
+      return ip || 'unknown-ip';
+    }
+    const realIP = req.headers.get('x-real-ip');
+    if (realIP) {
+      return realIP.trim();
+    }
+  }
+  
+  // For serverless platforms, try to get client IP from request
+  // This is platform-specific and may need adjustment based on deployment
+  const clientIP = req.headers.get('cf-connecting-ip') || // Cloudflare
+                   req.headers.get('x-client-ip') ||       // General
+                   req.headers.get('x-cluster-client-ip'); // Cluster
+  
+  return clientIP?.trim() || 'unknown-ip';
+}
+
+function validateSessionId(sessionId: string | null): boolean {
+  if (!sessionId) return false;
+  // Validate against strict pattern: 24-32 hex characters (MongoDB ObjectId or similar)
+  return /^[a-f0-9]{24,32}$/i.test(sessionId);
+}
+
+function createRateLimitKey(ip: string, sessionId: string | null): string {
+  const normalizedIP = ip;
+  if (sessionId && validateSessionId(sessionId)) {
+    return `${normalizedIP}:${sessionId}`;
+  }
+  return normalizedIP;
+}
+
 /**
  * Product Stock Endpoint
  *
@@ -35,6 +72,7 @@ type StockResponse = {
 };
 
 import { cacheService } from "@/lib/cache-service";
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 // Cache configuration
 const CACHE_TTL = 50; // 50 seconds (matching existing cache)
@@ -131,6 +169,45 @@ export async function GET(
         { error: "Product ID is required" },
         { status: 400 }
       );
+    }
+
+    // Authenticate cache clearing requests (admin operations)
+    if (clearCache) {
+      const internalSecret = req.headers.get('x-internal-secret');
+      if (!internalSecret || internalSecret !== process.env.INTERNAL_API_SECRET) {
+        return NextResponse.json(
+          { error: 'Unauthorized cache clearing request' },
+          { status: 401 }
+        );
+      }
+    } else {
+      // Rate limiting: Use trusted IP as primary key, validated sessionId as secondary
+      const clientIP = normalizeIP(req);
+      const clientKey = createRateLimitKey(clientIP, sessionId);
+      const rateLimitResult = await rateLimiter.checkRateLimit(
+        clientKey,
+        RATE_LIMIT_CONFIGS.STOCK_CHECKS
+      );
+
+      if (!rateLimitResult.allowed) {
+        const retryAfterSeconds = Math.max(0, Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000));
+        return NextResponse.json(
+          { 
+            error: "Too many requests", 
+            message: "Please wait before checking stock again",
+            retryAfter: retryAfterSeconds
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': retryAfterSeconds.toString(),
+              'X-RateLimit-Limit': RATE_LIMIT_CONFIGS.STOCK_CHECKS.maxAttempts.toString(),
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': rateLimitResult.resetTime.toString(),
+            }
+          }
+        );
+      }
     }
 
     // Clear cache if requested

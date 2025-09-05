@@ -2,6 +2,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
 import clientPromise from "@/lib/mongodb";
 import { cacheService } from "@/lib/cache-service";
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
+
+function normalizeIP(req: NextRequest): string {
+  // Only use X-Forwarded-For if TRUSTED_PROXY is enabled
+  if (process.env.TRUSTED_PROXY === 'true') {
+    const forwarded = req.headers.get('x-forwarded-for');
+    if (forwarded) {
+      const ip = forwarded.split(',')[0].trim();
+      return ip || 'unknown-ip';
+    }
+    const realIP = req.headers.get('x-real-ip');
+    if (realIP) {
+      return realIP.trim();
+    }
+  }
+  
+  // For serverless platforms, try to get client IP from request
+  // This is platform-specific and may need adjustment based on deployment
+  const clientIP = req.headers.get('cf-connecting-ip') || // Cloudflare
+                   req.headers.get('x-client-ip') ||       // General
+                   req.headers.get('x-cluster-client-ip'); // Cluster
+  
+  return clientIP?.trim() || 'unknown-ip';
+}
+
+function validateSessionId(sessionId: string | null): boolean {
+  if (!sessionId) return false;
+  // Validate against strict pattern: 24-32 hex characters (MongoDB ObjectId or similar)
+  return /^[a-f0-9]{24,32}$/i.test(sessionId);
+}
+
+function createRateLimitKey(ip: string, sessionId: string | null): string {
+  const normalizedIP = ip;
+  if (sessionId && validateSessionId(sessionId)) {
+    return `${normalizedIP}:${sessionId}`;
+  }
+  return normalizedIP;
+}
 
 type Reservation = {
   sessionId: string;
@@ -21,6 +59,33 @@ export async function GET(
       return NextResponse.json(
         { error: "Product ID is required" },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting: Use trusted IP as primary key, validated sessionId as secondary
+    const clientIP = normalizeIP(req);
+    const clientKey = createRateLimitKey(clientIP, sessionId);
+    const rateLimitResult = await rateLimiter.checkRateLimit(
+      clientKey,
+      RATE_LIMIT_CONFIGS.AVAILABILITY_CHECKS
+    );
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { 
+          error: "Too many requests", 
+          message: "Please wait before checking availability again",
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+            'X-RateLimit-Limit': RATE_LIMIT_CONFIGS.AVAILABILITY_CHECKS.maxAttempts.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime.toString(),
+          }
+        }
       );
     }
 

@@ -79,6 +79,15 @@ const ProductCard = ({
         `/api/products/availability/${_id}?sessionId=${sessionId}`,
         { signal: controller.signal }
       );
+      
+      if (response.status === 429) {
+        const retryAfter = Number(response.headers.get("retry-after") || "0");
+        if (retryAfter > 0) {
+          setTimeout(checkAvailability, retryAfter * 1000);
+        }
+        return;
+      }
+      
       const availability = await response.json();
       if (availability.error) {
         console.error("Availability check error:", availability.error);
@@ -112,11 +121,23 @@ const ProductCard = ({
 
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (matching availability)
     try {
       const sessionId = SessionManager.getSessionId() || "unknown";
       const response = await fetch(
-        `/api/products/stock/${_id}?sessionId=${sessionId}`
+        `/api/products/stock/${_id}?sessionId=${sessionId}`,
+        { signal: controller.signal }
       );
+      
+      if (response.status === 429) {
+        const retryAfter = Number(response.headers.get("retry-after") || "0");
+        if (retryAfter > 0) {
+          setTimeout(fetchRealTimeStock, retryAfter * 1000);
+        }
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
         const newStock = data.stock || 0;
@@ -138,6 +159,8 @@ const ProductCard = ({
       }
     } catch (error) {
       console.error("Error fetching real-time stock:", error);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, [_id]);
 

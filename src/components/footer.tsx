@@ -77,12 +77,12 @@ const Footer = () => {
   const socialLinks = [
     // { href: "www.x.com", src: Twitter, alt: "twitter" },
     {
-      href: "https://www.instagram.com/himspired.ng?igsh=MWV3NHd5ZTFpNThwdA%3D%3D&utm_source=qr",
+      href: "https://www.instagram.com/himspired.shop?igsh=MWV3NHd5ZTFpNThwdA%3D%3D&utm_source=qr",
       src: Instagram,
       alt: "instagram",
     },
     {
-      href: "https://www.tiktok.com/@himspired.ng?_t=ZM-8xxDhBrZKqu&_r=1",
+      href: "https://www.tiktok.com/@himspired.shop?_t=ZM-8xxDhBrZKqu&_r=1",
       src: Tiktok,
       alt: "tiktok",
     },
