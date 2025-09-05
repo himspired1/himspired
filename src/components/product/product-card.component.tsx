@@ -79,6 +79,12 @@ const ProductCard = ({
         `/api/products/availability/${_id}?sessionId=${sessionId}`,
         { signal: controller.signal }
       );
+      
+      if (response.status === 429) {
+        // Rate limited - keep current state, don't update
+        return;
+      }
+      
       const availability = await response.json();
       if (availability.error) {
         console.error("Availability check error:", availability.error);
@@ -117,6 +123,12 @@ const ProductCard = ({
       const response = await fetch(
         `/api/products/stock/${_id}?sessionId=${sessionId}`
       );
+      
+      if (response.status === 429) {
+        // Rate limited - use existing data, don't spam logs
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
         const newStock = data.stock || 0;

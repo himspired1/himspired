@@ -124,6 +124,10 @@ const ProductItem = ({
       const res = await fetch(
         `/api/products/availability/${product._id}?sessionId=${sessionId}`
       );
+      if (res.status === 429) {
+        // Rate limited - keep current state
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       setIsAvailable(data.isAvailable);
@@ -142,6 +146,10 @@ const ProductItem = ({
         const res = await fetch(
           `/api/products/stock/${product._id}?sessionId=${sessionId}`
         );
+        if (res.status === 429) {
+          // Rate limited - silently return, keep existing state
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted) {

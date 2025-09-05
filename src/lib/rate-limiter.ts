@@ -242,6 +242,16 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 30 * 60 * 1000, // 30 minutes
     keyPrefix: "rate_limit:orders_ip",
   },
+  STOCK_CHECKS: {
+    maxAttempts: 20, // 20 requests per minute per session
+    windowMs: 60 * 1000, // 1 minute
+    keyPrefix: "rate_limit:stock",
+  },
+  AVAILABILITY_CHECKS: {
+    maxAttempts: 15, // 15 requests per minute per session
+    windowMs: 60 * 1000, // 1 minute
+    keyPrefix: "rate_limit:availability",
+  },
 } as const;
 
 // Export singleton instance

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/sanity/client";
 import clientPromise from "@/lib/mongodb";
 import { cacheService } from "@/lib/cache-service";
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 type Reservation = {
   sessionId: string;
@@ -21,6 +22,33 @@ export async function GET(
       return NextResponse.json(
         { error: "Product ID is required" },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting: Use sessionId as the key, fallback to IP from headers
+    const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown-ip';
+    const clientKey = sessionId || clientIP;
+    const rateLimitResult = await rateLimiter.checkRateLimit(
+      clientKey,
+      RATE_LIMIT_CONFIGS.AVAILABILITY_CHECKS
+    );
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { 
+          error: "Too many requests", 
+          message: "Please wait before checking availability again",
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString(),
+            'X-RateLimit-Limit': RATE_LIMIT_CONFIGS.AVAILABILITY_CHECKS.maxAttempts.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.resetTime.toString(),
+          }
+        }
       );
     }
 
