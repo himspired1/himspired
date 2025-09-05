@@ -81,7 +81,10 @@ const ProductCard = ({
       );
       
       if (response.status === 429) {
-        // Rate limited - keep current state, don't update
+        const retryAfter = Number(response.headers.get("retry-after") || "0");
+        if (retryAfter > 0) {
+          setTimeout(checkAvailability, retryAfter * 1000);
+        }
         return;
       }
       
@@ -118,14 +121,20 @@ const ProductCard = ({
 
   // Fetch real-time stock from Sanity
   const fetchRealTimeStock = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (matching availability)
     try {
       const sessionId = SessionManager.getSessionId() || "unknown";
       const response = await fetch(
-        `/api/products/stock/${_id}?sessionId=${sessionId}`
+        `/api/products/stock/${_id}?sessionId=${sessionId}`,
+        { signal: controller.signal }
       );
       
       if (response.status === 429) {
-        // Rate limited - use existing data, don't spam logs
+        const retryAfter = Number(response.headers.get("retry-after") || "0");
+        if (retryAfter > 0) {
+          setTimeout(fetchRealTimeStock, retryAfter * 1000);
+        }
         return;
       }
       
@@ -150,6 +159,8 @@ const ProductCard = ({
       }
     } catch (error) {
       console.error("Error fetching real-time stock:", error);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }, [_id]);
 

@@ -4,6 +4,33 @@ import clientPromise from "@/lib/mongodb";
 import { cacheService } from "@/lib/cache-service";
 import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
+function normalizeIP(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) {
+    const ip = forwarded.split(',')[0].trim();
+    return ip || 'unknown-ip';
+  }
+  const realIP = req.headers.get('x-real-ip');
+  if (realIP) {
+    return realIP.trim();
+  }
+  return 'unknown-ip';
+}
+
+function validateSessionId(sessionId: string | null): boolean {
+  if (!sessionId) return false;
+  // Validate against strict pattern: 24-32 hex characters (MongoDB ObjectId or similar)
+  return /^[a-f0-9]{24,32}$/i.test(sessionId);
+}
+
+function createRateLimitKey(ip: string, sessionId: string | null): string {
+  const normalizedIP = ip;
+  if (sessionId && validateSessionId(sessionId)) {
+    return `${normalizedIP}:${sessionId}`;
+  }
+  return normalizedIP;
+}
+
 type Reservation = {
   sessionId: string;
   quantity: number;
@@ -25,9 +52,9 @@ export async function GET(
       );
     }
 
-    // Rate limiting: Use sessionId as the key, fallback to IP from headers
-    const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown-ip';
-    const clientKey = sessionId || clientIP;
+    // Rate limiting: Use trusted IP as primary key, validated sessionId as secondary
+    const clientIP = normalizeIP(req);
+    const clientKey = createRateLimitKey(clientIP, sessionId);
     const rateLimitResult = await rateLimiter.checkRateLimit(
       clientKey,
       RATE_LIMIT_CONFIGS.AVAILABILITY_CHECKS
