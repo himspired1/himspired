@@ -13,6 +13,7 @@ export default function LoadingBar() {
 
   // Expose function to start loading
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).startPageLoading = () => setLoading(true);
   }, []);
 
