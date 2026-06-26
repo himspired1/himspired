@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { colors } from "@/constants/colors";
-import ProductSection from "./products/components/ProductSection";
 import {
   thriftsProducts,
   luxuryProducts,
@@ -56,8 +55,8 @@ const SECTIONS = [
 const Products = () => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
-  const [itemsToShow, setItemsToShow] = useState(4);
   const [isHovering, setIsHovering] = useState(false);
+  const [itemsToShow, setItemsToShow] = useState(4);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoplayRef = useRef<NodeJS.Timeout | null>(null);
   const autoplayDelay = 5000; // 5 seconds between slides - standard timing
@@ -161,12 +160,17 @@ const Products = () => {
   // Check if we're at the first or last slide
   const isFirstSlide = current === 0;
   const isLastSlide = current === clothesByCategory.length - 1;
-  // if (loading && clothesByCategory.length === 0) {
-  //   return (<div className="w-full flex items-center justify-center gap-4 md:gap-20  overflow-hidden mt-30 mb-10" >
-  //     {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} delay={i * 0.1} />)}
-  //   </div>
-  //   )
-  // }
+
+  if (loading && clothesByCategory.length === 0) {
+    return (
+      <div className="w-full flex items-center justify-center gap-4 md:gap-20 overflow-hidden mt-30 mb-10">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <ProductCardSkeleton key={i} delay={i * 0.1} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <Wrapper>
       <div
@@ -329,8 +333,8 @@ const Products = () => {
           className="flex w-full flex-col gap-y-4 pt-10 text-black"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ 
-            delay: 0.6, 
+          transition={{
+            delay: 0.6,
             duration: 0.6,
             ease: [0.22, 1, 0.36, 1]
           }}
@@ -340,8 +344,8 @@ const Products = () => {
             className="w-full text-center flex flex-col gap-1 items-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ 
-              delay: 0.7, 
+            transition={{
+              delay: 0.7,
               duration: 0.5,
               ease: [0.22, 1, 0.36, 1]
             }}
@@ -370,8 +374,8 @@ const Products = () => {
             className="w-full flex justify-end"
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ 
-              delay: 0.8, 
+            transition={{
+              delay: 0.8,
               duration: 0.5,
               ease: [0.22, 1, 0.36, 1]
             }}
@@ -379,11 +383,11 @@ const Products = () => {
             <Link href="/shop" className="group">
               <motion.div
                 className="bg-[#F4F4F4] flex gap-1 rounded-full px-6 py-4 transition-all duration-300 group-hover:bg-[#68191E] group-hover:text-white"
-                whileHover={{ 
+                whileHover={{
                   scale: 1.05,
                   transition: { duration: 0.2 }
                 }}
-                whileTap={{ 
+                whileTap={{
                   scale: 0.98,
                   transition: { duration: 0.1 }
                 }}

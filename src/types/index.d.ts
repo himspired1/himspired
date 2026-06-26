@@ -9,4 +9,7 @@ interface ClothingItem {
   category: string;
   mainImage: string;
   images?: string[];
+  reservedUntil?: string;
+  reservedBy?: string;
+  reservedQuantity?: number;
 }

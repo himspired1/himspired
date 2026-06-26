@@ -10,7 +10,7 @@ const VisionStatement = () => {
   };
 
   return (
-    <div className="w-full mt-[120px] px-[2em] lg:px-[120px] relative">
+    <div className="w-full lg:mt-[7.5em] mt-[2em] px-[2em] lg:px-[120px] relative">
       <div className="w-full flex-col flex lg:flex-row items-start justify-between h-full relative">
         <div className="w-full lg:w-[50%] h-full">
           <h1 className="text-[40px] font-moon font-bold">
@@ -23,7 +23,7 @@ const VisionStatement = () => {
               !expanded && "lg:h-auto h-[150px] overflow-hidden"
             }`}
           >
-            At Himspired, established in 2025, we believe fashion should be both
+            At Himspired, we believe fashion should be both
             expressive and elevated, where thrifted finds meet refined taste.
             Our vision is to create a world where personal style flourishes
             through sustainable choices, and luxury is not about labels but

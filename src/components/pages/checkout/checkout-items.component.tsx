@@ -1,12 +1,12 @@
 "use client";
 import { P } from "@/components/common/typography";
 import { useAppSelector } from "@/redux/hooks";
-import { selectCartItems, selectCartTotal } from "@/redux/slices/cartSlice";
+import { selectCartItems } from "@/redux/slices/cartSlice";
 import { motion } from "framer-motion";
 import CheckoutItem from "./checkout-item.component";
+
 const CheckoutItems = () => {
   const checkoutItems = useAppSelector(selectCartItems);
-  const subTotal = useAppSelector(selectCartTotal);
   return (
     <>
       <div className="w-full py-4 ">
@@ -48,20 +48,8 @@ const CheckoutItems = () => {
         </div>
         <hr className="w-full h-[0.1px] bg-[#0000004D]" />
 
-        <div className=" w-full flex items-center justify-between mt-6">
-          <P
-            fontFamily="activo"
-            className=" text-[#1E1E1E] font-normal uppercase text-sm lg:text-base"
-          >
-            Subtotal:
-          </P>
-          <P
-            fontFamily="activo"
-            className=" font-semibold text-sm lg:text-base uppercase  text-[#1E1E1E]"
-          >
-            NGN {subTotal.toLocaleString()}
-          </P>
-        </div>
+
+
       </div>
     </>
   );

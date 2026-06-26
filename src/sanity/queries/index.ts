@@ -7,6 +7,7 @@ export const ClothQueryPath = `*[
 
 import { SanityDocument } from "next-sanity";
 import { client } from "../client";
+import { clientSideClient } from "../client-side";
 import { useState, useEffect, useCallback } from "react";
 
 const options = { next: { revalidate: 30 } };
@@ -36,7 +37,8 @@ export const useClothes = () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await client.fetch<SanityDocument[]>(ClothQueryPath);
+      const result =
+        await clientSideClient.fetch<SanityDocument[]>(ClothQueryPath);
       setClothes(result);
     } catch (err) {
       console.error("Error occurred while fetching clothes", err);
@@ -87,8 +89,8 @@ export const useClothesByCategory = (limit = 12) => {
     setError(null);
 
     try {
-      // Tell client.fetch to return typed Product[] instead of SanityDocument[]
-      const allClothes = await client.fetch<Product[]>(clothesQuery);
+      // Tell clientSideClient.fetch to return typed Product[] instead of SanityDocument[]
+      const allClothes = await clientSideClient.fetch<Product[]>(clothesQuery);
 
       // Derive unique categories in order of first appearance
       const uniqueCategories = Array.from(
@@ -172,7 +174,7 @@ export const useClothesBySpecificCategory = (category: string, limit = 12) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await client.fetch<Product[]>(categoryQuery, {
+      const result = await clientSideClient.fetch<Product[]>(categoryQuery, {
         category,
       });
       setClothes(result);
@@ -206,7 +208,7 @@ export const useCategories = () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await client.fetch<string[]>(categoriesQuery);
+      const result = await clientSideClient.fetch<string[]>(categoriesQuery);
       setCategories(result.filter(Boolean));
     } catch (err) {
       console.error("Error occurred while fetching categories", err);
@@ -306,7 +308,7 @@ export const useClothesWithFilters = (
       setLoading(true);
       setError(null);
       const { query, params } = buildFilterQuery();
-      const result = await client.fetch<Product[]>(query, params);
+      const result = await clientSideClient.fetch<Product[]>(query, params);
       setClothes(result);
     } catch (err) {
       console.error("Error occurred while fetching filtered clothes", err);
@@ -410,7 +412,10 @@ export const useClothingItem = (
       setError(null);
       const params =
         type === "slug" ? { slug: identifier } : { id: identifier };
-      const result = await client.fetch<Product>(singleItemQuery, params);
+      const result = await clientSideClient.fetch<Product>(
+        singleItemQuery,
+        params
+      );
       setItem(result);
     } catch (err) {
       console.error("Error occurred while fetching clothing item", err);
@@ -451,7 +456,7 @@ export const getClothesByCategory = async (limit = 12) => {
   }`;
 
   try {
-    const result = await client.fetch(clothesByCategoryQuery);
+    const result = await clientSideClient.fetch(clothesByCategoryQuery);
 
     const processedData: Record<string, SanityDocument[]> = {};
     const uniqueCategories = result.categories.filter(Boolean);
@@ -488,7 +493,7 @@ export const useSanityQuery = <T = SanityDocument[]>(
       try {
         setLoading(true);
         setError(null);
-        const result = await client.fetch<T>(query, params);
+        const result = await clientSideClient.fetch<T>(query, params);
         setData(result);
       } catch (err) {
         console.error("Error occurred while fetching data", err);
@@ -504,7 +509,7 @@ export const useSanityQuery = <T = SanityDocument[]>(
   const refetch = async () => {
     try {
       setLoading(true);
-      const result = await client.fetch<T>(query, params);
+      const result = await clientSideClient.fetch<T>(query, params);
       setData(result);
     } catch (err) {
       setError(err as Error);

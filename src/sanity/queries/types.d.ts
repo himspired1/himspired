@@ -27,14 +27,14 @@ type ProductBase = {
   stock?: number;
   mainImage: MainImage;
   description?: string;
+  reservedUntil?: string;
+  reservedBy?: string;
+  reservedQuantity?: number;
 };
-
 
 interface Product extends ProductBase {
   size?: string[];
 }
-
-
 
 /**
  * Represents a grouped category with its products.

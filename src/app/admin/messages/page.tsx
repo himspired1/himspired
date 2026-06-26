@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build issues
+export const dynamic = "force-dynamic";
 import { useRouter } from "next/navigation";
 import { P, H } from "@/components/common/typography";
 import {

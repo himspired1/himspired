@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build issues
+export const dynamic = "force-dynamic";
 import { useRouter } from "next/navigation";
 import { P, H } from "@/components/common/typography";
 import {
@@ -12,6 +15,7 @@ import {
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { Order, OrderStatus } from "@/models/order";
 import Image from "next/image";
@@ -61,6 +65,8 @@ const AdminOrders = () => {
     null
   );
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  const [refreshing, setRefreshing] = useState(false);
 
   const filterOrdersByStatus = useCallback(
     (orderList: Order[], status: string) => {
@@ -159,27 +165,16 @@ const AdminOrders = () => {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
-  const sendEmail = async (orderId: string) => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
     try {
-      const response = await fetch("/api/orders/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      });
-
-      if (response.status === 401) {
-        router.push("/admin/login");
-        return;
-      }
-
-      if (response.ok) {
-        toast.success("Email sent successfully!");
-      } else {
-        toast.error("Failed to send email");
-      }
+      await fetchOrders(pagination.page, filter !== "all" ? filter : undefined);
+      toast.success("Orders refreshed successfully!");
     } catch (error) {
-      console.error("Email failed:", error);
-      toast.error("Failed to send email");
+      console.error("Failed to refresh orders:", error);
+      toast.error("Failed to refresh orders");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -278,8 +273,25 @@ const AdminOrders = () => {
       <div className=" p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
-            <H className="text-3xl mb-2 text-[#68191E]">Orders</H>
-            <P className="text-gray-600">Manage customer orders and receipts</P>
+            <div className="flex items-center justify-between">
+              <div>
+                <H className="text-3xl mb-2 text-[#68191E]">Orders</H>
+                <P className="text-gray-600">
+                  Manage customer orders and receipts
+                </P>
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-[#68191E] text-white rounded-lg hover:bg-[#5a1519] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Refresh Orders"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
+                />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -449,7 +461,7 @@ const AdminOrders = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {/* Only show the red payment issue email icon for orders that are not payment_confirmed, shipped, complete, or canceled */}
+                          {/* Only show the red custom mail icon for orders that are not payment_confirmed, shipped, complete, or canceled */}
                           {![
                             "payment_confirmed",
                             "shipped",
@@ -460,15 +472,6 @@ const AdminOrders = () => {
                               onClick={() => openEmailModal(order)}
                               className="p-1 text-red-500 hover:text-red-700"
                               title="Send Custom Email"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                          )}
-                          {order.status === "payment_pending" && (
-                            <button
-                              onClick={() => sendEmail(order.orderId)}
-                              className="p-1 text-blue-400 hover:text-blue-600"
-                              title="Send Payment Email"
                             >
                               <Mail className="w-4 h-4" />
                             </button>

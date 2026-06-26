@@ -2,11 +2,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { newsletterService } from "@/lib/newsletter";
-
-// In-memory rate limiting per IP
-const newsletterAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_SUBSCRIPTIONS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -24,21 +20,52 @@ function getClientIp(req: NextRequest) {
   );
 }
 
+// Rate limiting helper function using shared utility
+async function checkNewsletterRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  try {
+    return await rateLimiter.checkRateLimit(ip, RATE_LIMIT_CONFIGS.NEWSLETTER);
+  } catch (error) {
+    console.warn(
+      "Newsletter rate limit check failed, allowing request:",
+      error
+    );
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.NEWSLETTER.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.NEWSLETTER.windowMs,
+    };
+  }
+}
+
 export async function POST(req: NextRequest) {
   // Rate limiting logic
   const ip = getClientIp(req);
-  const now = Date.now();
-  let entry = newsletterAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
-  }
-  entry.count++;
-  newsletterAttempts.set(ip, entry);
-  if (entry.count > MAX_SUBSCRIPTIONS) {
-    return NextResponse.json(
-      { error: "Too many newsletter subscriptions. Please try again later." },
+
+  const rateLimit = await checkNewsletterRateLimit(ip);
+  if (!rateLimit.allowed) {
+    const now = Date.now();
+    const remainingMs = rateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
+      {
+        error: "Too many newsletter subscriptions. Please try again later.",
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(rateLimit.resetTime).toISOString(),
+      },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {

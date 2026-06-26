@@ -133,7 +133,7 @@ const CheckoutAccountDetails = () => {
                             Account Number
                         </P>
                         <div className="flex items-center gap-2">
-                            <P className="font-semibold text-sm uppercase text-[#1E1E1E]">
+                            <P className="font-semibold text-sm uppercase text-[#ec6767]">
                                 1234567890
                             </P>
                             <button
@@ -142,7 +142,7 @@ const CheckoutAccountDetails = () => {
                                     navigator.clipboard.writeText('1234567890');
                                     toast.success('Account number copied!');
                                 }}
-                                className="text-xs text-[#68191E] hover:underline"
+                                className="text-xs text-white hover:underline bg-[#68191E] p-1 rounded-lg uppercase"
                             >
                                 Copy
                             </button>
@@ -161,7 +161,7 @@ const CheckoutAccountDetails = () => {
             </div>
 
             <div className="mt-6">
-                <P className="text-sm font-medium mb-3">Upload Payment Receipt *</P>
+                <P className="text-sm font-medium mb-3">Upload Payment Receipt </P>
                 
                 <div
                     {...getRootProps()}
@@ -239,7 +239,7 @@ const CheckoutAccountDetails = () => {
                     <div>
                         <P className="text-sm font-medium text-orange-800">Important</P>
                         <P className="text-xs text-orange-700 mt-1">
-                            Please ensure your payment receipt is clear and includes the transaction details. 
+                            Please ensure your payment receipt is clear and includes the <span className="text-red-500 font-extrabold">transaction id</span> number which will be used to verify your payment. 
                             Your order will be processed after payment verification.
                         </P>
                     </div>

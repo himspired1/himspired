@@ -1,105 +1,335 @@
-export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
+import { AdminAuth } from "@/lib/admin-auth";
+import { decrementStockForOrder } from "@/lib/stock-update-utils";
+import { cleanupOrderReservations } from "@/lib/order-cleanup";
 import { orderService } from "@/lib/order";
-import { OrderStatus } from "@/models/order";
-import {
-  sendPaymentConfirmationEmail,
-  sendOrderShippedEmail,
-  sendOrderCompletionEmail,
-} from "@/lib/email";
+import { cacheService } from "@/lib/cache-service";
+import { rateLimiter } from "@/lib/rate-limiter";
 
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ orderId: string }> }
-) {
-  try {
-    const { orderId } = await context.params;
-    const { status } = await req.json();
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
-    const validStatuses: OrderStatus[] = [
-      "payment_pending",
-      "payment_confirmed",
-      "shipped",
-      "complete",
-      "payment_not_confirmed",
-      "canceled",
-    ];
-
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    }
-
-    const currentOrder = await orderService.getOrder(orderId);
-    if (!currentOrder) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    await orderService.updateOrderStatus(orderId, status);
-    try {
-      const { customerInfo, items, total } = currentOrder;
-
-      switch (status) {
-        case "payment_confirmed":
-          await sendPaymentConfirmationEmail(
-            customerInfo.email,
-            customerInfo.name,
-            orderId,
-            items,
-            total
-          );
-          break;
-        case "shipped":
-          await sendOrderShippedEmail(
-            customerInfo.email,
-            customerInfo.name,
-            orderId
-          );
-          break;
-        case "complete":
-          await sendOrderCompletionEmail(
-            customerInfo.email,
-            customerInfo.name,
-            orderId,
-            items,
-            total
-          );
-          break;
-      }
-    } catch (emailError) {
-      console.error("Email failed:", emailError);
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Order status updated",
-      emailSent: ["payment_confirmed", "shipped", "complete"].includes(status),
-    });
-  } catch (error) {
-    console.error("Status update failed:", error);
-    return NextResponse.json(
-      { error: "Failed to update order status" },
-      { status: 500 }
-    );
-  }
+interface OrderItem {
+  productId: string;
+  quantity: number;
+  title: string;
+  price: number;
+  size?: string;
+  category: string;
 }
 
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ orderId: string }> }
 ) {
+  const { orderId } = await context.params;
+
   try {
-    const { orderId } = await context.params;
+    // Rate limiting for order retrieval
+    const clientIp = getClientIp(req);
+
+    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+      maxAttempts: 20,
+      windowMs: 60 * 1000, // 1 minute
+      keyPrefix: "rate_limit:order_retrieval",
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order retrieval attempts. Please try again later.",
+          resetTime: rateLimitResult.resetTime,
+          remaining: rateLimitResult.remaining,
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        }
+      );
+    }
+
+    // Get order details using the order service (MongoDB)
+    let order = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (!order && attempts < maxAttempts) {
+      attempts++;
+
+      try {
+        order = await orderService.getOrder(orderId);
+      } catch (error) {
+        console.error(`Error on attempt ${attempts}:`, error);
+      }
+
+      if (!order && attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+    return NextResponse.json(order);
+  } catch (error) {
+    console.error(`Error retrieving order ${orderId}:`, error);
+    return NextResponse.json(
+      {
+        error: "Failed to retrieve order",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ orderId: string }> }
+) {
+  const { orderId } = await context.params;
+
+  try {
+    // Rate limiting for order updates
+    const clientIp = getClientIp(req);
+
+    const rateLimitResult = await rateLimiter.checkRateLimit(clientIp, {
+      maxAttempts: 10,
+      windowMs: 60 * 1000, // 1 minute
+      keyPrefix: "rate_limit:order_updates",
+    });
+
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: "Too many order update attempts. Please try again later.",
+          resetTime: rateLimitResult.resetTime,
+          remaining: rateLimitResult.remaining,
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.resetTime.toString(),
+          },
+        }
+      );
+    }
+
+    // Use admin authentication for order updates
+    const isAuthorized = await AdminAuth.isAuthenticatedFromRequest(req);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          message: "Admin authentication required to update order status",
+        },
+        { status: 401 }
+      );
+    }
+
+    const { status } = await req.json();
+
+    if (!status) {
+      return NextResponse.json(
+        {
+          error: "Invalid request",
+          message: "Status is required",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get current order
     const order = await orderService.getOrder(orderId);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ order });
+    const previousStatus = order.status;
+
+    // Update order status using the order service
+    await orderService.updateOrderStatus(orderId, status);
+
+    // Clear order cache after status update
+    try {
+      await cacheService.clearOrderCache(orderId);
+    } catch (error) {
+      console.warn("Failed to clear order cache:", error);
+    }
+
+    // Handle payment confirmation
+    if (
+      status === "payment_confirmed" &&
+      previousStatus !== "payment_confirmed"
+    ) {
+      // Step 1: Decrement stock for each item in the order
+      if (order.items && order.items.length > 0) {
+        const stockUpdatePromises = order.items.map(async (item: OrderItem) => {
+          try {
+            const result = await decrementStockForOrder({
+              productId: item.productId,
+              quantity: item.quantity,
+              orderId: orderId,
+            });
+
+            if (!result.success) {
+              console.error(
+                `❌ Failed to decrement stock for product ${item.productId}: ${result.error}`
+              );
+            }
+
+            return result;
+          } catch (error) {
+            console.error(
+              `❌ Error decrementing stock for product ${item.productId}:`,
+              error
+            );
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : "Unknown error",
+            };
+          }
+        });
+
+        await Promise.all(stockUpdatePromises);
+      }
+
+      // Step 2: Consolidated cleanup - replaces multiple API calls
+      // Note: No artificial delay needed - stock updates are already complete
+      // and cleanup will handle its own cache invalidation
+      if (order.items && order.items.length > 0) {
+        const cleanupResult = await cleanupOrderReservations({
+          orderId,
+          sessionId: order.sessionId,
+        });
+
+        if (!cleanupResult.success) {
+          console.warn(
+            `⚠️ Order cleanup completed with errors:`,
+            cleanupResult.message
+          );
+          if (cleanupResult.errors && cleanupResult.errors.length > 0) {
+            cleanupResult.errors.forEach((error) =>
+              console.warn(`   - Error: ${error}`)
+            );
+          }
+        }
+      }
+    }
+
+    // Send automatic payment confirmation email
+    if (
+      status === "payment_confirmed" &&
+      previousStatus !== "payment_confirmed"
+    ) {
+      try {
+        const { sendPaymentConfirmationEmail } = await import("@/lib/email");
+        await sendPaymentConfirmationEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Payment confirmation email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(
+          `❌ Failed to send payment confirmation email for order ${orderId}:`,
+          emailError
+        );
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic shipping email
+    if (status === "shipped" && previousStatus !== "shipped") {
+      try {
+        const { sendOrderShippedEmail } = await import("@/lib/email");
+        await sendOrderShippedEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId
+        );
+        console.log(`✅ Order shipped email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(
+          `❌ Failed to send order shipped email for order ${orderId}:`,
+          emailError
+        );
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Send automatic completion email
+    if (status === "complete" && previousStatus !== "complete") {
+      try {
+        const { sendOrderCompletionEmail } = await import("@/lib/email");
+        await sendOrderCompletionEmail(
+          order.customerInfo.email,
+          order.customerInfo.name,
+          orderId,
+          order.items,
+          order.total
+        );
+        console.log(`✅ Order completion email sent for order ${orderId}`);
+      } catch (emailError) {
+        console.error(
+          `❌ Failed to send order completion email for order ${orderId}:`,
+          emailError
+        );
+        // Don't fail the status update if email fails
+      }
+    }
+
+    // Handle order cancellation
+    if (status === "canceled" && previousStatus !== "canceled") {
+      // Consolidated cleanup - handles reservation release and cache invalidation
+      if (order.items && order.items.length > 0) {
+        const cleanupResult = await cleanupOrderReservations({
+          orderId,
+          sessionId: order.sessionId,
+        });
+
+        if (!cleanupResult.success) {
+          console.warn(
+            `⚠️ Order cleanup completed with errors:`,
+            cleanupResult.message
+          );
+          if (cleanupResult.errors && cleanupResult.errors.length > 0) {
+            cleanupResult.errors.forEach((error) =>
+              console.warn(`   - Error: ${error}`)
+            );
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Order status updated successfully",
+      orderId,
+      previousStatus,
+      newStatus: status,
+    });
   } catch (error) {
-    console.error("Failed to fetch order:", error);
+    console.error(`Order update error for order ${orderId}:`, error);
     return NextResponse.json(
-      { error: "Failed to fetch order" },
+      {
+        error: "Failed to update order status",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }

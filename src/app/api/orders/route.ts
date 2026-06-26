@@ -4,11 +4,8 @@ import { orderService } from "@/lib/order";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { validateFile } from "@/lib/file-upload";
 import { OrderStatus } from "@/models/order";
-
-// In-memory rate limiting per IP
-const orderAttempts = new Map(); // key: IP, value: { count, firstAttempt }
-const MAX_ORDERS = 3;
-const WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+import { states } from "@/data/states";
+import { rateLimiter, RATE_LIMIT_CONFIGS } from "@/lib/rate-limiter";
 
 function getClientIp(req: NextRequest) {
   return (
@@ -18,36 +15,125 @@ function getClientIp(req: NextRequest) {
   );
 }
 
-export async function POST(req: NextRequest) {
-  // Rate limiting logic
-  const ip = getClientIp(req);
-  const now = Date.now();
-  let entry = orderAttempts.get(ip);
-  if (!entry || now - entry.firstAttempt > WINDOW_MS) {
-    entry = { count: 0, firstAttempt: now };
+// Rate limiting helper functions using shared utility
+async function checkSessionRateLimit(
+  sessionId: string
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  try {
+    return await rateLimiter.checkRateLimit(
+      sessionId,
+      RATE_LIMIT_CONFIGS.ORDERS_SESSION
+    );
+  } catch (error) {
+    console.warn("Session rate limit check failed, allowing request:", error);
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.ORDERS_SESSION.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.ORDERS_SESSION.windowMs,
+    };
   }
-  entry.count++;
-  orderAttempts.set(ip, entry);
-  if (entry.count > MAX_ORDERS) {
-    return NextResponse.json(
-      { error: "Too many orders submitted. Please try again later." },
+}
+
+async function checkIpRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  try {
+    return await rateLimiter.checkRateLimit(ip, RATE_LIMIT_CONFIGS.ORDERS_IP);
+  } catch (error) {
+    console.warn("IP rate limit check failed, allowing request:", error);
+    // Fallback: allow request with default values
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_CONFIGS.ORDERS_IP.maxAttempts,
+      resetTime: Date.now() + RATE_LIMIT_CONFIGS.ORDERS_IP.windowMs,
+    };
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const sessionId = formData.get("sessionId") as string;
+  const ip = getClientIp(req);
+
+  // Per-session rate limiting
+  if (sessionId) {
+    const sessionRateLimit = await checkSessionRateLimit(sessionId);
+    if (!sessionRateLimit.allowed) {
+      const now = Date.now();
+      const remainingMs = sessionRateLimit.resetTime - now;
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+      // Create response with proper headers
+      const response = NextResponse.json(
+        {
+          error:
+            "Too many orders submitted from this session. Please try again later.",
+          remainingTime: remainingMinutes,
+          remainingSeconds: remainingSeconds,
+          resetTime: new Date(sessionRateLimit.resetTime).toISOString(),
+        },
+        { status: 429 }
+      );
+
+      // Add Retry-After header with remaining time in seconds (HTTP standard)
+      response.headers.set("Retry-After", remainingSeconds.toString());
+
+      return response;
+    }
+  }
+
+  // Per-IP rate limiting (much higher limit)
+  const ipRateLimit = await checkIpRateLimit(ip);
+  if (!ipRateLimit.allowed) {
+    const now = Date.now();
+    const remainingMs = ipRateLimit.resetTime - now;
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+
+    // Create response with proper headers
+    const response = NextResponse.json(
+      {
+        error:
+          "Too many orders submitted from this network. Please try again later.",
+        remainingTime: remainingMinutes,
+        remainingSeconds: remainingSeconds,
+        resetTime: new Date(ipRateLimit.resetTime).toISOString(),
+      },
       { status: 429 }
     );
+
+    // Add Retry-After header with remaining time in seconds (HTTP standard)
+    response.headers.set("Retry-After", remainingSeconds.toString());
+
+    return response;
   }
 
   try {
-    const formData = await req.formData();
     const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
     const address = formData.get("address") as string;
+    const state = formData.get("state") as string;
     const message = formData.get("message") as string;
     const items = JSON.parse(formData.get("items") as string);
     const total = parseFloat(formData.get("total") as string);
+    const email = (formData.get("email") as string)?.toLowerCase();
 
-    if (!name || !email || !items || !total) {
+    if (!name || !phone || !items || !total) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Validate state field
+    if (!state || !states.includes(state)) {
+      return NextResponse.json(
+        {
+          error: "Invalid state. Please provide a valid Nigerian state.",
+          validStates: states,
+        },
         { status: 400 }
       );
     }
@@ -105,18 +191,55 @@ export async function POST(req: NextRequest) {
     }
 
     const order = await orderService.createOrder({
-      customerInfo: { name, email, phone, address },
+      customerInfo: { name, email, phone, address, state },
       items,
       total,
       message,
+      sessionId, // Include sessionId for checkout session cleanup
     });
 
     if (receiptUrl) {
       await orderService.uploadPaymentReceipt(order.orderId, receiptUrl);
     }
 
-    // Email confirmation is no longer sent here. This responsibility has been moved to the admin UI.
-    // See: src/app/admin/orders/page.tsx at line 436, where sendEmail(order.orderId) is called from the client side.
+    // Validate email before sending confirmation
+    const isValidEmail = (email: string): boolean => {
+      if (!email || typeof email !== "string" || email.trim() === "") {
+        return false;
+      }
+
+      // Basic email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email.trim());
+    };
+
+    // Send automatic order confirmation email
+    if (isValidEmail(email)) {
+      try {
+        const { sendOrderConfirmationEmail } = await import("@/lib/email");
+        await sendOrderConfirmationEmail(
+          email,
+          name,
+          order.orderId,
+          items,
+          total
+        );
+        console.log(
+          `✅ Order confirmation email sent for order ${order.orderId}`
+        );
+      } catch (emailError) {
+        console.error(
+          `❌ Failed to send order confirmation email for order ${order.orderId}:`,
+          emailError
+        );
+        // Don't fail the order creation if email fails
+      }
+    } else {
+      console.warn(
+        `⚠️ Skipping order confirmation email for order ${order.orderId}: Invalid or missing email address (${email})`
+      );
+    }
+
     return NextResponse.json({ success: true, orderId: order.orderId });
   } catch (error) {
     console.error("Order submission failed:", error);

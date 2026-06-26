@@ -16,6 +16,10 @@ import { useAppDispatch } from "@/redux/hooks";
 import { clearCartForOrder } from "@/redux/slices/cartSlice"; // Import the new action
 import Link from "next/link";
 import { toast } from "sonner";
+import { OrderStatusChecker } from "@/lib/order-status-checker";
+
+import { PaymentCleanup } from "@/lib/payment-cleanup";
+import { CACHE_KEYS } from "@/lib/cache-constants";
 
 // Order status type from your existing models
 type OrderStatus =
@@ -34,6 +38,7 @@ interface OrderData {
     email: string;
     phone: string;
     address: string;
+    state: string;
   };
   items: Array<{
     productId: string;
@@ -123,6 +128,8 @@ const OrderSuccess = () => {
 
         setError(null);
 
+        console.log(`🔍 Fetching order status for: ${orderId}`);
+
         // Using your existing API endpoint
         const response = await fetch(`/api/orders/${orderId}`, {
           method: "GET",
@@ -131,21 +138,38 @@ const OrderSuccess = () => {
           },
         });
 
-        const data = await response.json();
+        console.log(`📡 Response status: ${response.status}`);
 
-        if (response.ok && data.order) {
+        const data = await response.json();
+        console.log(`📦 Response data:`, data);
+
+        if (response.ok && data) {
           const previousStatus = orderData?.status;
-          setOrderData(data.order);
+          const newStatus = data.status;
+          setOrderData(data);
 
           // Show toast notification if status changed during refresh
           if (
             showRefreshIndicator &&
             previousStatus &&
-            data.order.status !== previousStatus
+            newStatus !== previousStatus
           ) {
-            const newStatusConfig =
-              statusConfig[data.order.status as OrderStatus];
+            const newStatusConfig = statusConfig[newStatus as OrderStatus];
             toast.success(`Order status updated: ${newStatusConfig.label}`);
+          }
+
+          // Payment confirmed - trigger stock updates and cleanup
+          if (data.status === "payment_confirmed") {
+            console.log("💰 Payment confirmed - triggering stock updates...");
+
+            // Remove client-side stock update logic to prevent security vulnerabilities
+            // Stock updates are now handled server-side in the order status update API
+            // when payment is confirmed
+
+            // Only trigger localStorage update to notify other tabs
+            const timestamp = Date.now().toString();
+            localStorage.setItem(CACHE_KEYS.STOCK_UPDATE, timestamp);
+            console.log(`✅ Stock update localStorage triggered: ${timestamp}`);
           }
         } else {
           setError(data.error || "Order not found");
@@ -190,6 +214,18 @@ const OrderSuccess = () => {
     // Use the new clearCartForOrder action that prevents duplicate toasts
     dispatch(clearCartForOrder(orderId));
     fetchOrderStatus();
+
+    // Clear session once when user lands on order success page
+    // This removes any lingering reservation data from checkout
+    PaymentCleanup.clearSessionOnly();
+
+    // Start monitoring order for payment confirmation
+    OrderStatusChecker.startMonitoring(orderId);
+
+    // Cleanup monitoring when component unmounts
+    return () => {
+      OrderStatusChecker.stopMonitoring(orderId);
+    };
   }, [orderId, router, dispatch, fetchOrderStatus]);
 
   // Start auto-refresh when orderData changes
@@ -349,11 +385,19 @@ const OrderSuccess = () => {
                 <P className="font-medium">{orderData.customerInfo.name}</P>
               </div>
               <div>
-                <P className="text-gray-600">Total</P>
-                <P className="font-medium">
-                  ₦{orderData.total.toLocaleString()}
-                </P>
+                <P className="text-gray-600">Delivery State</P>
+                <P className="font-medium">{orderData.customerInfo.state}</P>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <P className="text-gray-600">Total Amount</P>
+              <P className="font-medium text-lg">
+                ₦{orderData.total.toLocaleString()}
+              </P>
+              <P className="text-xs text-gray-500 mt-1">
+                Includes delivery fee for {orderData.customerInfo.state}
+              </P>
             </div>
 
             <div className="mt-4">

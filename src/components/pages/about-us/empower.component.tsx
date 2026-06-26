@@ -4,7 +4,7 @@ const Empowering = () => {
       <div className="w-full flex flex-col lg:flex-row  items-center justify-between h-full relative px-[2em]">
         <div className="lg:w-[60%] h-full">
           <h1 className=" text-[40px] font-moon font-bold">
-            Empowering Style,
+            EMPOWERING STYLE,
             <span className=" text-gray-500">
               {" "}
               Inspiring <br className="hidden lg:block" />

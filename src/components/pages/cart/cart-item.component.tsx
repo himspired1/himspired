@@ -7,12 +7,15 @@ import { motion, useAnimation } from "framer-motion";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { SanityImageComponent } from "@/components/sanity/image";
 import { useDispatch } from "react-redux";
+import { AppDispatch } from "@/redux/store";
 import {
-  decrementQuantity,
-  incrementQuantity,
-  removeItem,
+  removeItemAndReleaseReservation,
+  decrementQuantityAndReleaseReservation,
+  incrementQuantityAndUpdateReservation,
 } from "@/redux/slices/cartSlice";
 import { ChevronLeft } from "lucide-react";
+import { useAppSelector } from "@/redux/hooks";
+import { useStockUpdates } from "@/hooks/useStockUpdates";
 
 interface CartItemProps {
   title: string;
@@ -29,6 +32,8 @@ interface CartIncrementorProps {
   no_of_item: number;
 }
 
+// Removed window-based interface as we're using custom events now
+
 const CartItem: FC<CartItemProps> = ({
   title,
   category,
@@ -41,8 +46,12 @@ const CartItem: FC<CartItemProps> = ({
   const controls = useAnimation();
   const [, setIsDragging] = useState(false);
   const [, setShowDelete] = useState(false);
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const isMobile = useIsMobile();
+  const { triggerStockUpdate } = useStockUpdates();
+  const cartItem = useAppSelector((state) =>
+    state.persistedReducer.cart.items.find((item) => item._id === id)
+  );
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
     if (info.offset.x < -100) {
@@ -55,7 +64,14 @@ const CartItem: FC<CartItemProps> = ({
   };
 
   const handleRemove = () => {
-    dispatch(removeItem(id));
+    dispatch(
+      removeItemAndReleaseReservation({
+        id,
+        onReservationReleased: (productId) => {
+          triggerStockUpdate(productId, "remove");
+        },
+      })
+    );
   };
 
   return (
@@ -141,6 +157,16 @@ const CartItem: FC<CartItemProps> = ({
                 <CartIncrementor id={id} no_of_item={no_of_item} />
               </div>
 
+              {/* Stock information */}
+              {cartItem && (
+                <P
+                  fontFamily={"activo"}
+                  className="text-xs text-[#1E1E1E99] uppercase m-0"
+                >
+                  Stock: {cartItem.quantity}/{cartItem.stock} available
+                </P>
+              )}
+
               {/* Alternative text remove button for desktop (if you prefer this style) */}
               <div className="md:hidden mt-4 flex items-center justify-end ">
                 <span className="text-red-500">
@@ -165,13 +191,40 @@ const CartItem: FC<CartItemProps> = ({
 export default CartItem;
 
 const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
+  const { triggerStockUpdate } = useStockUpdates();
+  const cartItem = useAppSelector((state) =>
+    state.persistedReducer.cart.items.find((item) => item._id === id)
+  );
+
+  const handleIncrement = async () => {
+    if (!cartItem) return;
+
+    dispatch(
+      incrementQuantityAndUpdateReservation({
+        id,
+        onReservationReleased: (productId) => {
+          triggerStockUpdate(productId, "increment");
+        },
+      })
+    );
+  };
+
+  const handleDecrement = () => {
+    dispatch(
+      decrementQuantityAndReleaseReservation({
+        id,
+        onReservationReleased: (productId) => {
+          triggerStockUpdate(productId, "decrement");
+        },
+      })
+    );
+  };
+
   return (
     <div className="w-auto flex items-center justify-between gap-3">
       <div
-        onClick={() => {
-          dispatch(decrementQuantity(id));
-        }}
+        onClick={handleDecrement}
         className="w-7 h-7 rounded-full bg-[#F4F4F4] hover:bg-[#E0E0E0] transition-colors flex items-center justify-center cursor-pointer"
       >
         <Minus color="#000" cursor={"pointer"} size={14} />
@@ -180,9 +233,7 @@ const CartIncrementor = ({ id, no_of_item }: CartIncrementorProps) => {
         {no_of_item}
       </P>
       <div
-        onClick={() => {
-          dispatch(incrementQuantity(id));
-        }}
+        onClick={handleIncrement}
         className="w-7 h-7 rounded-full bg-[#F4F4F4] hover:bg-[#E0E0E0] transition-colors flex items-center justify-center cursor-pointer"
       >
         <Plus color="#000" cursor={"pointer"} size={14} />
